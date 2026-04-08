@@ -5,8 +5,7 @@
 ## Goal
 
 Create a publishable external native OpenClaw plugin in
-`/Users/openclaw/Github/nanogpt-provider-openclaw` that registers a `nanogpt`
-provider with:
+`nanogpt-provider-openclaw` that registers a `nanogpt` provider with:
 
 - API-key auth via `NANOGPT_API_KEY`
 - OpenAI-compatible transport

@@ -13,7 +13,7 @@ import {
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 
-let subscriptionCache: { active: boolean; expiresAt: number } | null = null;
+const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
 
 export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
   if (!config || typeof config !== "object") {
@@ -47,8 +47,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {
   const now = Date.now();
-  if (subscriptionCache && subscriptionCache.expiresAt > now) {
-    return subscriptionCache.active;
+  const cached = subscriptionCache.get(apiKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.active;
   }
 
   const response = await fetch(`${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`, {
@@ -64,7 +65,7 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
 
   const payload = (await response.json()) as { subscribed?: boolean; active?: boolean };
   const active = Boolean(payload.subscribed ?? payload.active);
-  subscriptionCache = { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS };
+  subscriptionCache.set(apiKey, { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS });
   return active;
 }
 
@@ -164,5 +165,5 @@ export function buildNanoGptRequestHeaders(params: {
 }
 
 export function resetNanoGptRuntimeState(): void {
-  subscriptionCache = null;
+  subscriptionCache.clear();
 }

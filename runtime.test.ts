@@ -43,6 +43,41 @@ describe("resolveNanoGptRoutingMode", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("caches subscription status per api key", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ subscribed: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ subscribed: false }),
+      });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "key-a",
+      }),
+    ).resolves.toBe("subscription");
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "key-a",
+      }),
+    ).resolves.toBe("subscription");
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "key-b",
+      }),
+    ).resolves.toBe("paygo");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("resolveCatalogSource", () => {
