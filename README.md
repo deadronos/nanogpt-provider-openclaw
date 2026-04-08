@@ -1,5 +1,7 @@
 # NanoGPT Provider for OpenClaw
 
+Unofficial NanoGPT provider plugin for OpenClaw with API-key auth, dynamic model discovery, and automatic subscription or pay-as-you-go routing.
+
 NanoGPT provider plugin for OpenClaw with API-key auth, dynamic model discovery,
 and automatic subscription or pay-as-you-go routing.
 
