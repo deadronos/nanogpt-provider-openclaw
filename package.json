@@ -3,6 +3,21 @@
   "version": "0.1.0",
   "description": "OpenClaw NanoGPT provider plugin",
   "type": "module",
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "provider",
+    "nanogpt",
+    "llm"
+  ],
+  "homepage": "https://github.com/deadronos/nanogpt-provider-openclaw#readme",
+  "bugs": {
+    "url": "https://github.com/deadronos/nanogpt-provider-openclaw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deadronos/nanogpt-provider-openclaw.git"
+  },
   "license": "MIT",
   "files": [
     "index.ts",
@@ -12,7 +27,8 @@
     "provider-catalog.ts",
     "onboard.ts",
     "openclaw.plugin.json",
-    "README.md"
+    "README.md",
+    "LICENSE.md"
   ],
   "scripts": {
     "test": "vitest run",
@@ -27,6 +43,9 @@
     "openclaw": "^2026.4.5",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "openclaw": {
     "extensions": [
