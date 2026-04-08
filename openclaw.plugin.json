@@ -1,0 +1,55 @@
+{
+  "id": "nanogpt",
+  "name": "NanoGPT",
+  "description": "NanoGPT provider plugin for OpenClaw",
+  "providers": ["nanogpt"],
+  "providerAuthEnvVars": {
+    "nanogpt": ["NANOGPT_API_KEY"]
+  },
+  "providerAuthChoices": [
+    {
+      "provider": "nanogpt",
+      "method": "api-key",
+      "choiceId": "nanogpt-api-key",
+      "choiceLabel": "NanoGPT API key",
+      "groupId": "nanogpt",
+      "groupLabel": "NanoGPT",
+      "groupHint": "Subscription or pay-as-you-go",
+      "optionKey": "nanogptApiKey",
+      "cliFlag": "--nanogpt-api-key",
+      "cliOption": "--nanogpt-api-key <key>",
+      "cliDescription": "NanoGPT API key"
+    }
+  ],
+  "uiHints": {
+    "routingMode": {
+      "label": "Routing Mode",
+      "help": "Choose auto, subscription, or paygo routing."
+    },
+    "catalogSource": {
+      "label": "Catalog Source",
+      "help": "Choose how NanoGPT model discovery should work."
+    },
+    "provider": {
+      "label": "Provider Override",
+      "help": "Optional NanoGPT upstream provider id for paygo provider selection."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "routingMode": {
+        "type": "string",
+        "enum": ["auto", "subscription", "paygo"]
+      },
+      "catalogSource": {
+        "type": "string",
+        "enum": ["auto", "canonical", "subscription", "paid", "personalized"]
+      },
+      "provider": {
+        "type": "string"
+      }
+    }
+  }
+}
