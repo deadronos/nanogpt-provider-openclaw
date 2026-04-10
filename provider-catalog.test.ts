@@ -69,6 +69,7 @@ describe("buildNanoGptProvider", () => {
       pluginConfig: { routingMode: "auto", catalogSource: "auto" },
     });
 
+    expect(provider.api).toBe("openai-responses");
     expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
     expect(provider.models[0]?.id).toBe("gpt-5.4-mini");
     expect(provider.models[0]).toMatchObject({

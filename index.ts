@@ -12,27 +12,10 @@ import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 
-const NANOGPT_API_HOST = "nano-gpt.com";
-
-function isNanoGptApiBaseUrl(baseUrl: string | undefined): boolean {
-  if (!baseUrl) {
-    return false;
-  }
-  try {
-    const parsed = new URL(baseUrl);
-    return parsed.hostname === NANOGPT_API_HOST && parsed.pathname.startsWith("/api/");
-  } catch {
-    return false;
-  }
-}
-
 function applyNanoGptNativeStreamingUsageCompat(
   providerConfig: ModelProviderConfig,
 ): ModelProviderConfig | null {
   if (providerConfig.api !== "openai-completions") {
-    return null;
-  }
-  if (!isNanoGptApiBaseUrl(providerConfig.baseUrl)) {
     return null;
   }
   if (!Array.isArray(providerConfig.models) || providerConfig.models.length === 0) {

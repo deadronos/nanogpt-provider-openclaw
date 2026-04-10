@@ -109,19 +109,21 @@ describe("nanogpt plugin entry", () => {
     expect(result?.models[1]?.compat?.supportsUsageInStreaming).toBe(true);
   });
 
-  it("does not opt in non-NanoGPT or non-completions configs", () => {
+  it("opts in any completions config and skips non-completions APIs", () => {
     const provider = getRegisteredProvider();
     const applyCompat = provider.applyNativeStreamingUsageCompat;
     expect(applyCompat).toEqual(expect.any(Function));
 
-    const nonNanoResult = applyCompat?.({
+    const completionsResult = applyCompat?.({
       providerConfig: {
         api: "openai-completions",
         baseUrl: "https://example.com/v1",
         models: [{ id: "x" }],
       },
     });
-    expect(nonNanoResult).toBeNull();
+    expect(completionsResult).toMatchObject({
+      models: [{ compat: { supportsUsageInStreaming: true } }],
+    });
 
     const responsesApiResult = applyCompat?.({
       providerConfig: {

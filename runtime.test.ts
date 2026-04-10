@@ -6,6 +6,7 @@ import {
   getNanoGptConfig,
   resetNanoGptRuntimeState,
   resolveCatalogSource,
+  resolveNanoGptRequestApi,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
@@ -30,6 +31,17 @@ describe("getNanoGptConfig", () => {
       requestApi: "responses",
       provider: "openrouter",
     });
+  });
+});
+
+describe("resolveNanoGptRequestApi", () => {
+  it("defaults auto/undefined requestApi to OpenAI Responses transport", () => {
+    expect(resolveNanoGptRequestApi({})).toBe("openai-responses");
+    expect(resolveNanoGptRequestApi({ requestApi: "auto" })).toBe("openai-responses");
+  });
+
+  it("keeps explicit completions requestApi", () => {
+    expect(resolveNanoGptRequestApi({ requestApi: "completions" })).toBe("openai-completions");
   });
 });
 
