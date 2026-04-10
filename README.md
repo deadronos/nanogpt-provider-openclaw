@@ -27,7 +27,7 @@ Not implemented today:
 ## Install from npm
 
 ```bash
-openclaw plugins install @deadronos/openclaw-nanogpt-provider
+openclaw plugins install @deadronos/nanogpt-provider-openclaw
 ```
 
 ## Install locally without publishing
