@@ -107,4 +107,61 @@ describe("buildNanoGptProvider", () => {
       "X-Provider": "openrouter",
     });
   });
+
+  it("surfaces provider-specific model pricing when an upstream provider is configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "moonshotai/kimi-k2.5",
+                displayName: "Kimi K2.5",
+                pricing: {
+                  prompt: 1.5,
+                  completion: 4.5,
+                  unit: "per_million_tokens",
+                },
+              },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            canonicalId: "moonshotai/kimi-k2.5",
+            supportsProviderSelection: true,
+            providers: [
+              {
+                provider: "openrouter",
+                available: true,
+                pricing: {
+                  inputPer1kTokens: 0.00042,
+                  outputPer1kTokens: 0.0018375,
+                  unit: "per_1k_tokens",
+                },
+              },
+            ],
+          }),
+        }),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "paygo",
+        catalogSource: "canonical",
+        provider: "openrouter",
+      },
+    });
+
+    expect(provider.models[0]?.id).toBe("moonshotai/kimi-k2.5");
+    expect(provider.models[0]?.cost.input).toBeCloseTo(0.42, 10);
+    expect(provider.models[0]?.cost.output).toBeCloseTo(1.8375, 10);
+    expect(provider.models[0]?.cost.cacheRead).toBe(0);
+    expect(provider.models[0]?.cost.cacheWrite).toBe(0);
+  });
 });

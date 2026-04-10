@@ -41,8 +41,15 @@ function inferFileExtensionFromMimeType(mimeType: string): string {
   return "png";
 }
 
-function toDataUrl(buffer: Buffer, mimeType: string): string {
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+function toDataUrl(buffer: Uint8Array, mimeType: string): string {
+  if (typeof Buffer !== "undefined") {
+    return `data:${mimeType};base64,${Buffer.from(buffer).toString("base64")}`;
+  }
+  let binary = "";
+  for (let i = 0; i < buffer.byteLength; i++) {
+    binary += String.fromCharCode(buffer[i]);
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
 }
 
 function normalizeImageModelName(model: string): string {

@@ -1,12 +1,17 @@
 {
-  "id": "deadronos/nanogpt-provider-openclaw",
+  "id": "nanogpt",
   "name": "NanoGPT",
   "description": "NanoGPT provider plugin for OpenClaw",
-  "providers": ["nanogpt"],
-  "imageGenerationProviders": ["nanogpt"],
-  "webSearchProviders": ["nanogpt"],
+  "providers": [
+    "nanogpt"
+  ],
+  "webSearchProviders": [
+    "nanogpt"
+  ],
   "providerAuthEnvVars": {
-    "nanogpt": ["NANOGPT_API_KEY"]
+    "nanogpt": [
+      "NANOGPT_API_KEY"
+    ]
   },
   "providerAuthChoices": [
     {
@@ -47,19 +52,46 @@
     "properties": {
       "routingMode": {
         "type": "string",
-        "enum": ["auto", "subscription", "paygo"]
+        "enum": [
+          "auto",
+          "subscription",
+          "paygo"
+        ]
       },
       "catalogSource": {
         "type": "string",
-        "enum": ["auto", "canonical", "subscription", "paid", "personalized"]
+        "enum": [
+          "auto",
+          "canonical",
+          "subscription",
+          "paid",
+          "personalized"
+        ]
       },
       "requestApi": {
         "type": "string",
-        "enum": ["auto", "completions", "responses"]
+        "enum": [
+          "auto",
+          "completions",
+          "responses"
+        ]
       },
       "provider": {
         "type": "string"
+      },
+      "webSearch": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          }
+        }
       }
     }
+  },
+  "contracts": {
+    "imageGenerationProviders": [
+      "nanogpt"
+    ]
   }
 }

@@ -243,4 +243,145 @@ describe("discoverNanoGptModels", () => {
       },
     });
   });
+
+  it("overrides catalog pricing with the selected provider pricing when available", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          canonicalId: "moonshotai/kimi-k2.5",
+          supportsProviderSelection: true,
+          providers: [
+            {
+              provider: "openrouter",
+              available: true,
+              pricing: {
+                inputPer1kTokens: 0.00042,
+                outputPer1kTokens: 0.0018375,
+                unit: "per_1k_tokens",
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const models = await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+      provider: "openrouter",
+    });
+
+    expect(models).toHaveLength(1);
+    expect(models[0]?.id).toBe("moonshotai/kimi-k2.5");
+    expect(models[0]?.cost.input).toBeCloseTo(0.42, 10);
+    expect(models[0]?.cost.output).toBeCloseTo(1.8375, 10);
+    expect(models[0]?.cost.cacheRead).toBe(0);
+    expect(models[0]?.cost.cacheWrite).toBe(0);
+
+    expect(String(fetchSpy.mock.calls[1]?.[0])).toBe(
+      "https://nano-gpt.com/api/models/moonshotai%2Fkimi-k2.5/providers",
+    );
+  });
+
+  it("keeps default catalog pricing when selected-provider pricing is unavailable", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          canonicalId: "moonshotai/kimi-k2.5",
+          supportsProviderSelection: true,
+          providers: [
+            {
+              provider: "other-provider",
+              available: true,
+              pricing: {
+                inputPer1kTokens: 0.00042,
+                outputPer1kTokens: 0.0018375,
+                unit: "per_1k_tokens",
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+        provider: "openrouter",
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: "moonshotai/kimi-k2.5",
+        cost: {
+          input: 1.5,
+          output: 4.5,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      },
+    ]);
+  });
+});
+
+describe("resetNanoGptRuntimeState", () => {
+  it("clears the subscription cache", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ subscribed: true }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await resolveNanoGptRoutingMode({
+      config: { routingMode: "auto" },
+      apiKey: "test-clearing",
+    });
+    
+    resetNanoGptRuntimeState();
+    
+    await resolveNanoGptRoutingMode({
+      config: { routingMode: "auto" },
+      apiKey: "test-clearing",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
