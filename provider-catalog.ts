@@ -8,6 +8,7 @@ import {
   discoverNanoGptModels,
   getNanoGptConfig,
   resolveCatalogSource,
+  resolveNanoGptRequestApi,
   resolveNanoGptRoutingMode,
   resolveRequestBaseUrl,
 } from "./runtime.js";
@@ -32,7 +33,7 @@ export async function buildNanoGptProvider(params: {
 
   return {
     baseUrl: resolveRequestBaseUrl(routingMode),
-    api: "openai-completions",
+    api: resolveNanoGptRequestApi(config),
     apiKey: params.apiKey,
     headers: buildNanoGptRequestHeaders({
       apiKey: params.apiKey,

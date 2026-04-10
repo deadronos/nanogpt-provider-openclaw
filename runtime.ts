@@ -41,8 +41,20 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
       candidate.catalogSource === "personalized"
         ? candidate.catalogSource
         : undefined,
+    requestApi:
+      candidate.requestApi === "auto" ||
+      candidate.requestApi === "completions" ||
+      candidate.requestApi === "responses"
+        ? candidate.requestApi
+        : undefined,
     ...(provider ? { provider } : {}),
   };
+}
+
+export function resolveNanoGptRequestApi(
+  config: NanoGptPluginConfig,
+): "openai-completions" | "openai-responses" {
+  return config.requestApi === "responses" ? "openai-responses" : "openai-completions";
 }
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {

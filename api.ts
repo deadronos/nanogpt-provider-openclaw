@@ -11,10 +11,13 @@ export {
 } from "./models.js";
 export { applyNanoGptConfig, applyNanoGptProviderConfig } from "./onboard.js";
 export { buildNanoGptProvider } from "./provider-catalog.js";
+export { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
+export { createNanoGptWebSearchProvider } from "./web-search.js";
 export {
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
   getNanoGptConfig,
+  resolveNanoGptRequestApi,
   probeNanoGptSubscription,
   resetNanoGptRuntimeState,
   resolveCatalogBaseUrl,

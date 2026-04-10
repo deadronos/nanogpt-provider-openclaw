@@ -8,4 +8,39 @@ describe("nanogpt plugin entry", () => {
     expect(plugin.description).toContain("NanoGPT");
     expect(typeof plugin.register).toBe("function");
   });
+
+  it("registers both the model provider and the web search provider", () => {
+    const providers: unknown[] = [];
+    const webSearchProviders: unknown[] = [];
+    const imageProviders: unknown[] = [];
+
+    plugin.register({
+      pluginConfig: {},
+      registerProvider(provider: unknown) {
+        providers.push(provider);
+      },
+      registerWebSearchProvider(provider: unknown) {
+        webSearchProviders.push(provider);
+      },
+      registerImageGenerationProvider(provider: unknown) {
+        imageProviders.push(provider);
+      },
+    } as never);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({
+      id: "nanogpt",
+      label: "NanoGPT",
+    });
+    expect(webSearchProviders).toHaveLength(1);
+    expect(webSearchProviders[0]).toMatchObject({
+      id: "nanogpt",
+      label: "NanoGPT Search",
+    });
+    expect(imageProviders).toHaveLength(1);
+    expect(imageProviders[0]).toMatchObject({
+      id: "nanogpt",
+      label: "NanoGPT",
+    });
+  });
 });

@@ -25,6 +25,8 @@
     "models.ts",
     "runtime.ts",
     "provider-catalog.ts",
+    "image-generation-provider.ts",
+    "web-search.ts",
     "onboard.ts",
     "openclaw.plugin.json",
     "README.md",

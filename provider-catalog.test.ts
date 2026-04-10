@@ -9,6 +9,28 @@ afterEach(() => {
 });
 
 describe("buildNanoGptProvider", () => {
+  it("returns the responses transport when configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+      })),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "paygo",
+        catalogSource: "canonical",
+        requestApi: "responses",
+      },
+    });
+
+    expect(provider.api).toBe("openai-responses");
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
+  });
+
   it("uses the subscription base URL when auto resolves to subscription", async () => {
     vi.stubGlobal(
       "fetch",

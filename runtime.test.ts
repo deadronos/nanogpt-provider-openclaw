@@ -19,11 +19,13 @@ describe("getNanoGptConfig", () => {
       getNanoGptConfig({
         routingMode: "subscription",
         catalogSource: "personalized",
+        requestApi: "responses",
         provider: " openrouter ",
       }),
     ).toEqual({
       routingMode: "subscription",
       catalogSource: "personalized",
+      requestApi: "responses",
       provider: "openrouter",
     });
   });
