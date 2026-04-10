@@ -35,10 +35,11 @@ openclaw plugins install @deadronos/nanogpt-provider-openclaw
 
 Install directly from the repo checkout:
 
+```bash
 cd ~/Github
 git clone @deadronos/nanogpt-provider-openclaw
 
-```bash
+
 openclaw plugins install ~/Github/nanogpt-provider-openclaw
 ```
 
