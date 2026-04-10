@@ -244,3 +244,27 @@ describe("discoverNanoGptModels", () => {
     });
   });
 });
+
+describe("resetNanoGptRuntimeState", () => {
+  it("clears the subscription cache", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ subscribed: true }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await resolveNanoGptRoutingMode({
+      config: { routingMode: "auto" },
+      apiKey: "test-clearing",
+    });
+    
+    resetNanoGptRuntimeState();
+    
+    await resolveNanoGptRoutingMode({
+      config: { routingMode: "auto" },
+      apiKey: "test-clearing",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});

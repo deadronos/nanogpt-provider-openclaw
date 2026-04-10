@@ -130,8 +130,10 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
     autoDetectOrder: 60,
     credentialPath: "plugins.entries.nanogpt.config.webSearch.apiKey",
     inactiveSecretPaths: ["plugins.entries.nanogpt.config.webSearch.apiKey"],
-    getCredentialValue: (searchConfig) =>
-      typeof searchConfig?.apiKey === "string" ? searchConfig.apiKey : undefined,
+    getCredentialValue: (searchConfig: unknown) => {
+      const cfg = searchConfig as Record<string, unknown> | undefined;
+      return typeof cfg?.apiKey === "string" ? cfg.apiKey : undefined;
+    },
     setCredentialValue: () => {},
     getConfiguredCredentialValue: (config) =>
       resolveProviderWebSearchPluginConfig(config, "nanogpt")?.apiKey,
@@ -206,3 +208,5 @@ export const __testing = {
   resolveNanoGptWebSearchApiKey,
   normalizeNanoGptWebSearchResult,
 };
+
+export type WebSearchTestingExports = typeof __testing;
