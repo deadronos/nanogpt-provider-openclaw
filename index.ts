@@ -10,6 +10,52 @@ import {
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
+import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
+
+const NANOGPT_API_HOST = "nano-gpt.com";
+
+function isNanoGptApiBaseUrl(baseUrl: string | undefined): boolean {
+  if (!baseUrl) {
+    return false;
+  }
+  try {
+    const parsed = new URL(baseUrl);
+    return parsed.hostname === NANOGPT_API_HOST && parsed.pathname.startsWith("/api/");
+  } catch {
+    return false;
+  }
+}
+
+function applyNanoGptNativeStreamingUsageCompat(
+  providerConfig: ModelProviderConfig,
+): ModelProviderConfig | null {
+  if (providerConfig.api !== "openai-completions") {
+    return null;
+  }
+  if (!isNanoGptApiBaseUrl(providerConfig.baseUrl)) {
+    return null;
+  }
+  if (!Array.isArray(providerConfig.models) || providerConfig.models.length === 0) {
+    return null;
+  }
+
+  let changed = false;
+  const models = providerConfig.models.map((model) => {
+    if (model.compat?.supportsUsageInStreaming === true) {
+      return model;
+    }
+    changed = true;
+    return {
+      ...model,
+      compat: {
+        ...model.compat,
+        supportsUsageInStreaming: true,
+      },
+    };
+  });
+
+  return changed ? { ...providerConfig, models } : null;
+}
 
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
@@ -61,6 +107,8 @@ export default definePluginEntry({
           };
         },
       },
+      applyNativeStreamingUsageCompat: ({ providerConfig }) =>
+        applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
     });
