@@ -64,11 +64,20 @@ Set:
 export NANOGPT_API_KEY=your_key_here
 ```
 
-Or onboard with:
+## New openclaw configs:
+Onboard with:
 
 ```bash
 openclaw onboard --nanogpt-api-key your_key_here
 ```
+## Add to existing config:
+
+```bash
+openclaw configure
+
+Select Models and "NanoGPT" as provider, it will prompt for API key, then autodiscover catalog and display available NanoGPT text models for selection.
+```
+
 
 This one key is used for:
 
@@ -189,6 +198,10 @@ Model-id note:
   NanoGPT's public surfaces.
 
 ## Limitations
+
+NanoGPT's documented usage endpoint reports quota windows, not true token
+usage. The plugin exposes those daily/monthly quota snapshots to OpenClaw, but
+it does not reconstruct token counts from them.
 
 The plugin currently does not maintain a local, authoritative counter for:
 

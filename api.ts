@@ -15,6 +15,7 @@ export { buildNanoGptImageGenerationProvider } from "./image-generation-provider
 export { createNanoGptWebSearchProvider } from "./web-search.js";
 export {
   buildNanoGptRequestHeaders,
+  fetchNanoGptUsageSnapshot,
   discoverNanoGptModels,
   getNanoGptConfig,
   resolveNanoGptRequestApi,
@@ -24,4 +25,5 @@ export {
   resolveCatalogSource,
   resolveNanoGptRoutingMode,
   resolveRequestBaseUrl,
+  resolveNanoGptUsageAuth,
 } from "./runtime.js";

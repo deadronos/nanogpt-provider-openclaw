@@ -4,6 +4,10 @@ import { buildNanoGptImageGenerationProvider } from "./image-generation-provider
 import { applyNanoGptConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
+import {
+  fetchNanoGptUsageSnapshot,
+  resolveNanoGptUsageAuth,
+} from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
 
@@ -57,6 +61,8 @@ export default definePluginEntry({
           };
         },
       },
+      resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
+      fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
     });
 
     api.registerWebSearchProvider(createNanoGptWebSearchProvider());

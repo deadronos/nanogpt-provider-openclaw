@@ -42,5 +42,11 @@ describe("nanogpt plugin entry", () => {
       id: "nanogpt",
       label: "NanoGPT",
     });
+    expect((providers[0] as { resolveUsageAuth?: unknown }).resolveUsageAuth).toEqual(
+      expect.any(Function),
+    );
+    expect((providers[0] as { fetchUsageSnapshot?: unknown }).fetchUsageSnapshot).toEqual(
+      expect.any(Function),
+    );
   });
 });
