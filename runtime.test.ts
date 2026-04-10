@@ -35,13 +35,13 @@ describe("getNanoGptConfig", () => {
 });
 
 describe("resolveNanoGptRequestApi", () => {
-  it("defaults auto/undefined requestApi to OpenAI Responses transport", () => {
-    expect(resolveNanoGptRequestApi({})).toBe("openai-responses");
-    expect(resolveNanoGptRequestApi({ requestApi: "auto" })).toBe("openai-responses");
+  it("defaults auto/undefined requestApi to OpenAI Completions transport", () => {
+    expect(resolveNanoGptRequestApi({})).toBe("openai-completions");
+    expect(resolveNanoGptRequestApi({ requestApi: "auto" })).toBe("openai-completions");
   });
 
-  it("keeps explicit completions requestApi", () => {
-    expect(resolveNanoGptRequestApi({ requestApi: "completions" })).toBe("openai-completions");
+  it("keeps explicit responses requestApi", () => {
+    expect(resolveNanoGptRequestApi({ requestApi: "responses" })).toBe("openai-responses");
   });
 });
 

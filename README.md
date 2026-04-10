@@ -129,9 +129,9 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
   `paygo` if the probe fails.
 - `catalogSource: "auto"` resolves to `subscription` when text requests are
   routed through subscription mode, otherwise `canonical`.
-- `requestApi: "responses"` uses OpenAI Responses transport.
+- `requestApi: "responses"` uses OpenAI Responses transport (experimental, requires models compatible with Responses API).
 - `requestApi: "completions"` keeps OpenAI Chat Completions transport.
-- `requestApi: "auto"` defaults to Responses for more reliable usage reporting.
+- `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
 - Completions-mode models are still marked with streaming usage compatibility so
   OpenClaw requests `stream_options.include_usage` automatically.
 - `provider` adds NanoGPT's `X-Provider` override header for text requests.

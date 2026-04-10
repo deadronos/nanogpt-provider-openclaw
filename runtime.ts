@@ -200,7 +200,7 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
 export function resolveNanoGptRequestApi(
   config: NanoGptPluginConfig,
 ): "openai-completions" | "openai-responses" {
-  return config.requestApi === "completions" ? "openai-completions" : "openai-responses";
+  return config.requestApi === "responses" ? "openai-responses" : "openai-completions";
 }
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {
