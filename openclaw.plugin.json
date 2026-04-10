@@ -1,5 +1,5 @@
 {
-  "id": "deadronos/nanogpt-provider-openclaw",
+  "id": "nanogpt",
   "name": "NanoGPT",
   "description": "NanoGPT provider plugin for OpenClaw",
   "providers": ["nanogpt"],
