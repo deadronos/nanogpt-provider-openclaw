@@ -1,5 +1,5 @@
 {
-  "name": "@deadronos/openclaw-nanogpt-provider",
+  "name": "@deadronos/nanogpt-provider-openclaw",
   "version": "0.1.0",
   "description": "OpenClaw NanoGPT provider plugin",
   "type": "module",
