@@ -120,7 +120,10 @@ export async function discoverNanoGptModels(params: {
   source: Exclude<NanoGptCatalogSource, "auto">;
 }) {
   try {
-    const response = await fetch(`${resolveCatalogBaseUrl(params.source)}/models`, {
+    const url = new URL(`${resolveCatalogBaseUrl(params.source)}/models`);
+    url.searchParams.set("detailed", "true");
+
+    const response = await fetch(url, {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${params.apiKey}`,

@@ -22,6 +22,24 @@ export interface NanoGptPluginConfig {
   provider?: string;
 }
 
+export interface NanoGptModelCapabilities {
+  reasoning?: boolean;
+  vision?: boolean;
+  tool_calling?: boolean;
+  parallel_tool_calls?: boolean;
+  structured_output?: boolean;
+  pdf_upload?: boolean;
+}
+
+export interface NanoGptModelPricing {
+  inputPer1kTokens?: number;
+  outputPer1kTokens?: number;
+  prompt?: number;
+  completion?: number;
+  currency?: string;
+  unit?: string;
+}
+
 export interface NanoGptModelEntry {
   id?: string;
   canonicalId?: string;
@@ -29,12 +47,12 @@ export interface NanoGptModelEntry {
   displayName?: string;
   reasoning?: boolean;
   vision?: boolean;
+  capabilities?: NanoGptModelCapabilities;
   contextWindow?: number;
+  context_length?: number;
   maxTokens?: number;
-  pricing?: {
-    inputPer1kTokens?: number;
-    outputPer1kTokens?: number;
-  };
+  max_output_tokens?: number;
+  pricing?: NanoGptModelPricing;
 }
 
 export const NANOGPT_DEFAULT_COST = {
@@ -74,11 +92,16 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
-function toPerMillion(value: number | undefined): number {
-  if (!Number.isFinite(value) || (value ?? 0) < 0) {
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function toPerMillion(value: number | undefined, unit?: string): number {
+  if (!isPositiveNumber(value)) {
     return 0;
   }
-  return (value ?? 0) * 1000;
+
+  return unit === "per_1k_tokens" ? value * 1000 : value;
 }
 
 export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefinitionConfig | null {
@@ -87,22 +110,27 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
     return null;
   }
 
+  const capabilities = entry.capabilities ?? {};
+  const pricing = entry.pricing ?? {};
+  const pricingUnit =
+    pricing.unit ?? (pricing.inputPer1kTokens !== undefined || pricing.outputPer1kTokens !== undefined ? "per_1k_tokens" : "per_million_tokens");
+  const hasVision = Boolean(capabilities.vision ?? entry.vision);
+  const hasReasoning = Boolean(capabilities.reasoning ?? entry.reasoning);
+  const contextWindow = entry.context_length ?? entry.contextWindow;
+  const maxTokens = entry.max_output_tokens ?? entry.maxTokens;
+
   return {
     id,
     name: String(entry.displayName ?? entry.name ?? id),
-    reasoning: Boolean(entry.reasoning),
-    input: entry.vision ? ["text", "image"] : ["text"],
+    reasoning: hasReasoning,
+    input: hasVision ? ["text", "image"] : ["text"],
     cost: {
-      input: toPerMillion(entry.pricing?.inputPer1kTokens),
-      output: toPerMillion(entry.pricing?.outputPer1kTokens),
+      input: toPerMillion(pricing.inputPer1kTokens ?? pricing.prompt, pricingUnit),
+      output: toPerMillion(pricing.outputPer1kTokens ?? pricing.completion, pricingUnit),
       cacheRead: 0,
       cacheWrite: 0,
     },
-    contextWindow:
-      typeof entry.contextWindow === "number" && entry.contextWindow > 0
-        ? entry.contextWindow
-        : 200000,
-    maxTokens:
-      typeof entry.maxTokens === "number" && entry.maxTokens > 0 ? entry.maxTokens : 32768,
+    contextWindow: isPositiveNumber(contextWindow) ? contextWindow : 200000,
+    maxTokens: isPositiveNumber(maxTokens) ? maxTokens : 32768,
   };
 }

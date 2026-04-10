@@ -16,18 +16,21 @@ describe("model constants", () => {
 });
 
 describe("buildNanoGptModelDefinition", () => {
-  it("maps vision and pricing metadata into an OpenClaw model definition", () => {
+  it("maps detailed capability and pricing metadata into an OpenClaw model definition", () => {
     expect(
       buildNanoGptModelDefinition({
         id: "gpt-5.4-mini",
         displayName: "GPT-5.4 Mini",
-        reasoning: true,
-        vision: true,
-        contextWindow: 1234,
-        maxTokens: 567,
+        capabilities: {
+          reasoning: true,
+          vision: true,
+        },
+        context_length: 1234,
+        max_output_tokens: 567,
         pricing: {
-          inputPer1kTokens: 0.1,
-          outputPer1kTokens: 0.2,
+          prompt: 2.5,
+          completion: 7.5,
+          unit: "per_million_tokens",
         },
       }),
     ).toMatchObject({
@@ -38,11 +41,23 @@ describe("buildNanoGptModelDefinition", () => {
       contextWindow: 1234,
       maxTokens: 567,
       cost: {
-        input: 100,
-        output: 200,
+        input: 2.5,
+        output: 7.5,
         cacheRead: 0,
         cacheWrite: 0,
       },
+    });
+  });
+
+  it("keeps backward compatibility with top-level vision metadata", () => {
+    expect(
+      buildNanoGptModelDefinition({
+        id: "legacy-vision-model",
+        vision: true,
+      }),
+    ).toMatchObject({
+      id: "legacy-vision-model",
+      input: ["text", "image"],
     });
   });
 });

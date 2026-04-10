@@ -21,7 +21,23 @@ describe("buildNanoGptProvider", () => {
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
-            data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini", reasoning: true }],
+            data: [
+              {
+                id: "gpt-5.4-mini",
+                displayName: "GPT-5.4 Mini",
+                capabilities: {
+                  reasoning: true,
+                  vision: true,
+                },
+                context_length: 200000,
+                max_output_tokens: 32768,
+                pricing: {
+                  prompt: 2.5,
+                  completion: 10,
+                  unit: "per_million_tokens",
+                },
+              },
+            ],
           }),
         }),
     );
@@ -33,6 +49,16 @@ describe("buildNanoGptProvider", () => {
 
     expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
     expect(provider.models[0]?.id).toBe("gpt-5.4-mini");
+    expect(provider.models[0]).toMatchObject({
+      input: ["text", "image"],
+      reasoning: true,
+      cost: {
+        input: 2.5,
+        output: 10,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+    });
   });
 
   it("adds provider override headers and paygo billing override for subscription routing", async () => {
