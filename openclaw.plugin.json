@@ -3,6 +3,8 @@
   "name": "NanoGPT",
   "description": "NanoGPT provider plugin for OpenClaw",
   "providers": ["nanogpt"],
+  "imageGenerationProviders": ["nanogpt"],
+  "webSearchProviders": ["nanogpt"],
   "providerAuthEnvVars": {
     "nanogpt": ["NANOGPT_API_KEY"]
   },
@@ -30,6 +32,10 @@
       "label": "Catalog Source",
       "help": "Choose how NanoGPT model discovery should work."
     },
+    "requestApi": {
+      "label": "Request API",
+      "help": "Choose OpenAI chat completions or OpenAI responses transport."
+    },
     "provider": {
       "label": "Provider Override",
       "help": "Optional NanoGPT upstream provider id for paygo provider selection."
@@ -46,6 +52,10 @@
       "catalogSource": {
         "type": "string",
         "enum": ["auto", "canonical", "subscription", "paid", "personalized"]
+      },
+      "requestApi": {
+        "type": "string",
+        "enum": ["auto", "completions", "responses"]
       },
       "provider": {
         "type": "string"

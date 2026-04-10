@@ -19,6 +19,7 @@ export type NanoGptCatalogSource =
 export interface NanoGptPluginConfig {
   routingMode?: NanoGptRoutingMode;
   catalogSource?: NanoGptCatalogSource;
+  requestApi?: "completions" | "responses" | "auto";
   provider?: string;
 }
 

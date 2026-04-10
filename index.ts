@@ -1,8 +1,10 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
+import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import { applyNanoGptConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
+import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
 
 export default definePluginEntry({
@@ -56,5 +58,8 @@ export default definePluginEntry({
         },
       },
     });
+
+    api.registerWebSearchProvider(createNanoGptWebSearchProvider());
+    api.registerImageGenerationProvider(buildNanoGptImageGenerationProvider());
   },
 });
