@@ -222,3 +222,8 @@ npm run typecheck
 npm pack --dry-run
 npm publish --access public
 ```
+
+
+## Token usage accounting
+
+![image](image_token_counting.png)
