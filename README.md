@@ -35,8 +35,11 @@ openclaw plugins install @deadronos/nanogpt-provider-openclaw
 
 Install directly from the repo checkout:
 
+cd ~/Github
+git clone @deadronos/nanogpt-provider-openclaw
+
 ```bash
-openclaw plugins install /Users/openclaw/Github/nanogpt-provider-openclaw
+openclaw plugins install ~/Github/nanogpt-provider-openclaw
 ```
 
 Or build a tarball and install that exact package artifact:
