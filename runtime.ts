@@ -191,21 +191,26 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
     return cached.active;
   }
 
-  const response = await fetch(`${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-  });
+  try {
+    const response = await fetch(`${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`NanoGPT subscription probe failed with HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`NanoGPT subscription probe failed with HTTP ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { subscribed?: boolean; active?: boolean };
+    const active = Boolean(payload.subscribed ?? payload.active);
+    subscriptionCache.set(apiKey, { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS });
+    return active;
+  } catch (error) {
+    subscriptionCache.set(apiKey, { active: false, expiresAt: now + 5000 });
+    throw error;
   }
-
-  const payload = (await response.json()) as { subscribed?: boolean; active?: boolean };
-  const active = Boolean(payload.subscribed ?? payload.active);
-  subscriptionCache.set(apiKey, { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS });
-  return active;
 }
 
 export async function resolveNanoGptRoutingMode(params: {

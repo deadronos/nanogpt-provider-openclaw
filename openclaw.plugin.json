@@ -59,6 +59,12 @@
       },
       "provider": {
         "type": "string"
+      },
+      "webSearch": {
+        "type": "object",
+        "properties": {
+          "apiKey": { "type": "string" }
+        }
       }
     }
   }
