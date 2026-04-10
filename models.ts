@@ -97,12 +97,27 @@ function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function toPerMillion(value: number | undefined, unit?: string): number {
-  if (!isPositiveNumber(value)) {
-    return 0;
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function resolveNanoGptPricingUnit(pricing: NanoGptModelPricing): string {
+  return pricing.unit ?? (pricing.inputPer1kTokens !== undefined || pricing.outputPer1kTokens !== undefined ? "per_1k_tokens" : "per_million_tokens");
+}
+
+function resolveNanoGptPricePerMillion(params: {
+  pricing: NanoGptModelPricing;
+  kind: "input" | "output";
+}): number | undefined {
+  const value =
+    params.kind === "input"
+      ? params.pricing.inputPer1kTokens ?? params.pricing.prompt
+      : params.pricing.outputPer1kTokens ?? params.pricing.completion;
+  if (!isNonNegativeNumber(value)) {
+    return undefined;
   }
 
-  return unit === "per_1k_tokens" ? value * 1000 : value;
+  return resolveNanoGptPricingUnit(params.pricing) === "per_1k_tokens" ? value * 1000 : value;
 }
 
 export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefinitionConfig | null {
@@ -113,8 +128,6 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
 
   const capabilities = entry.capabilities ?? {};
   const pricing = entry.pricing ?? {};
-  const pricingUnit =
-    pricing.unit ?? (pricing.inputPer1kTokens !== undefined || pricing.outputPer1kTokens !== undefined ? "per_1k_tokens" : "per_million_tokens");
   const hasVision = Boolean(capabilities.vision ?? entry.vision);
   const hasReasoning = Boolean(capabilities.reasoning ?? entry.reasoning);
   const contextWindow = entry.context_length ?? entry.contextWindow;
@@ -126,12 +139,47 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
     reasoning: hasReasoning,
     input: hasVision ? ["text", "image"] : ["text"],
     cost: {
-      input: toPerMillion(pricing.inputPer1kTokens ?? pricing.prompt, pricingUnit),
-      output: toPerMillion(pricing.outputPer1kTokens ?? pricing.completion, pricingUnit),
+      input: resolveNanoGptPricePerMillion({ pricing, kind: "input" }) ?? 0,
+      output: resolveNanoGptPricePerMillion({ pricing, kind: "output" }) ?? 0,
       cacheRead: 0,
       cacheWrite: 0,
     },
     contextWindow: isPositiveNumber(contextWindow) ? contextWindow : 200000,
     maxTokens: isPositiveNumber(maxTokens) ? maxTokens : 32768,
+  };
+}
+
+export function applyNanoGptProviderPricing(
+  model: ModelDefinitionConfig,
+  pricing?: NanoGptModelPricing | null,
+): ModelDefinitionConfig {
+  if (!pricing) {
+    return model;
+  }
+
+  const input = resolveNanoGptPricePerMillion({ pricing, kind: "input" });
+  const output = resolveNanoGptPricePerMillion({ pricing, kind: "output" });
+  if (input === undefined && output === undefined) {
+    return model;
+  }
+
+  const nextCost = {
+    ...model.cost,
+    ...(input === undefined ? {} : { input }),
+    ...(output === undefined ? {} : { output }),
+  };
+
+  if (
+    nextCost.input === model.cost.input &&
+    nextCost.output === model.cost.output &&
+    nextCost.cacheRead === model.cost.cacheRead &&
+    nextCost.cacheWrite === model.cost.cacheWrite
+  ) {
+    return model;
+  }
+
+  return {
+    ...model,
+    cost: nextCost,
   };
 }

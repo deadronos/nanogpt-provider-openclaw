@@ -24,7 +24,6 @@ Not implemented today:
 
 ![image](image.png)
 
-
 ## Install from npm (not implemented yet, see "Future improvements" below)
 
 ```bash
@@ -38,7 +37,6 @@ Install directly from the repo checkout:
 ```bash
 cd ~/Github
 git clone @deadronos/nanogpt-provider-openclaw
-
 
 openclaw plugins install ~/Github/nanogpt-provider-openclaw
 ```
@@ -64,20 +62,21 @@ Set:
 export NANOGPT_API_KEY=your_key_here
 ```
 
-## New openclaw configs:
+## New openclaw configs
+
 Onboard with:
 
 ```bash
 openclaw onboard --nanogpt-api-key your_key_here
 ```
-## Add to existing config:
+
+## Add to existing config
 
 ```bash
 openclaw configure
 
 Select Models and "NanoGPT" as provider, it will prompt for API key, then autodiscover catalog and display available NanoGPT text models for selection.
 ```
-
 
 This one key is used for:
 
@@ -128,6 +127,9 @@ Behavior notes:
 - `provider` adds NanoGPT's `X-Provider` override header for text requests. If
   you force an upstream provider while text routing is in subscription mode, the
   plugin also sets `X-Billing-Mode: paygo`.
+- when `provider` is set, the plugin also tries to align exposed model pricing
+  with NanoGPT's provider-selection pricing endpoint so `models[].cost` better
+  reflects the selected upstream provider's billed price.
 
 ## Web Search
 
@@ -211,8 +213,7 @@ The plugin currently does not maintain a local, authoritative counter for:
 For text routing, the plugin only probes whether subscription mode appears
 active. It does not currently reconcile or enforce NanoGPT usage quotas.
 
-
-## Future improvements in this area could include:
+## Future improvements in this area could include
 
 ## Publish to npm
 
@@ -222,7 +223,6 @@ npm run typecheck
 npm pack --dry-run
 npm publish --access public
 ```
-
 
 ## Token usage accounting
 

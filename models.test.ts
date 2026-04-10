@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   NANOGPT_DEFAULT_MODEL_REF,
   NANOGPT_FALLBACK_MODELS,
+  applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
 } from "./models.js";
 
@@ -59,5 +60,28 @@ describe("buildNanoGptModelDefinition", () => {
       id: "legacy-vision-model",
       input: ["text", "image"],
     });
+  });
+
+  it("overrides model cost with provider-specific per-1k pricing when available", () => {
+    const model = buildNanoGptModelDefinition({
+      id: "provider-priced-model",
+      pricing: {
+        prompt: 2.5,
+        completion: 10,
+        unit: "per_million_tokens",
+      },
+    });
+
+    expect(model).not.toBeNull();
+    const priced = applyNanoGptProviderPricing(model!, {
+      inputPer1kTokens: 0.00042,
+      outputPer1kTokens: 0.0018375,
+      unit: "per_1k_tokens",
+    });
+
+    expect(priced.cost.input).toBeCloseTo(0.42, 10);
+    expect(priced.cost.output).toBeCloseTo(1.8375, 10);
+    expect(priced.cost.cacheRead).toBe(0);
+    expect(priced.cost.cacheWrite).toBe(0);
   });
 });

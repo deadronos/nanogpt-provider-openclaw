@@ -157,9 +157,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
             return null;
           }
           return {
-            buffer: typeof Buffer !== "undefined"
-              ? Buffer.from(entry.b64_json, "base64")
-              : Uint8Array.from(atob(entry.b64_json), (c) => c.charCodeAt(0)),
+            buffer: Buffer.from(entry.b64_json, "base64"),
             mimeType: NANOGPT_DEFAULT_OUTPUT_MIME,
             fileName: `image-${index + 1}.${inferFileExtensionFromMimeType(
               NANOGPT_DEFAULT_OUTPUT_MIME,
