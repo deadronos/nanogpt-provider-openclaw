@@ -4,9 +4,11 @@ import {
   NANOGPT_PERSONALIZED_BASE_URL,
   NANOGPT_PAID_BASE_URL,
   NANOGPT_SUBSCRIPTION_BASE_URL,
+  applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
   type NanoGptCatalogSource,
   type NanoGptModelEntry,
+  type NanoGptModelPricing,
   type NanoGptPluginConfig,
   type NanoGptRoutingMode,
 } from "./models.js";
@@ -25,6 +27,8 @@ const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 const NANOGPT_USAGE_PROVIDER_ID = "nanogpt" as const;
 const NANOGPT_USAGE_DISPLAY_NAME = "NanoGPT";
 const NANOGPT_USAGE_URL = `${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`;
+const NANOGPT_PROVIDER_SELECTION_BASE_URL = "https://nano-gpt.com/api";
+const NANOGPT_PROVIDER_PRICING_BATCH_SIZE = 8;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
 
@@ -39,6 +43,17 @@ type NanoGptUsagePayload = {
   monthly?: NanoGptUsageWindowPayload;
   limits?: Record<string, unknown> | undefined;
   period?: Record<string, unknown> | undefined;
+};
+
+type NanoGptProviderPricingEntry = {
+  provider?: unknown;
+  pricing?: unknown;
+  available?: unknown;
+};
+
+type NanoGptProviderPricingPayload = {
+  supportsProviderSelection?: unknown;
+  providers?: NanoGptProviderPricingEntry[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,6 +80,10 @@ function parseEpochMillis(value: unknown): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function normalizeProviderId(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function normalizeUsagePercent(value: number): number {
@@ -262,6 +281,7 @@ export function resolveRequestBaseUrl(routingMode: Exclude<NanoGptRoutingMode, "
 export async function discoverNanoGptModels(params: {
   apiKey: string;
   source: Exclude<NanoGptCatalogSource, "auto">;
+  provider?: string;
 }) {
   try {
     const url = new URL(`${resolveCatalogBaseUrl(params.source)}/models`);
@@ -286,10 +306,91 @@ export async function discoverNanoGptModels(params: {
     const models = entries
       .map((entry) => buildNanoGptModelDefinition(entry))
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-    return models.length > 0 ? models : NANOGPT_FALLBACK_MODELS;
+    if (models.length === 0) {
+      return NANOGPT_FALLBACK_MODELS;
+    }
+
+    return await applyNanoGptSelectedProviderPricing({
+      apiKey: params.apiKey,
+      provider: params.provider,
+      models,
+    });
   } catch {
     return NANOGPT_FALLBACK_MODELS;
   }
+}
+
+async function fetchNanoGptSelectedProviderPricing(params: {
+  apiKey: string;
+  modelId: string;
+  provider: string;
+}): Promise<NanoGptModelPricing | null> {
+  const providerId = normalizeProviderId(params.provider);
+  if (!providerId) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      `${NANOGPT_PROVIDER_SELECTION_BASE_URL}/models/${encodeURIComponent(params.modelId)}/providers`,
+    );
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${params.apiKey}`,
+      },
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as NanoGptProviderPricingPayload | null;
+    if (!payload || !isRecord(payload) || payload.supportsProviderSelection === false) {
+      return null;
+    }
+
+    const providers = Array.isArray(payload.providers) ? payload.providers : [];
+    const match = providers.find(
+      (entry) =>
+        isRecord(entry) &&
+        normalizeProviderId(entry.provider) === providerId &&
+        entry.available !== false,
+    );
+    return match && isRecord(match.pricing) ? (match.pricing as NanoGptModelPricing) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function applyNanoGptSelectedProviderPricing(params: {
+  apiKey: string;
+  provider?: string;
+  models: NonNullable<Awaited<ReturnType<typeof buildNanoGptModelDefinition>>>[];
+}) {
+  const providerId = params.provider?.trim();
+  if (!providerId) {
+    return params.models;
+  }
+
+  const enriched = [...params.models];
+  for (let start = 0; start < params.models.length; start += NANOGPT_PROVIDER_PRICING_BATCH_SIZE) {
+    const chunk = params.models.slice(start, start + NANOGPT_PROVIDER_PRICING_BATCH_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map(async (model) =>
+        applyNanoGptProviderPricing(
+          model,
+          await fetchNanoGptSelectedProviderPricing({
+            apiKey: params.apiKey,
+            modelId: model.id,
+            provider: providerId,
+          }),
+        ),
+      ),
+    );
+    enriched.splice(start, chunkResults.length, ...chunkResults);
+  }
+
+  return enriched;
 }
 
 export function buildNanoGptRequestHeaders(params: {

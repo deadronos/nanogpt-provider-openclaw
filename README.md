@@ -1,96 +1,102 @@
 # NanoGPT Provider for OpenClaw
 
-Unofficial NanoGPT provider plugin for OpenClaw with API-key auth, dynamic model
-discovery, automatic subscription or pay-as-you-go routing, opt-in Responses API
-support, NanoGPT-backed web search, and native image generation.
+Unofficial NanoGPT provider plugin for OpenClaw.
+It adds:
 
-## Current Surface
-
-Implemented today:
-
-- Text model catalog + inference transport via NanoGPT
-- Automatic subscription vs pay-as-you-go request routing for text models
-- Opt-in OpenAI Responses transport for text models
+- NanoGPT text model discovery and inference
+- automatic subscription vs pay-as-you-go routing for text models
+- optional OpenAI Responses transport
 - NanoGPT-backed `web_search`
 - NanoGPT-backed image generation and image editing
+- NanoGPT subscription usage snapshots via OpenClaw's provider-usage surface
 
-Not implemented today:
+## What works today
 
-- Subscription quota tracking inside the plugin
-- Exhaustive NanoGPT image-model discovery from an official image-model catalog
-- Full NanoGPT usage accounting for the included daily and weekly limits
+- text model catalog + inference transport via NanoGPT
+- automatic subscription vs pay-as-you-go request routing for text models
+- opt-in OpenAI Responses transport for text models
+- NanoGPT-backed `web_search`
+- NanoGPT-backed image generation and image editing
+- daily/monthly NanoGPT subscription quota snapshots exposed to OpenClaw
 
-## Screenshot
+## Current limitations
 
-![image](image.png)
+- no exhaustive official NanoGPT image-model discovery yet
+- no authoritative weekly token accounting from the documented NanoGPT API
+- pricing is aligned for a configured upstream provider only when NanoGPT
+  exposes provider-selection pricing for that model
 
+NanoGPT's documented usage endpoint reports quota windows, not true token
+usage. The plugin exposes those daily/monthly quota snapshots to OpenClaw, but
+it does not reconstruct token counts from them.
 
-## Install from npm (not implemented yet, see "Future improvements" below)
+## Screenshots
 
-```bash
-openclaw plugins install @deadronos/nanogpt-provider-openclaw
-```
+![NanoGPT provider screenshot](image.png)
 
-## Install locally without publishing (preferred for now)
+## Install
 
-Install directly from the repo checkout:
+### Local install from a checkout
+
+This is the most practical path right now.
 
 ```bash
 cd ~/Github
-git clone @deadronos/nanogpt-provider-openclaw
-
-
+git clone git@github.com:deadronos/nanogpt-provider-openclaw.git
 openclaw plugins install ~/Github/nanogpt-provider-openclaw
+openclaw gateway restart
 ```
 
-Or build a tarball and install that exact package artifact:
+### Install from a tarball
 
 ```bash
 npm pack
 openclaw plugins install ./deadronos-openclaw-nanogpt-provider-0.1.0.tgz
-```
-
-Restart the gateway after install:
-
-```bash
 openclaw gateway restart
 ```
 
-## Auth
+### npm install
 
-Set:
+The README previously mentioned direct npm installation, but that publish flow is
+not the primary path yet. If you do publish, the release commands are listed in
+the development section below.
+
+## Authentication and setup
+
+Set a NanoGPT API key:
 
 ```bash
 export NANOGPT_API_KEY=your_key_here
 ```
 
-## New openclaw configs:
-Onboard with:
+You can then onboard directly:
 
 ```bash
 openclaw onboard --nanogpt-api-key your_key_here
 ```
-## Add to existing config:
+
+Or add it to an existing OpenClaw setup:
 
 ```bash
 openclaw configure
-
-Select Models and "NanoGPT" as provider, it will prompt for API key, then autodiscover catalog and display available NanoGPT text models for selection.
 ```
 
+Choose **Models** and then **NanoGPT** as the provider. OpenClaw will prompt
+for the API key, autodiscover the NanoGPT catalog, and let you select from the
+available text models.
 
-This one key is used for:
+The same key is used for:
 
 - text model access
 - NanoGPT web search
 - NanoGPT image generation
 
-The plugin reads `NANOGPT_API_KEY` by default. Web search can also store its
-credential in a dedicated config path described below.
+The plugin reads `NANOGPT_API_KEY` by default. Web search can also use a
+dedicated config credential path described below.
 
-## Provider Config
+## Text provider configuration
 
-The provider plugin config controls NanoGPT text-model discovery and transport:
+The plugin config controls NanoGPT text-model discovery and transport behavior:
 
 ```json5
 {
@@ -110,14 +116,14 @@ The provider plugin config controls NanoGPT text-model discovery and transport:
 }
 ```
 
-## Provider Options
+### Options
 
 - `routingMode`: `auto`, `subscription`, `paygo`
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `completions`, `responses`
 - `provider`: optional NanoGPT upstream provider id
 
-Behavior notes:
+### Behavior notes
 
 - `routingMode: "auto"` probes NanoGPT subscription status and falls back to
   `paygo` if the probe fails.
@@ -125,44 +131,57 @@ Behavior notes:
   routed through subscription mode, otherwise `canonical`.
 - `requestApi: "responses"` switches text inference to OpenAI Responses
   transport. `auto` currently behaves the same as `completions`.
-- `provider` adds NanoGPT's `X-Provider` override header for text requests. If
-  you force an upstream provider while text routing is in subscription mode, the
-  plugin also sets `X-Billing-Mode: paygo`.
+- `provider` adds NanoGPT's `X-Provider` override header for text requests.
+- if `provider` is set while the request would otherwise use subscription
+  routing, the plugin also sets `X-Billing-Mode: paygo`
 
-## Web Search
+### Pricing behavior
 
-The plugin now also registers a NanoGPT-backed `web_search` provider using
-NanoGPT's direct `POST /api/web` endpoint.
+By default, the plugin exposes pricing from NanoGPT's detailed model catalog.
 
-Web search details:
+When `provider` is set, the plugin also tries to align exposed `models[].cost`
+with NanoGPT's provider-selection pricing endpoint so the model cost shown to
+OpenClaw better reflects the billed price for the selected upstream provider.
+
+If NanoGPT does not expose provider-selection pricing for a model, the plugin
+falls back to the default catalog pricing instead of failing model discovery.
+
+## Web search
+
+The plugin registers a NanoGPT-backed `web_search` provider using NanoGPT's
+direct `POST /api/web` endpoint.
+
+### Current search behavior
 
 - endpoint: `POST https://nano-gpt.com/api/web`
-- fixed upstream settings: `provider: "linkup"`, `depth: "standard"`,
-  `outputType: "searchResults"`
+- fixed upstream settings:
+  - `provider: "linkup"`
+  - `depth: "standard"`
+  - `outputType: "searchResults"`
 - supported tool parameters:
   - `query` required
   - `count` optional, clamped to `1-10`
   - `includeDomains` optional
   - `excludeDomains` optional
 
-Credential sources, in resolution order:
+### Credential resolution
+
+Web search resolves credentials in this order:
 
 - `plugins.entries.nanogpt.config.webSearch.apiKey`
 - `NANOGPT_API_KEY`
 
-Note:
+`plugins.entries.nanogpt.config.webSearch.apiKey` is the web-search provider's
+credential storage path, not part of the top-level NanoGPT text-provider config
+schema shown above.
 
-- `plugins.entries.nanogpt.config.webSearch.apiKey` is the web-search provider's
-  credential storage path, not part of the top-level NanoGPT text-provider
-  config schema shown above.
+## Image generation
 
-## Image Generation
-
-The plugin now also registers a NanoGPT image generation provider backed by:
+The plugin registers a NanoGPT image generation provider backed by:
 
 - `POST https://nano-gpt.com/v1/images/generations`
 
-Current curated image model list:
+### Current curated image models
 
 - `hidream`
 - `chroma`
@@ -171,50 +190,59 @@ Current curated image model list:
 
 The default image model is `hidream`.
 
-Current image capabilities:
+### Current image capabilities
 
-- generation and edit flows are both enabled
+- generation and edit flows are enabled
 - `count` up to `4`
 - up to `4` input images for edit flows
 - supported sizes: `256x256`, `512x512`, `1024x1024`
 - response handling expects `b64_json`
 
-The provider also normalizes friendly subscription labels to the curated NanoGPT
-ids above. For example:
+### Model aliases
+
+The provider normalizes friendly subscription labels to curated NanoGPT ids. For
+example:
 
 - `HIDREAM` -> `hidream`
 - `CHROMA` -> `chroma`
 - `Z IMAGE TURBO` -> `z-image-turbo`
 - `QWEN IMAGE` -> `qwen-image-2512`
 
-If NanoGPT rejects an image model id, the provider now returns an error that
-points back to the curated model list and these accepted aliases.
+If NanoGPT rejects an image model id, the provider returns an error that points
+back to the curated model list and these accepted aliases.
 
-Model-id note:
+### Notes on current mappings
 
-- `hidream` and `chroma` are straightforward mappings.
-- `z-image-turbo` and `qwen-image-2512` are the best current API-id mappings for
-  the subscription-included labels "Z IMAGE TURBO" and "QWEN IMAGE" based on
-  NanoGPT's public surfaces.
+- `hidream` and `chroma` are straightforward mappings
+- `z-image-turbo` and `qwen-image-2512` are the best current API-id mappings
+  for the subscription-included labels `Z IMAGE TURBO` and `QWEN IMAGE` based
+  on NanoGPT's public surfaces
 
-## Limitations
+## Usage reporting
 
-NanoGPT's documented usage endpoint reports quota windows, not true token
-usage. The plugin exposes those daily/monthly quota snapshots to OpenClaw, but
-it does not reconstruct token counts from them.
+The plugin implements NanoGPT usage reporting through OpenClaw's supported
+provider-usage hooks.
 
-The plugin currently does not maintain a local, authoritative counter for:
+Today that means:
 
-- weekly subscription text-token allowances
-- daily included image generations
+- subscription active/inactive state
+- daily quota window percentage + reset time
+- monthly quota window percentage + reset time
 
-For text routing, the plugin only probes whether subscription mode appears
-active. It does not currently reconcile or enforce NanoGPT usage quotas.
+It does **not** currently provide authoritative token accounting for NanoGPT's
+weekly token allowances because the documented NanoGPT usage payload does not
+expose that data directly.
 
+## Development
 
-## Future improvements in this area could include:
+### Verify locally
 
-## Publish to npm
+```bash
+npm test
+npm run typecheck
+```
+
+### Publish workflow
 
 ```bash
 npm test
@@ -223,7 +251,14 @@ npm pack --dry-run
 npm publish --access public
 ```
 
+## Future improvements
 
-## Token usage accounting
+- official image-model discovery if NanoGPT documents a stable catalog surface
+- richer pricing and provider-selection UX if OpenClaw adds broader pricing
+  display surfaces
+- better token-usage accounting if NanoGPT exposes authoritative weekly token
+  telemetry
 
-![image](image_token_counting.png)
+## Token usage accounting notes
+
+![Token usage accounting sketch](image_token_counting.png)

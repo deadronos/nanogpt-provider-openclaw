@@ -29,6 +29,7 @@ export async function buildNanoGptProvider(params: {
   const models = await discoverNanoGptModels({
     apiKey: params.apiKey,
     source: catalogSource,
+    provider: config.provider,
   });
 
   return {
