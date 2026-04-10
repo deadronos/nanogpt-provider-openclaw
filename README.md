@@ -31,7 +31,7 @@ Not implemented today:
 openclaw plugins install @deadronos/nanogpt-provider-openclaw
 ```
 
-## Install locally without publishing
+## Install locally without publishing (preferred for now)
 
 Install directly from the repo checkout:
 
