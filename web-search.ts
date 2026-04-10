@@ -1,6 +1,7 @@
 import {
   enablePluginInConfig,
   readNumberParam,
+  readProviderEnvValue,
   readStringArrayParam,
   readStringParam,
   resolveProviderWebSearchPluginConfig,
@@ -74,8 +75,7 @@ function resolveNanoGptWebSearchApiKey(config?: Record<string, unknown>): string
     return apiKey;
   }
 
-  const envApiKey = process.env.NANOGPT_API_KEY?.trim();
-  return envApiKey || undefined;
+  return readProviderEnvValue(["NANOGPT_API_KEY"]);
 }
 
 function normalizeNanoGptWebSearchResult(

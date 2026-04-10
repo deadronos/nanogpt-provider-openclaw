@@ -4,7 +4,6 @@ import { buildNanoGptImageGenerationProvider } from "./image-generation-provider
 import plugin from "./index.js";
 
 afterEach(() => {
-  delete process.env.NANOGPT_API_KEY;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
