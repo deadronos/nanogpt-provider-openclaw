@@ -24,7 +24,8 @@ Not implemented today:
 
 ![image](image.png)
 
-## Install from npm
+
+## Install from npm (not implemented yet, see "Future improvements" below)
 
 ```bash
 openclaw plugins install @deadronos/nanogpt-provider-openclaw
@@ -192,6 +193,9 @@ The plugin currently does not maintain a local, authoritative counter for:
 
 For text routing, the plugin only probes whether subscription mode appears
 active. It does not currently reconcile or enforce NanoGPT usage quotas.
+
+
+## Future improvements in this area could include:
 
 ## Publish to npm
 
