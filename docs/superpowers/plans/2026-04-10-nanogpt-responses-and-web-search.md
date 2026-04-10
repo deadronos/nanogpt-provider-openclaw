@@ -1,5 +1,10 @@
 # NanoGPT Responses And Web Search Implementation Plan
 
+> Status note: this plan has been executed in the current branch. The codebase
+> now includes Responses transport support and a NanoGPT web-search provider.
+> The remaining implementation gap is subscription quota accounting, which was
+> intentionally out of scope for the first pass.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add opt-in NanoGPT Responses API support and a NanoGPT-backed OpenClaw web search provider without regressing the current chat-completions provider behavior.

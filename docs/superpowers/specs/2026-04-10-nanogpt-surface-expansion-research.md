@@ -1,5 +1,10 @@
 # NanoGPT Surface Expansion Research
 
+> Status note: this research document described the pre-implementation target
+> surface. The plugin now implements the Responses transport, NanoGPT-backed
+> web search, NanoGPT image generation, and curated image-model aliases. The
+> quota-tracking gap called out below still applies.
+
 ## Summary
 
 This document maps the exposed NanoGPT API surfaces to the current OpenClaw
@@ -492,4 +497,3 @@ OpenClaw local references:
 - `/Users/openclaw/Github/openclaw/extensions/minimax/src/minimax-web-search-provider.ts`
 - `/Users/openclaw/Github/openclaw/extensions/openai/image-generation-provider.ts`
 - `/Users/openclaw/Github/openclaw/extensions/minimax/image-generation-provider.ts`
-
