@@ -165,4 +165,34 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]?.cost.cacheRead).toBe(0);
     expect(provider.models[0]?.cost.cacheWrite).toBe(0);
   });
+
+  it("provides helpful error when responses API has no models but completions does", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    // First call (responses discovery): fail → returns fallback models
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    });
+
+    // Second call (completions validation check): succeed → returns real models
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }],
+      }),
+    });
+
+    await expect(
+      buildNanoGptProvider({
+        apiKey: "test-key",
+        pluginConfig: {
+          routingMode: "paygo",
+          catalogSource: "canonical",
+          requestApi: "responses",
+        },
+      }),
+    ).rejects.toThrow(/Responses API endpoint.*Chat Completions API/);
+  });
 });
