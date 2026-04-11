@@ -50,6 +50,7 @@ describe("buildNanoGptProvider", () => {
                 capabilities: {
                   reasoning: true,
                   vision: true,
+                  tool_calling: true,
                 },
                 context_length: 200000,
                 max_output_tokens: 32768,
@@ -75,6 +76,9 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]).toMatchObject({
       input: ["text", "image"],
       reasoning: true,
+      compat: {
+        supportsTools: true,
+      },
       cost: {
         input: 2.5,
         output: 10,
