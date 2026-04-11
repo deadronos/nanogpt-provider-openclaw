@@ -210,6 +210,7 @@ describe("discoverNanoGptModels", () => {
             capabilities: {
               reasoning: true,
               vision: true,
+              tool_calling: true,
             },
             context_length: 262144,
             max_output_tokens: 8192,
@@ -235,6 +236,9 @@ describe("discoverNanoGptModels", () => {
         name: "Kimi K2.5 Thinking",
         reasoning: true,
         input: ["text", "image"],
+        compat: {
+          supportsTools: true,
+        },
         contextWindow: 262144,
         maxTokens: 8192,
         cost: {

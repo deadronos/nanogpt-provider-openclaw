@@ -25,6 +25,7 @@ describe("buildNanoGptModelDefinition", () => {
         capabilities: {
           reasoning: true,
           vision: true,
+          tool_calling: true,
         },
         context_length: 1234,
         max_output_tokens: 567,
@@ -39,6 +40,9 @@ describe("buildNanoGptModelDefinition", () => {
       name: "GPT-5.4 Mini",
       reasoning: true,
       input: ["text", "image"],
+      compat: {
+        supportsTools: true,
+      },
       contextWindow: 1234,
       maxTokens: 567,
       cost: {
@@ -59,6 +63,36 @@ describe("buildNanoGptModelDefinition", () => {
     ).toMatchObject({
       id: "legacy-vision-model",
       input: ["text", "image"],
+    });
+  });
+
+  it.each([
+    {
+      id: "glm-5",
+      capabilities: { tool_calling: true },
+      expected: true,
+    },
+    {
+      id: "moonshotai/kimi-k2.5",
+      capabilities: { tool_calling: true },
+      expected: true,
+    },
+    {
+      id: "minimax-m2.7",
+      capabilities: { tool_calling: false },
+      expected: false,
+    },
+  ] as const)("passes through tool_calling for $id", ({ id, capabilities, expected }) => {
+    expect(
+      buildNanoGptModelDefinition({
+        id,
+        capabilities,
+      }),
+    ).toMatchObject({
+      id,
+      compat: {
+        supportsTools: expected,
+      },
     });
   });
 
