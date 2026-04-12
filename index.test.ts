@@ -27,6 +27,32 @@ describe("nanogpt plugin entry", () => {
     };
   }
 
+  function getRegisteredProviderWithAuth() {
+    const providers: unknown[] = [];
+    plugin.register(
+      {
+        pluginConfig: {},
+        registerProvider(provider: unknown) {
+          providers.push(provider);
+        },
+        registerWebSearchProvider() {},
+        registerImageGenerationProvider() {},
+      } as never,
+    );
+    return providers[0] as {
+      auth?: Array<{
+        runNonInteractive?: (ctx: {
+          opts?: Record<string, unknown>;
+          config: Record<string, unknown>;
+          env: Record<string, string | undefined>;
+          agentDir: string;
+          resolveApiKey: () => Promise<{ source: string } | null>;
+          toApiKeyCredential: () => unknown;
+        }) => Promise<Record<string, unknown> | null>;
+      }>;
+    };
+  }
+
   it("exports the expected plugin metadata", () => {
     expect(plugin.id).toBe("nanogpt");
     expect(plugin.name).toBe("NanoGPT Provider");
@@ -133,5 +159,42 @@ describe("nanogpt plugin entry", () => {
       },
     });
     expect(responsesApiResult).toBeNull();
+  });
+
+  it("does not force a hardcoded default model during API-key onboarding", async () => {
+    const provider = getRegisteredProviderWithAuth();
+    const authMethod = provider.auth?.[0];
+
+    expect(authMethod?.runNonInteractive).toEqual(expect.any(Function));
+
+    const result = await authMethod?.runNonInteractive?.({
+      opts: {},
+      config: {},
+      env: {},
+      agentDir: "/tmp/nanogpt-agent",
+      resolveApiKey: async () => ({ source: "profile" }),
+      toApiKeyCredential: () => null,
+    });
+
+    expect(result).toMatchObject({
+      agents: {
+        defaults: {
+          models: {
+            "nanogpt/gpt-5.4-mini": {
+              alias: "NanoGPT",
+            },
+          },
+        },
+      },
+      auth: {
+        profiles: {
+          "nanogpt:default": {
+            provider: "nanogpt",
+            mode: "api_key",
+          },
+        },
+      },
+    });
+    expect((result as { agents?: { defaults?: { model?: unknown } } })?.agents?.defaults?.model).toBeUndefined();
   });
 });

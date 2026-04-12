@@ -1,7 +1,7 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
-import { applyNanoGptConfig } from "./onboard.js";
+import { applyNanoGptProviderConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
@@ -62,9 +62,8 @@ export default definePluginEntry({
           flagName: "--nanogpt-api-key",
           envVar: "NANOGPT_API_KEY",
           promptMessage: "Enter NanoGPT API key",
-          defaultModel: NANOGPT_DEFAULT_MODEL_REF,
           expectedProviders: [NANOGPT_PROVIDER_ID],
-          applyConfig: (cfg) => applyNanoGptConfig(cfg),
+          applyConfig: (cfg) => applyNanoGptProviderConfig(cfg),
           wizard: {
             choiceId: "nanogpt-api-key",
             choiceLabel: "NanoGPT API key",
