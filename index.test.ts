@@ -22,6 +22,7 @@ describe("nanogpt plugin entry", () => {
           models?: Array<Record<string, unknown>>;
         };
       }) => unknown;
+      normalizeModelId?: (ctx: { modelId: string }) => string;
       resolveUsageAuth?: unknown;
       fetchUsageSnapshot?: unknown;
     };
@@ -159,6 +160,19 @@ describe("nanogpt plugin entry", () => {
       },
     });
     expect(responsesApiResult).toBeNull();
+  });
+
+  it("normalizes known NanoGPT website aliases to live API catalog ids", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.normalizeModelId).toEqual(expect.any(Function));
+    expect(provider.normalizeModelId?.({ modelId: "moonshotai/kimi-k2.5:thinking" })).toBe(
+      "moonshotai/Kimi-K2-Instruct-0905",
+    );
+    expect(provider.normalizeModelId?.({ modelId: "moonshotai/kimi-k2-instruct-0905" })).toBe(
+      "moonshotai/Kimi-K2-Instruct-0905",
+    );
+    expect(provider.normalizeModelId?.({ modelId: "gpt-5.4-mini" })).toBe("gpt-5.4-mini");
   });
 
   it("does not force a hardcoded default model during API-key onboarding", async () => {

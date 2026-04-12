@@ -4,6 +4,7 @@ import {
   NANOGPT_FALLBACK_MODELS,
   applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
+  normalizeNanoGptModelId,
 } from "./models.js";
 
 describe("model constants", () => {
@@ -13,6 +14,19 @@ describe("model constants", () => {
 
   it("ships a non-empty fallback catalog", () => {
     expect(NANOGPT_FALLBACK_MODELS.length).toBeGreaterThan(0);
+  });
+
+  it("normalizes known website-facing NanoGPT aliases to API catalog ids", () => {
+    expect(normalizeNanoGptModelId("moonshotai/kimi-k2.5:thinking")).toBe(
+      "moonshotai/Kimi-K2-Instruct-0905",
+    );
+    expect(normalizeNanoGptModelId("moonshotai/kimi-k2-instruct-0905")).toBe(
+      "moonshotai/Kimi-K2-Instruct-0905",
+    );
+    expect(normalizeNanoGptModelId(" moonshotai/kimi-k2.5:thinking ")).toBe(
+      "moonshotai/Kimi-K2-Instruct-0905",
+    );
+    expect(normalizeNanoGptModelId("gpt-5.4-mini")).toBe("gpt-5.4-mini");
   });
 });
 
