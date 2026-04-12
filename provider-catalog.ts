@@ -85,7 +85,10 @@ export async function buildNanoGptProvider(params: {
   }
 
   return {
-    baseUrl: resolveRequestBaseUrl(routingMode),
+    baseUrl: resolveRequestBaseUrl({
+      config,
+      routingMode,
+    }),
     api: resolveNanoGptRequestApi(config),
     apiKey: params.apiKey,
     headers: buildNanoGptRequestHeaders({

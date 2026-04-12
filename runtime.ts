@@ -341,8 +341,15 @@ export function resolveCatalogBaseUrl(source: Exclude<NanoGptCatalogSource, "aut
   }
 }
 
-export function resolveRequestBaseUrl(routingMode: Exclude<NanoGptRoutingMode, "auto">): string {
-  return routingMode === "subscription" ? NANOGPT_SUBSCRIPTION_BASE_URL : NANOGPT_BASE_URL;
+export function resolveRequestBaseUrl(params: {
+  config: NanoGptPluginConfig;
+  routingMode: Exclude<NanoGptRoutingMode, "auto">;
+}): string {
+  if (params.config.requestApi === "responses" && params.routingMode === "subscription") {
+    return NANOGPT_BASE_URL;
+  }
+
+  return params.routingMode === "subscription" ? NANOGPT_SUBSCRIPTION_BASE_URL : NANOGPT_BASE_URL;
 }
 
 export async function discoverNanoGptModels(params: {

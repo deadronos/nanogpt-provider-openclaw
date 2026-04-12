@@ -31,6 +31,28 @@ describe("buildNanoGptProvider", () => {
     expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
   });
 
+  it("falls back to the base NanoGPT endpoint for responses on subscription routing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: [{ id: "moonshotai/kimi-k2.5:thinking", displayName: "Kimi K2.5 Thinking" }] }),
+      })),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+        requestApi: "responses",
+      },
+    });
+
+    expect(provider.api).toBe("openai-responses");
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
+  });
+
   it("uses the subscription base URL when auto resolves to subscription", async () => {
     vi.stubGlobal(
       "fetch",

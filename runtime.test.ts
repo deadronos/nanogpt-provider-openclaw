@@ -8,6 +8,7 @@ import {
   resolveCatalogSource,
   resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
+  resolveRequestBaseUrl,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
@@ -100,6 +101,26 @@ describe("resolveNanoGptRoutingMode", () => {
 describe("resolveCatalogSource", () => {
   it("maps auto to subscription when routing resolved to subscription", () => {
     expect(resolveCatalogSource({ config: {}, routingMode: "subscription" })).toBe("subscription");
+  });
+});
+
+describe("resolveRequestBaseUrl", () => {
+  it("uses the base API for responses requests even when routing resolved to subscription", () => {
+    expect(
+      resolveRequestBaseUrl({
+        config: { requestApi: "responses" },
+        routingMode: "subscription",
+      }),
+    ).toBe("https://nano-gpt.com/api/v1");
+  });
+
+  it("keeps the subscription API for completions requests on subscription routing", () => {
+    expect(
+      resolveRequestBaseUrl({
+        config: { requestApi: "completions" },
+        routingMode: "subscription",
+      }),
+    ).toBe("https://nano-gpt.com/api/subscription/v1");
   });
 });
 
