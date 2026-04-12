@@ -25,6 +25,7 @@
     "models.ts",
     "runtime.ts",
     "provider-catalog.ts",
+    "provider-discovery.ts",
     "image-generation-provider.ts",
     "web-search.ts",
     "onboard.ts",
