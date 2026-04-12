@@ -6,6 +6,7 @@ import {
   getNanoGptConfig,
   resetNanoGptRuntimeState,
   resolveCatalogSource,
+  resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
@@ -375,6 +376,86 @@ describe("discoverNanoGptModels", () => {
         },
       },
     ]);
+  });
+});
+
+describe("resolveNanoGptDynamicModel", () => {
+  it("preserves exact unknown NanoGPT model ids so requests can still be sent", () => {
+    expect(
+      resolveNanoGptDynamicModel({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        modelRegistry: {} as never,
+        providerConfig: {
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/subscription/v1",
+          models: [],
+        },
+      }),
+    ).toMatchObject({
+      id: "moonshotai/kimi-k2.5:thinking",
+      name: "moonshotai/kimi-k2.5:thinking",
+      provider: "nanogpt",
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      reasoning: true,
+      input: ["text"],
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+    });
+  });
+
+  it("reuses known catalog metadata when a related template model exists", () => {
+    expect(
+      resolveNanoGptDynamicModel({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        modelRegistry: {} as never,
+        providerConfig: {
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/v1",
+          models: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              reasoning: false,
+              input: ["text", "image"],
+              cost: {
+                input: 1.5,
+                output: 4.5,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+              contextWindow: 262144,
+              maxTokens: 8192,
+              compat: {
+                supportsTools: true,
+              },
+            },
+          ],
+        },
+      }),
+    ).toMatchObject({
+      id: "moonshotai/kimi-k2.5:thinking",
+      name: "Kimi K2.5 Thinking",
+      reasoning: true,
+      input: ["text", "image"],
+      compat: {
+        supportsTools: true,
+      },
+      contextWindow: 262144,
+      maxTokens: 8192,
+      cost: {
+        input: 1.5,
+        output: 4.5,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+    });
   });
 });
 

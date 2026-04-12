@@ -64,11 +64,6 @@ export const NANOGPT_DEFAULT_COST = {
   cacheWrite: 0,
 } as const;
 
-const NANOGPT_MODEL_ID_ALIASES = new Map<string, string>([
-  ["moonshotai/kimi-k2.5:thinking", "moonshotai/Kimi-K2-Instruct-0905"],
-  ["moonshotai/kimi-k2-instruct-0905", "moonshotai/Kimi-K2-Instruct-0905"],
-]);
-
 export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   {
     id: "gpt-5.4-mini",
@@ -98,15 +93,6 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 32768,
   },
 ];
-
-export function normalizeNanoGptModelId(id: string): string {
-  const trimmed = id.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  return NANOGPT_MODEL_ID_ALIASES.get(trimmed.toLowerCase()) ?? trimmed;
-}
 
 function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;

@@ -22,7 +22,16 @@ describe("nanogpt plugin entry", () => {
           models?: Array<Record<string, unknown>>;
         };
       }) => unknown;
-      normalizeModelId?: (ctx: { modelId: string }) => string;
+      resolveDynamicModel?: (ctx: {
+        provider: string;
+        modelId: string;
+        modelRegistry: unknown;
+        providerConfig?: {
+          api?: string;
+          baseUrl?: string;
+          models?: Array<Record<string, unknown>>;
+        };
+      }) => unknown;
       resolveUsageAuth?: unknown;
       fetchUsageSnapshot?: unknown;
     };
@@ -162,17 +171,28 @@ describe("nanogpt plugin entry", () => {
     expect(responsesApiResult).toBeNull();
   });
 
-  it("normalizes known NanoGPT website aliases to live API catalog ids", () => {
+  it("resolves unknown NanoGPT model ids dynamically without rewriting them", () => {
     const provider = getRegisteredProvider();
 
-    expect(provider.normalizeModelId).toEqual(expect.any(Function));
-    expect(provider.normalizeModelId?.({ modelId: "moonshotai/kimi-k2.5:thinking" })).toBe(
-      "moonshotai/Kimi-K2-Instruct-0905",
-    );
-    expect(provider.normalizeModelId?.({ modelId: "moonshotai/kimi-k2-instruct-0905" })).toBe(
-      "moonshotai/Kimi-K2-Instruct-0905",
-    );
-    expect(provider.normalizeModelId?.({ modelId: "gpt-5.4-mini" })).toBe("gpt-5.4-mini");
+    expect(provider.resolveDynamicModel).toEqual(expect.any(Function));
+    expect(
+      provider.resolveDynamicModel?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        modelRegistry: {},
+        providerConfig: {
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/subscription/v1",
+          models: [],
+        },
+      }),
+    ).toMatchObject({
+      id: "moonshotai/kimi-k2.5:thinking",
+      provider: "nanogpt",
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      reasoning: true,
+    });
   });
 
   it("does not force a hardcoded default model during API-key onboarding", async () => {

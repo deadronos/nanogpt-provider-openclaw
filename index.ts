@@ -2,14 +2,11 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import { applyNanoGptProviderConfig } from "./onboard.js";
-import {
-  NANOGPT_DEFAULT_MODEL_REF,
-  NANOGPT_PROVIDER_ID,
-  normalizeNanoGptModelId,
-} from "./models.js";
+import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
   fetchNanoGptUsageSnapshot,
+  resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
@@ -93,7 +90,7 @@ export default definePluginEntry({
           };
         },
       },
-      normalizeModelId: ({ modelId }) => normalizeNanoGptModelId(modelId),
+      resolveDynamicModel: (ctx) => resolveNanoGptDynamicModel(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
