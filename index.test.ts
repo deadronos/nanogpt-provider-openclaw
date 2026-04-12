@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import plugin from "./index.js";
 
@@ -21,6 +24,12 @@ describe("nanogpt plugin entry", () => {
           baseUrl?: string;
           models?: Array<Record<string, unknown>>;
         };
+      }) => unknown;
+      augmentModelCatalog?: (ctx: {
+        agentDir?: string;
+        config?: Record<string, unknown>;
+        env?: Record<string, string | undefined>;
+        entries: Array<Record<string, unknown>>;
       }) => unknown;
       resolveDynamicModel?: (ctx: {
         provider: string;
@@ -169,6 +178,56 @@ describe("nanogpt plugin entry", () => {
       },
     });
     expect(responsesApiResult).toBeNull();
+  });
+
+  it("surfaces discovered NanoGPT models from models.json into catalog augmentation", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.augmentModelCatalog).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
+    writeFileSync(
+      join(agentDir, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-oss-120b",
+                  name: "GPT OSS 120B",
+                  reasoning: true,
+                  input: ["text"],
+                  contextWindow: 131072,
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(
+      provider.augmentModelCatalog?.({
+        agentDir,
+        config: {},
+        env: {},
+        entries: [],
+      }),
+    ).toMatchObject([
+      {
+        provider: "nanogpt",
+        id: "openai/gpt-oss-120b",
+        name: "GPT OSS 120B",
+        reasoning: true,
+        input: ["text"],
+        contextWindow: 131072,
+      },
+    ]);
   });
 
   it("resolves unknown NanoGPT model ids dynamically without rewriting them", () => {
