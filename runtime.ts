@@ -394,7 +394,7 @@ export async function discoverNanoGptModels(params: {
   }
 }
 
-async function fetchNanoGptSelectedProviderPricing(params: {
+export async function fetchNanoGptSelectedProviderPricing(params: {
   apiKey: string;
   modelId: string;
   provider: string;

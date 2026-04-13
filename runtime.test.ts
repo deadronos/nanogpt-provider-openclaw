@@ -11,6 +11,7 @@ import {
   resolveRequestBaseUrl,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
+  fetchNanoGptSelectedProviderPricing,
 } from "./runtime.js";
 
 afterEach(() => {
@@ -398,6 +399,155 @@ describe("discoverNanoGptModels", () => {
       },
     ]);
   });
+
+  it("keeps default catalog pricing when an error occurs fetching selected-provider pricing", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockRejectedValueOnce(new Error("Network error"));
+
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+        provider: "openrouter",
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: "moonshotai/kimi-k2.5",
+        cost: {
+          input: 1.5,
+          output: 4.5,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      },
+    ]);
+  });
+
+  it("keeps default catalog pricing when selected-provider pricing payload lacks pricing data", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          supportsProviderSelection: true,
+          providers: [
+            {
+              provider: "openrouter",
+              available: true,
+              // missing pricing
+            },
+          ],
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+        provider: "openrouter",
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: "moonshotai/kimi-k2.5",
+        cost: {
+          input: 1.5,
+          output: 4.5,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      },
+    ]);
+  });
+
+  it("keeps default catalog pricing when selected-provider pricing payload lacks providers array", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5",
+              name: "Kimi K2.5",
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          supportsProviderSelection: true,
+          // providers missing or not an array
+          providers: null,
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+        provider: "openrouter",
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: "moonshotai/kimi-k2.5",
+        cost: {
+          input: 1.5,
+          output: 4.5,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      },
+    ]);
+  });
+
 });
 
 describe("resolveNanoGptDynamicModel", () => {
@@ -501,5 +651,51 @@ describe("resetNanoGptRuntimeState", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe("fetchNanoGptSelectedProviderPricing", () => {
+  it("returns null if provider normalizes to empty", async () => {
+    const result = await fetchNanoGptSelectedProviderPricing({
+      apiKey: "test-key",
+      modelId: "test-model",
+      provider: "   ", // normalizes to empty string
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null if fetch throws an error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+    const result = await fetchNanoGptSelectedProviderPricing({
+      apiKey: "test-key",
+      modelId: "test-model",
+      provider: "valid-provider",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null if fetch response is not ok", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const result = await fetchNanoGptSelectedProviderPricing({
+      apiKey: "test-key",
+      modelId: "test-model",
+      provider: "valid-provider",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null if payload is invalid or does not support provider selection", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ supportsProviderSelection: false }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await fetchNanoGptSelectedProviderPricing({
+      apiKey: "test-key",
+      modelId: "test-model",
+      provider: "valid-provider",
+    });
+    expect(result).toBeNull();
   });
 });
