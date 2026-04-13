@@ -1,7 +1,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as nodeFs from "node:fs";
 import plugin from "./index.js";
 
 describe("nanogpt plugin entry", () => {
@@ -536,4 +537,47 @@ describe("nanogpt plugin entry", () => {
     });
     expect((result as { agents?: { defaults?: { model?: unknown } } })?.agents?.defaults?.model).toBeUndefined();
   });
+
+
+
+
+  it("recovers from fs errors when reading models.json and deletes cache", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.augmentModelCatalog).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-err-"));
+    const modelsPath = join(agentDir, "models.json");
+    writeFileSync(modelsPath, "{}");
+
+    // warm the cache up
+    provider.augmentModelCatalog?.({
+      agentDir,
+      config: {},
+      env: {},
+      entries: [],
+    });
+
+    vi.mock("node:fs", async (importOriginal) => {
+      const actual = await importOriginal();
+      return {
+        ...actual,
+        existsSync: vi.fn(() => { throw new Error("Simulated fs error"); })
+      };
+    });
+
+    try {
+      const result = provider.augmentModelCatalog?.({
+        agentDir,
+        config: {},
+        env: {},
+        entries: [],
+      });
+
+      expect(result).toEqual([]);
+    } finally {
+      vi.unmock("node:fs");
+    }
+  });
+
 });
