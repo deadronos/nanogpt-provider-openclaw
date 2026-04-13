@@ -135,6 +135,31 @@ describe("buildNanoGptProvider", () => {
     });
   });
 
+  it("sanitizes provider override headers before returning the provider config", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+      })),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+        provider: "openrouter\r\nInjected: true",
+      },
+    });
+
+    expect(provider.headers).toEqual({
+      Authorization: "Bearer test-key",
+      "X-Billing-Mode": "paygo",
+      "X-Provider": "openrouterInjected: true",
+    });
+  });
+
   it("surfaces provider-specific model pricing when an upstream provider is configured", async () => {
     vi.stubGlobal(
       "fetch",
