@@ -9,6 +9,7 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
   resolveRequestBaseUrl,
+  probeNanoGptSubscription,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
@@ -501,5 +502,42 @@ describe("resetNanoGptRuntimeState", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("probeNanoGptSubscription", () => {
+  it("throws on HTTP error and caches false", async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const apiKey = "http-error-key";
+
+    // First call should throw
+    await expect(probeNanoGptSubscription(apiKey)).rejects.toThrow(
+      "NanoGPT subscription probe failed with HTTP 401",
+    );
+
+    // Second call should return false from cache, no fetch call
+    await expect(probeNanoGptSubscription(apiKey)).resolves.toBe(false);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws on network error and caches false", async () => {
+    const fetchSpy = vi.fn().mockRejectedValueOnce(new Error("Network connection failed"));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const apiKey = "network-error-key";
+
+    // First call should throw
+    await expect(probeNanoGptSubscription(apiKey)).rejects.toThrow("Network connection failed");
+
+    // Second call should return false from cache, no fetch call
+    await expect(probeNanoGptSubscription(apiKey)).resolves.toBe(false);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
