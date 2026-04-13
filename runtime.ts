@@ -28,6 +28,7 @@ import type {
 } from "openclaw/plugin-sdk/plugin-entry";
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
+const PROVIDER_PRICING_CACHE_TTL_MS = 300_000;
 const NANOGPT_USAGE_PROVIDER_ID = "nanogpt" as const;
 const NANOGPT_USAGE_DISPLAY_NAME = "NanoGPT";
 const NANOGPT_USAGE_URL = `${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`;
@@ -35,6 +36,7 @@ const NANOGPT_PROVIDER_SELECTION_BASE_URL = "https://nano-gpt.com/api";
 const NANOGPT_PROVIDER_PRICING_BATCH_SIZE = 8;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
+const providerPricingCache = new Map<string, { pricing: NanoGptModelPricing | null; expiresAt: number }>();
 
 type NanoGptUsageWindowPayload = Record<string, unknown> | number | string | undefined;
 
@@ -404,6 +406,13 @@ async function fetchNanoGptSelectedProviderPricing(params: {
     return null;
   }
 
+  const cacheKey = `${providerId}:${params.modelId}`;
+  const now = Date.now();
+  const cached = providerPricingCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.pricing;
+  }
+
   try {
     const url = new URL(
       `${NANOGPT_PROVIDER_SELECTION_BASE_URL}/models/${encodeURIComponent(params.modelId)}/providers`,
@@ -415,11 +424,14 @@ async function fetchNanoGptSelectedProviderPricing(params: {
       },
     });
     if (!response.ok) {
+      // Short cache for failures to avoid immediate retry loops
+      providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + 30_000 });
       return null;
     }
 
     const payload = (await response.json()) as NanoGptProviderPricingPayload | null;
     if (!payload || !isRecord(payload) || payload.supportsProviderSelection === false) {
+      providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + PROVIDER_PRICING_CACHE_TTL_MS });
       return null;
     }
 
@@ -430,8 +442,12 @@ async function fetchNanoGptSelectedProviderPricing(params: {
         normalizeProviderId(entry.provider) === providerId &&
         entry.available !== false,
     );
-    return match && isRecord(match.pricing) ? (match.pricing as NanoGptModelPricing) : null;
+    const pricing = match && isRecord(match.pricing) ? (match.pricing as NanoGptModelPricing) : null;
+    providerPricingCache.set(cacheKey, { pricing, expiresAt: now + PROVIDER_PRICING_CACHE_TTL_MS });
+    return pricing;
   } catch {
+    // Very short cache for unexpected errors
+    providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + 5_000 });
     return null;
   }
 }
@@ -546,4 +562,5 @@ export async function fetchNanoGptUsageSnapshot(
 
 export function resetNanoGptRuntimeState(): void {
   subscriptionCache.clear();
+  providerPricingCache.clear();
 }
