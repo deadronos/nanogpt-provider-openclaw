@@ -1,12 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as providerAuthRuntime from "openclaw/plugin-sdk/provider-auth-runtime";
+
+const { resolveApiKeyForProviderMock } = vi.hoisted(() => ({
+  resolveApiKeyForProviderMock: vi.fn(),
+}));
+
+vi.mock("openclaw/plugin-sdk/provider-auth-runtime", async () => {
+  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/provider-auth-runtime")>(
+    "openclaw/plugin-sdk/provider-auth-runtime",
+  );
+
+  return {
+    ...actual,
+    resolveApiKeyForProvider: resolveApiKeyForProviderMock,
+  };
+});
+
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import plugin from "./index.js";
 
 afterEach(() => {
+  resolveApiKeyForProviderMock.mockReset();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+function mockNanoGptApiKey(): void {
+  resolveApiKeyForProviderMock.mockResolvedValue({
+    apiKey: "test-key",
+    source: "env",
+    mode: "api_key",
+  });
+}
 
 describe("nanogpt image-generation provider", () => {
   it("registers the nanogpt image generation provider", () => {
@@ -30,11 +54,7 @@ describe("nanogpt image-generation provider", () => {
   });
 
   it("generates image buffers from NanoGPT's OpenAI-compatible endpoint", async () => {
-    vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
-      apiKey: "test-key",
-      source: "env",
-      mode: "api-key",
-    });
+    mockNanoGptApiKey();
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -93,11 +113,7 @@ describe("nanogpt image-generation provider", () => {
   });
 
   it("maps input images to NanoGPT imageDataUrl for edit flows", async () => {
-    vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
-      apiKey: "test-key",
-      source: "env",
-      mode: "api-key",
-    });
+    mockNanoGptApiKey();
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -141,11 +157,7 @@ describe("nanogpt image-generation provider", () => {
   });
 
   it("normalizes friendly subscription model aliases to curated NanoGPT ids", async () => {
-    vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
-      apiKey: "test-key",
-      source: "env",
-      mode: "api-key",
-    });
+    mockNanoGptApiKey();
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -179,11 +191,7 @@ describe("nanogpt image-generation provider", () => {
   });
 
   it("surfaces curated model guidance when NanoGPT rejects an image model id", async () => {
-    vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
-      apiKey: "test-key",
-      source: "env",
-      mode: "api-key",
-    });
+    mockNanoGptApiKey();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -209,11 +217,7 @@ describe("nanogpt image-generation provider", () => {
   });
 
   it("throws an error when an invalid image size is provided", async () => {
-    vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
-      apiKey: "test-key",
-      source: "env",
-      mode: "api-key",
-    });
+    mockNanoGptApiKey();
 
     const provider = buildNanoGptImageGenerationProvider();
 
