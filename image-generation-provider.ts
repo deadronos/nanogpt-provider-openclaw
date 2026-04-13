@@ -1,3 +1,4 @@
+import { sanitizeApiKey } from "./runtime.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 
@@ -105,6 +106,9 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       const model = normalizeImageModelName(requestedModel);
       const count = req.count ?? 1;
       const size = req.size ?? "1024x1024";
+      if (size && !NANOGPT_IMAGE_SIZES.includes(size as any)) {
+        throw new Error(`Invalid image size "${size}". Expected one of: ${NANOGPT_IMAGE_SIZES.join(", ")}`);
+      }
       const inputImages = req.inputImages ?? [];
       const body: Record<string, unknown> = {
         model,
@@ -130,7 +134,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       const response = await fetch(`${NANOGPT_IMAGE_BASE_URL}/v1/images/generations`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${auth.apiKey}`,
+          Authorization: `Bearer ${sanitizeApiKey(auth.apiKey)}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),

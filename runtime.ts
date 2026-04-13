@@ -27,6 +27,14 @@ import type {
   ProviderResolveUsageAuthContext,
 } from "openclaw/plugin-sdk/plugin-entry";
 
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]/g, "");
+}
+
+export function sanitizeApiKey(apiKey: string): string {
+  return sanitizeHeaderValue(apiKey);
+}
+
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 const NANOGPT_USAGE_PROVIDER_ID = "nanogpt" as const;
 const NANOGPT_USAGE_DISPLAY_NAME = "NanoGPT";
@@ -281,7 +289,7 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
     const response = await fetch(`${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`, {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
       },
     });
 
@@ -364,7 +372,7 @@ export async function discoverNanoGptModels(params: {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${params.apiKey}`,
+        Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
       },
     });
     if (!response.ok) {
@@ -411,7 +419,7 @@ export async function fetchNanoGptSelectedProviderPricing(params: {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${params.apiKey}`,
+        Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
       },
     });
     if (!response.ok) {
@@ -473,11 +481,11 @@ export function buildNanoGptRequestHeaders(params: {
   routingMode: Exclude<NanoGptRoutingMode, "auto">;
 }): Record<string, string> {
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${params.apiKey}`,
+    Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
   };
 
   if (params.config.provider) {
-    headers["X-Provider"] = params.config.provider;
+    headers["X-Provider"] = sanitizeHeaderValue(params.config.provider);
     if (params.routingMode === "subscription") {
       headers["X-Billing-Mode"] = "paygo";
     }
@@ -504,7 +512,7 @@ export async function fetchNanoGptUsageSnapshot(
     {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${ctx.token}`,
+        Authorization: `Bearer ${sanitizeApiKey(ctx.token)}`,
         Accept: "application/json",
       },
     },
