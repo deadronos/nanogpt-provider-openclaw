@@ -1,3 +1,4 @@
+import { sanitizeApiKey } from "./runtime.js";
 import {
   enablePluginInConfig,
   readNumberParam,
@@ -152,6 +153,10 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         }
 
         const query = readStringParam(args, "query", { required: true });
+        if (query.length > 2000) {
+          throw new Error("Search query is too long (maximum 2000 characters).");
+        }
+
         const count = resolveSearchCount(readNumberParam(args, "count", { integer: true }), 5);
         const includeDomains = readStringArrayParam(args, "includeDomains")?.filter(Boolean);
         const excludeDomains = readStringArrayParam(args, "excludeDomains")?.filter(Boolean);
@@ -159,7 +164,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         const response = await fetch(NANOGPT_WEB_SEARCH_URL, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
             "Content-Type": "application/json",
             Accept: "application/json",
           },

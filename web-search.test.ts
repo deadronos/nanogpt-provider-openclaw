@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
+
+let originalNanoGptApiKey: string | undefined;
+
+beforeEach(() => {
+  originalNanoGptApiKey = process.env.NANOGPT_API_KEY;
+  delete process.env.NANOGPT_API_KEY;
+});
 
 describe("nanogpt web search provider", () => {
   it("registers the nanogpt web search provider", () => {
@@ -37,6 +44,34 @@ describe("nanogpt web search provider", () => {
     await expect(tool.execute({ query: "nanogpt docs" })).resolves.toMatchObject({
       error: "missing_nanogpt_api_key",
     });
+  });
+
+  it("rejects search queries that exceed the maximum length", async () => {
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "test-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    const longQuery = "a".repeat(2001);
+    await expect(tool.execute({ query: longQuery })).rejects.toThrow(
+      "Search query is too long (maximum 2000 characters)."
+    );
   });
 
   it("normalizes NanoGPT search results and forwards domain filters", async () => {
@@ -123,4 +158,15 @@ describe("nanogpt web search provider", () => {
       ],
     });
   });
+});
+
+afterEach(() => {
+  if (originalNanoGptApiKey === undefined) {
+    delete process.env.NANOGPT_API_KEY;
+  } else {
+    process.env.NANOGPT_API_KEY = originalNanoGptApiKey;
+  }
+  originalNanoGptApiKey = undefined;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
