@@ -13,7 +13,11 @@ import {
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
-import type { ProviderCatalogContext, ProviderRuntimeModel } from "openclaw/plugin-sdk/plugin-entry";
+import type {
+  ProviderCatalogContext,
+  ProviderResolveDynamicModelContext,
+  ProviderRuntimeModel,
+} from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 
 type NanoGptCatalogEntry = {
@@ -270,6 +274,26 @@ function normalizeNanoGptResolvedModel(
   return changed ? nextModel : undefined;
 }
 
+function resolveNanoGptDynamicModelWithSnapshot(
+  ctx: ProviderResolveDynamicModelContext,
+): ProviderRuntimeModel | undefined {
+  const snapshotModels = [...readNanoGptModelsJsonSnapshot(ctx.agentDir).modelDefinitions.values()];
+
+  return resolveNanoGptDynamicModel({
+    ...ctx,
+    providerConfig:
+      ctx.providerConfig || snapshotModels.length > 0
+        ? {
+            ...ctx.providerConfig,
+            models:
+              Array.isArray(ctx.providerConfig?.models) && ctx.providerConfig.models.length > 0
+                ? ctx.providerConfig.models
+                : snapshotModels,
+          }
+        : ctx.providerConfig,
+  });
+}
+
 function applyNanoGptNativeStreamingUsageCompat(
   providerConfig: ModelProviderConfig,
 ): ModelProviderConfig | null {
@@ -357,7 +381,7 @@ export default definePluginEntry({
           agentDir: ctx.agentDir,
           model: ctx.model,
         }),
-      resolveDynamicModel: (ctx) => resolveNanoGptDynamicModel(ctx),
+      resolveDynamicModel: (ctx) => resolveNanoGptDynamicModelWithSnapshot(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
