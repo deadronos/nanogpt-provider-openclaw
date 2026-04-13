@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  sanitizeApiKey,
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
   fetchNanoGptUsageSnapshot,
@@ -9,6 +10,7 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
   resolveRequestBaseUrl,
+  probeNanoGptSubscription,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
@@ -16,6 +18,14 @@ import {
 afterEach(() => {
   resetNanoGptRuntimeState();
   vi.unstubAllGlobals();
+});
+
+describe("sanitizeApiKey", () => {
+  it("removes carriage returns and line feeds to prevent HTTP header injection", () => {
+    expect(sanitizeApiKey("test-key")).toBe("test-key");
+    expect(sanitizeApiKey("test-key\r\nInjected: true")).toBe("test-keyInjected: true");
+    expect(sanitizeApiKey("\ntest\r")).toBe("test");
+  });
 });
 
 describe("getNanoGptConfig", () => {
@@ -136,6 +146,20 @@ describe("buildNanoGptRequestHeaders", () => {
       Authorization: "Bearer test-key",
       "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
+    });
+  });
+
+  it("sanitizes provider header values before sending them", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key\r\nInjected: true",
+        config: { provider: "openrouter\r\nInjected: true" },
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-keyInjected: true",
+      "X-Billing-Mode": "paygo",
+      "X-Provider": "openrouterInjected: true",
     });
   });
 });
@@ -501,5 +525,42 @@ describe("resetNanoGptRuntimeState", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("probeNanoGptSubscription", () => {
+  it("throws on HTTP error and caches false", async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const apiKey = "http-error-key";
+
+    // First call should throw
+    await expect(probeNanoGptSubscription(apiKey)).rejects.toThrow(
+      "NanoGPT subscription probe failed with HTTP 401",
+    );
+
+    // Second call should return false from cache, no fetch call
+    await expect(probeNanoGptSubscription(apiKey)).resolves.toBe(false);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws on network error and caches false", async () => {
+    const fetchSpy = vi.fn().mockRejectedValueOnce(new Error("Network connection failed"));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const apiKey = "network-error-key";
+
+    // First call should throw
+    await expect(probeNanoGptSubscription(apiKey)).rejects.toThrow("Network connection failed");
+
+    // Second call should return false from cache, no fetch call
+    await expect(probeNanoGptSubscription(apiKey)).resolves.toBe(false);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
