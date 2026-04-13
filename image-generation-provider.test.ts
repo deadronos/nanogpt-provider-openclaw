@@ -206,7 +206,7 @@ describe("nanogpt image-generation provider", () => {
     ).rejects.toThrow(
       /Try one of: hidream, chroma, z-image-turbo, qwen-image-2512/i,
     );
-    });
+  });
 
   it("throws an error when an invalid image size is provided", async () => {
     vi.spyOn(providerAuthRuntime, "resolveApiKeyForProvider").mockResolvedValue({
@@ -226,5 +226,5 @@ describe("nanogpt image-generation provider", () => {
         size: "9999x9999" as any,
       }),
     ).rejects.toThrow(/Invalid image size "9999x9999"/);
-});
+  });
 });
