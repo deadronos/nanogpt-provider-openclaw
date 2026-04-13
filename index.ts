@@ -13,7 +13,7 @@ import {
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
-import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
+import type { ProviderCatalogContext, ProviderRuntimeModel } from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 
 type NanoGptCatalogEntry = {
@@ -24,6 +24,21 @@ type NanoGptCatalogEntry = {
   reasoning?: boolean;
   input?: Array<"text" | "image" | "document">;
 };
+
+type NanoGptModelsJsonSnapshot = {
+  catalogEntries: NanoGptCatalogEntry[];
+  modelDefinitions: Map<string, ModelProviderConfig["models"][number]>;
+};
+
+const emptyNanoGptModelsJsonSnapshot: NanoGptModelsJsonSnapshot = {
+  catalogEntries: [],
+  modelDefinitions: new Map<string, ModelProviderConfig["models"][number]>(),
+};
+
+const nanoGptModelsJsonCache = new Map<
+  string,
+  { mtimeMs: number; snapshot: NanoGptModelsJsonSnapshot }
+>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,15 +58,68 @@ function normalizeNanoGptCatalogInput(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function readNanoGptModelsJsonCatalogEntries(agentDir?: string): NanoGptCatalogEntry[] {
+function normalizeNanoGptProviderModelInput(
+  input: unknown,
+): Array<"text" | "image"> | undefined {
+  if (!Array.isArray(input)) {
+    return undefined;
+  }
+
+  const normalized = input.filter(
+    (item): item is "text" | "image" => item === "text" || item === "image",
+  );
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function parseFinitePositiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function buildNanoGptModelsJsonCost(
+  value: unknown,
+): ModelProviderConfig["models"][number]["cost"] {
+  const record = isRecord(value) ? value : {};
+  const input = typeof record.input === "number" && Number.isFinite(record.input) ? record.input : 0;
+  const output = typeof record.output === "number" && Number.isFinite(record.output) ? record.output : 0;
+  const cacheRead =
+    typeof record.cacheRead === "number" && Number.isFinite(record.cacheRead) ? record.cacheRead : 0;
+  const cacheWrite =
+    typeof record.cacheWrite === "number" && Number.isFinite(record.cacheWrite) ? record.cacheWrite : 0;
+
+  return { input, output, cacheRead, cacheWrite };
+}
+
+function buildNanoGptCatalogEntryFromModelDefinition(
+  model: ModelProviderConfig["models"][number],
+): NanoGptCatalogEntry {
+  return {
+    provider: NANOGPT_PROVIDER_ID,
+    id: model.id,
+    name: model.name,
+    ...(typeof model.contextWindow === "number" && model.contextWindow > 0
+      ? { contextWindow: model.contextWindow }
+      : {}),
+    ...(typeof model.reasoning === "boolean" ? { reasoning: model.reasoning } : {}),
+    ...(Array.isArray(model.input) && model.input.length > 0 ? { input: [...model.input] } : {}),
+  };
+}
+
+function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnapshot {
   if (!agentDir) {
-    return [];
+    return emptyNanoGptModelsJsonSnapshot;
   }
 
   const modelsPath = path.join(agentDir, "models.json");
   try {
     if (!fs.existsSync(modelsPath)) {
-      return [];
+      nanoGptModelsJsonCache.delete(modelsPath);
+      return emptyNanoGptModelsJsonSnapshot;
+    }
+
+    const stats = fs.statSync(modelsPath);
+    const cached = nanoGptModelsJsonCache.get(modelsPath);
+    if (cached && cached.mtimeMs === stats.mtimeMs) {
+      return cached.snapshot;
     }
 
     const parsed = JSON.parse(fs.readFileSync(modelsPath, "utf8")) as unknown;
@@ -61,7 +129,8 @@ function readNanoGptModelsJsonCatalogEntries(agentDir?: string): NanoGptCatalogE
       : undefined;
     const models = provider && Array.isArray(provider.models) ? provider.models : [];
 
-    const entries: NanoGptCatalogEntry[] = [];
+    const catalogEntries: NanoGptCatalogEntry[] = [];
+    const modelDefinitions = new Map<string, ModelProviderConfig["models"][number]>();
     for (const model of models) {
       if (!isRecord(model)) {
         continue;
@@ -73,26 +142,58 @@ function readNanoGptModelsJsonCatalogEntries(agentDir?: string): NanoGptCatalogE
       }
 
       const name = (typeof model.name === "string" ? model.name : id).trim() || id;
-      const contextWindow =
-        typeof model.contextWindow === "number" && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-          ? model.contextWindow
-          : undefined;
-      const reasoning = typeof model.reasoning === "boolean" ? model.reasoning : undefined;
-      const input = normalizeNanoGptCatalogInput(model.input);
+      const contextWindow = parseFinitePositiveNumber(model.contextWindow) ?? 200000;
+      const contextTokens = parseFinitePositiveNumber(model.contextTokens);
+      const maxTokens = parseFinitePositiveNumber(model.maxTokens) ?? 32768;
+      const reasoning = typeof model.reasoning === "boolean" ? model.reasoning : false;
+      const catalogInput = normalizeNanoGptCatalogInput(model.input);
+      const providerModelInput = normalizeNanoGptProviderModelInput(model.input);
 
-      entries.push({
+      const definition: ModelProviderConfig["models"][number] = {
+        id,
+        name,
+        reasoning,
+        input: providerModelInput ? [...providerModelInput] : ["text"],
+        cost: buildNanoGptModelsJsonCost(model.cost),
+        contextWindow,
+        ...(contextTokens ? { contextTokens } : {}),
+        maxTokens,
+        ...(isRecord(model.compat)
+          ? {
+              compat: {
+                ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
+              },
+            }
+          : {}),
+        ...(typeof model.api === "string"
+          ? { api: model.api as ModelProviderConfig["models"][number]["api"] }
+          : {}),
+      };
+
+      catalogEntries.push({
         provider: NANOGPT_PROVIDER_ID,
         id,
         name,
         ...(contextWindow ? { contextWindow } : {}),
-        ...(reasoning !== undefined ? { reasoning } : {}),
-        ...(input ? { input } : {}),
+        ...(typeof reasoning === "boolean" ? { reasoning } : {}),
+        ...(catalogInput ? { input: [...catalogInput] } : {}),
       });
+      modelDefinitions.set(id, definition);
     }
 
-    return entries;
+    const snapshot = {
+      catalogEntries,
+      modelDefinitions,
+    } satisfies NanoGptModelsJsonSnapshot;
+    nanoGptModelsJsonCache.set(modelsPath, {
+      mtimeMs: stats.mtimeMs,
+      snapshot,
+    });
+
+    return snapshot;
   } catch {
-    return [];
+    nanoGptModelsJsonCache.delete(modelsPath);
+    return emptyNanoGptModelsJsonSnapshot;
   }
 }
 
@@ -119,12 +220,54 @@ function readNanoGptAugmentedCatalogEntries(params: {
   config?: unknown;
 }): NanoGptCatalogEntry[] {
   return mergeNanoGptCatalogEntries(
-    readNanoGptModelsJsonCatalogEntries(params.agentDir),
+    readNanoGptModelsJsonSnapshot(params.agentDir).catalogEntries,
     readConfiguredProviderCatalogEntries({
       config: params.config as import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig | undefined,
       providerId: NANOGPT_PROVIDER_ID,
     }),
   );
+}
+
+function normalizeNanoGptResolvedModel(
+  ctx: { agentDir?: string; model: ProviderRuntimeModel },
+): ProviderRuntimeModel | undefined {
+  const definition = readNanoGptModelsJsonSnapshot(ctx.agentDir).modelDefinitions.get(ctx.model.id);
+  if (!definition) {
+    return undefined;
+  }
+
+  const nextModel: ProviderRuntimeModel = {
+    ...ctx.model,
+    name: definition.name,
+    reasoning: definition.reasoning,
+    input: [...definition.input],
+    cost: { ...definition.cost },
+    contextWindow: definition.contextWindow,
+    maxTokens: definition.maxTokens,
+    ...(definition.contextTokens ? { contextTokens: definition.contextTokens } : {}),
+    ...(definition.compat
+      ? {
+          compat: {
+            ...ctx.model.compat,
+            ...definition.compat,
+          },
+        }
+      : {}),
+    ...(definition.api ? { api: definition.api } : {}),
+  };
+
+  const changed =
+    nextModel.name !== ctx.model.name ||
+    nextModel.reasoning !== ctx.model.reasoning ||
+    nextModel.contextWindow !== ctx.model.contextWindow ||
+    nextModel.maxTokens !== ctx.model.maxTokens ||
+    nextModel.contextTokens !== ctx.model.contextTokens ||
+    JSON.stringify(nextModel.input) !== JSON.stringify(ctx.model.input) ||
+    JSON.stringify(nextModel.cost) !== JSON.stringify(ctx.model.cost) ||
+    JSON.stringify(nextModel.compat ?? null) !== JSON.stringify(ctx.model.compat ?? null) ||
+    nextModel.api !== ctx.model.api;
+
+  return changed ? nextModel : undefined;
 }
 
 function applyNanoGptNativeStreamingUsageCompat(
@@ -208,6 +351,11 @@ export default definePluginEntry({
         readNanoGptAugmentedCatalogEntries({
           agentDir: ctx.agentDir,
           config: ctx.config,
+        }),
+      normalizeResolvedModel: (ctx) =>
+        normalizeNanoGptResolvedModel({
+          agentDir: ctx.agentDir,
+          model: ctx.model,
         }),
       resolveDynamicModel: (ctx) => resolveNanoGptDynamicModel(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
