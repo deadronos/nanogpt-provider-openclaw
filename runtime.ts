@@ -27,8 +27,12 @@ import type {
   ProviderResolveUsageAuthContext,
 } from "openclaw/plugin-sdk/plugin-entry";
 
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]/g, "");
+}
+
 export function sanitizeApiKey(apiKey: string): string {
-  return apiKey.replace(/[\r\n]/g, "");
+  return sanitizeHeaderValue(apiKey);
 }
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
@@ -481,7 +485,7 @@ export function buildNanoGptRequestHeaders(params: {
   };
 
   if (params.config.provider) {
-    headers["X-Provider"] = params.config.provider;
+    headers["X-Provider"] = sanitizeHeaderValue(params.config.provider);
     if (params.routingMode === "subscription") {
       headers["X-Billing-Mode"] = "paygo";
     }

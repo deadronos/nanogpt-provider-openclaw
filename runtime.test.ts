@@ -147,6 +147,20 @@ describe("buildNanoGptRequestHeaders", () => {
       "X-Provider": "openrouter",
     });
   });
+
+  it("sanitizes provider header values before sending them", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key\r\nInjected: true",
+        config: { provider: "openrouter\r\nInjected: true" },
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-keyInjected: true",
+      "X-Billing-Mode": "paygo",
+      "X-Provider": "openrouterInjected: true",
+    });
+  });
 });
 
 describe("resolveNanoGptUsageAuth", () => {
