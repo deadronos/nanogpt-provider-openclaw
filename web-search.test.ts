@@ -46,6 +46,34 @@ describe("nanogpt web search provider", () => {
     });
   });
 
+  it("rejects search queries that exceed the maximum length", async () => {
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "test-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    const longQuery = "a".repeat(2001);
+    await expect(tool.execute({ query: longQuery })).rejects.toThrow(
+      "Search query is too long (maximum 2000 characters)."
+    );
+  });
+
   it("normalizes NanoGPT search results and forwards domain filters", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(

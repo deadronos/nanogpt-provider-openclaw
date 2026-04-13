@@ -153,6 +153,10 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         }
 
         const query = readStringParam(args, "query", { required: true });
+        if (query.length > 2000) {
+          throw new Error("Search query is too long (maximum 2000 characters).");
+        }
+
         const count = resolveSearchCount(readNumberParam(args, "count", { integer: true }), 5);
         const includeDomains = readStringArrayParam(args, "includeDomains")?.filter(Boolean);
         const excludeDomains = readStringArrayParam(args, "excludeDomains")?.filter(Boolean);
