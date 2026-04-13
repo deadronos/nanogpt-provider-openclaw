@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NANOGPT_FALLBACK_MODELS } from "./models.js";
 import {
   sanitizeApiKey,
   buildNanoGptRequestHeaders,
@@ -421,6 +422,70 @@ describe("discoverNanoGptModels", () => {
         },
       },
     ]);
+  });
+
+  it("returns fallback models when fetch throws an error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network failure")));
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      }),
+    ).resolves.toEqual(NANOGPT_FALLBACK_MODELS);
+  });
+
+  it("returns fallback models when response is not ok", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      }),
+    );
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      }),
+    ).resolves.toEqual(NANOGPT_FALLBACK_MODELS);
+  });
+
+  it("returns fallback models when response is invalid JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => {
+          throw new Error("Invalid JSON");
+        },
+      }),
+    );
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      }),
+    ).resolves.toEqual(NANOGPT_FALLBACK_MODELS);
+  });
+
+  it("returns fallback models when model list is empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [] }),
+      }),
+    );
+
+    await expect(
+      discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      }),
+    ).resolves.toEqual(NANOGPT_FALLBACK_MODELS);
   });
 });
 
