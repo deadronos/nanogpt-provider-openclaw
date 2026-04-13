@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  sanitizeApiKey,
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
   fetchNanoGptUsageSnapshot,
@@ -16,6 +17,14 @@ import {
 afterEach(() => {
   resetNanoGptRuntimeState();
   vi.unstubAllGlobals();
+});
+
+describe("sanitizeApiKey", () => {
+  it("removes carriage returns and line feeds to prevent HTTP header injection", () => {
+    expect(sanitizeApiKey("test-key")).toBe("test-key");
+    expect(sanitizeApiKey("test-key\r\nInjected: true")).toBe("test-keyInjected: true");
+    expect(sanitizeApiKey("\ntest\r")).toBe("test");
+  });
 });
 
 describe("getNanoGptConfig", () => {
