@@ -406,6 +406,76 @@ describe("nanogpt plugin entry", () => {
     });
   });
 
+  it("falls back to OPENCLAW_AGENT_DIR when dynamic model resolution omits agentDir", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.resolveDynamicModel).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
+    writeFileSync(
+      join(agentDir, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-5.4-mini",
+                  name: "GPT-5.4 Mini",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  cost: {
+                    input: 0.15,
+                    output: 0.6,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  contextWindow: 400000,
+                  maxTokens: 128000,
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+    process.env.OPENCLAW_AGENT_DIR = agentDir;
+
+    try {
+      expect(
+        provider.resolveDynamicModel?.({
+          provider: "nanogpt",
+          modelId: "openai/gpt-5.4-mini",
+          modelRegistry: {},
+          providerConfig: {
+            api: "openai-completions",
+            baseUrl: "https://nano-gpt.com/api/v1",
+            models: [],
+          },
+        }),
+      ).toMatchObject({
+        id: "openai/gpt-5.4-mini",
+        name: "GPT-5.4 Mini",
+        reasoning: true,
+        input: ["text", "image"],
+        contextWindow: 400000,
+        maxTokens: 128000,
+      });
+    } finally {
+      if (previousAgentDir === undefined) {
+        delete process.env.OPENCLAW_AGENT_DIR;
+      } else {
+        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+      }
+    }
+  });
+
   it("resolves unknown NanoGPT model ids dynamically without rewriting them", () => {
     const provider = getRegisteredProvider();
 

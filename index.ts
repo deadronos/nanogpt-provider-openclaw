@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
@@ -108,12 +109,33 @@ function buildNanoGptCatalogEntryFromModelDefinition(
   };
 }
 
+function resolveNanoGptAgentDir(agentDir?: string): string | undefined {
+  const explicit = typeof agentDir === "string" && agentDir.trim() ? agentDir.trim() : undefined;
+  if (explicit) {
+    return explicit;
+  }
+
+  const envAgentDir = process.env.OPENCLAW_AGENT_DIR?.trim() || process.env.PI_CODING_AGENT_DIR?.trim();
+  if (envAgentDir) {
+    return envAgentDir;
+  }
+
+  const stateDir = process.env.OPENCLAW_STATE_DIR?.trim();
+  if (stateDir) {
+    return path.join(stateDir, "agents", "default", "agent");
+  }
+
+  const homeDir = process.env.OPENCLAW_HOME?.trim() || process.env.HOME?.trim() || os.homedir();
+  return homeDir ? path.join(homeDir, ".openclaw", "agents", "default", "agent") : undefined;
+}
+
 function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnapshot {
-  if (!agentDir) {
+  const resolvedAgentDir = resolveNanoGptAgentDir(agentDir);
+  if (!resolvedAgentDir) {
     return emptyNanoGptModelsJsonSnapshot;
   }
 
-  const modelsPath = path.join(agentDir, "models.json");
+  const modelsPath = path.join(resolvedAgentDir, "models.json");
   try {
     if (!fs.existsSync(modelsPath)) {
       nanoGptModelsJsonCache.delete(modelsPath);
