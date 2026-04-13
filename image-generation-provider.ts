@@ -105,6 +105,9 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       const model = normalizeImageModelName(requestedModel);
       const count = req.count ?? 1;
       const size = req.size ?? "1024x1024";
+      if (size && !NANOGPT_IMAGE_SIZES.includes(size as any)) {
+        throw new Error(`Invalid image size "${size}". Expected one of: ${NANOGPT_IMAGE_SIZES.join(", ")}`);
+      }
       const inputImages = req.inputImages ?? [];
       const body: Record<string, unknown> = {
         model,
