@@ -2,7 +2,6 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import * as nodeFs from "node:fs";
 import plugin from "./index.js";
 
 describe("nanogpt plugin entry", () => {
@@ -541,43 +540,120 @@ describe("nanogpt plugin entry", () => {
 
 
 
-  it("recovers from fs errors when reading models.json and deletes cache", () => {
-    const provider = getRegisteredProvider();
+  it("recovers from fs errors when reading models.json and deletes cache", async () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-err-"));
+    const modelsPath = join(agentDir, "models.json");
+    writeFileSync(
+      modelsPath,
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-oss-120b",
+                  name: "GPT OSS 120B",
+                  reasoning: true,
+                  input: ["text"],
+                  contextWindow: 131072,
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const existsSyncMock = vi.fn(actualFs.existsSync);
+    const readFileSyncActual = actualFs.readFileSync as (...args: unknown[]) => unknown;
+    let modelsReadCount = 0;
+    const readFileSyncMock = (...args: unknown[]) => {
+      if (args[0] === modelsPath) {
+        modelsReadCount += 1;
+      }
+      return readFileSyncActual(...args);
+    };
+    const mockedFs = {
+      ...actualFs,
+      existsSync: existsSyncMock,
+      readFileSync: readFileSyncMock,
+    };
+
+    vi.doMock("node:fs", () => ({
+      __esModule: true,
+      ...mockedFs,
+      default: mockedFs,
+    }));
+
+    vi.resetModules();
+
+    const { default: mockedPlugin } = await import("./index.js");
+    const providers: unknown[] = [];
+    mockedPlugin.register({
+      pluginConfig: {},
+      registerProvider(provider: unknown) {
+        providers.push(provider);
+      },
+      registerWebSearchProvider() {},
+      registerImageGenerationProvider() {},
+    } as never);
+
+    const provider = providers[0] as ReturnType<typeof getRegisteredProvider>;
 
     expect(provider.augmentModelCatalog).toEqual(expect.any(Function));
 
-    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-err-"));
-    const modelsPath = join(agentDir, "models.json");
-    writeFileSync(modelsPath, "{}");
-
-    // warm the cache up
-    provider.augmentModelCatalog?.({
+    const warmResult = provider.augmentModelCatalog?.({
       agentDir,
       config: {},
       env: {},
       entries: [],
     });
 
-    vi.mock("node:fs", async (importOriginal) => {
-      const actual = await importOriginal();
-      return {
-        ...actual,
-        existsSync: vi.fn(() => { throw new Error("Simulated fs error"); })
-      };
+    expect(warmResult).toMatchObject([
+      {
+        provider: "nanogpt",
+        id: "openai/gpt-oss-120b",
+        name: "GPT OSS 120B",
+      },
+    ]);
+    expect(modelsReadCount).toBe(1);
+
+    existsSyncMock.mockImplementation(() => {
+      throw new Error("Simulated fs error");
     });
 
-    try {
-      const result = provider.augmentModelCatalog?.({
-        agentDir,
-        config: {},
-        env: {},
-        entries: [],
-      });
+    const errorResult = provider.augmentModelCatalog?.({
+      agentDir,
+      config: {},
+      env: {},
+      entries: [],
+    });
 
-      expect(result).toEqual([]);
-    } finally {
-      vi.unmock("node:fs");
-    }
+    expect(errorResult).toEqual([]);
+    expect(modelsReadCount).toBe(1);
+
+    existsSyncMock.mockImplementation(actualFs.existsSync);
+
+    const recoveredResult = provider.augmentModelCatalog?.({
+      agentDir,
+      config: {},
+      env: {},
+      entries: [],
+    });
+
+    expect(modelsReadCount).toBe(2);
+    expect(recoveredResult).toMatchObject([
+      {
+        provider: "nanogpt",
+        id: "openai/gpt-oss-120b",
+        name: "GPT OSS 120B",
+      },
+    ]);
   });
 
 });
