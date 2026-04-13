@@ -31,7 +31,31 @@ describe("nanogpt plugin entry", () => {
         env?: Record<string, string | undefined>;
         entries: Array<Record<string, unknown>>;
       }) => unknown;
+      normalizeResolvedModel?: (ctx: {
+        agentDir?: string;
+        provider: string;
+        modelId: string;
+        model: {
+          id: string;
+          name: string;
+          provider: string;
+          api: string;
+          baseUrl?: string;
+          reasoning: boolean;
+          input: Array<"text" | "image" | "document">;
+          cost: {
+            input: number;
+            output: number;
+            cacheRead: number;
+            cacheWrite: number;
+          };
+          contextWindow: number;
+          maxTokens: number;
+          compat?: Record<string, unknown>;
+        };
+      }) => unknown;
       resolveDynamicModel?: (ctx: {
+        agentDir?: string;
         provider: string;
         modelId: string;
         modelRegistry: unknown;
@@ -228,6 +252,228 @@ describe("nanogpt plugin entry", () => {
         contextWindow: 131072,
       },
     ]);
+  });
+
+  it("rehydrates flattened discovered NanoGPT metadata from models.json", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.normalizeResolvedModel).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
+    writeFileSync(
+      join(agentDir, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-5.4-mini",
+                  name: "GPT-5.4 Mini",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  cost: {
+                    input: 0.15,
+                    output: 0.6,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  contextWindow: 400000,
+                  maxTokens: 128000,
+                  compat: {
+                    supportsTools: true,
+                  },
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(
+      provider.normalizeResolvedModel?.({
+        agentDir,
+        provider: "nanogpt",
+        modelId: "openai/gpt-5.4-mini",
+        model: {
+          id: "openai/gpt-5.4-mini",
+          name: "openai/gpt-5.4-mini",
+          provider: "nanogpt",
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/v1",
+          reasoning: false,
+          input: ["text"],
+          cost: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+          },
+          contextWindow: 200000,
+          maxTokens: 32768,
+        },
+      }),
+    ).toMatchObject({
+      id: "openai/gpt-5.4-mini",
+      name: "GPT-5.4 Mini",
+      reasoning: true,
+      input: ["text", "image"],
+      contextWindow: 400000,
+      maxTokens: 128000,
+      compat: {
+        supportsTools: true,
+      },
+    });
+  });
+
+  it("uses models.json metadata when dynamic model resolution has no provider model templates", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.resolveDynamicModel).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
+    writeFileSync(
+      join(agentDir, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-5.4-mini",
+                  name: "GPT-5.4 Mini",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  cost: {
+                    input: 0.15,
+                    output: 0.6,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  contextWindow: 400000,
+                  maxTokens: 128000,
+                  compat: {
+                    supportsTools: true,
+                  },
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(
+      provider.resolveDynamicModel?.({
+        agentDir,
+        provider: "nanogpt",
+        modelId: "openai/gpt-5.4-mini",
+        modelRegistry: {},
+        providerConfig: {
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/v1",
+          models: [],
+        },
+      }),
+    ).toMatchObject({
+      id: "openai/gpt-5.4-mini",
+      name: "GPT-5.4 Mini",
+      provider: "nanogpt",
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/v1",
+      reasoning: true,
+      input: ["text", "image"],
+      contextWindow: 400000,
+      maxTokens: 128000,
+      compat: {
+        supportsTools: true,
+      },
+      cost: {
+        input: 0.15,
+        output: 0.6,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+    });
+  });
+
+  it("falls back to OPENCLAW_AGENT_DIR when dynamic model resolution omits agentDir", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.resolveDynamicModel).toEqual(expect.any(Function));
+
+    const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
+    writeFileSync(
+      join(agentDir, "models.json"),
+      JSON.stringify(
+        {
+          providers: {
+            nanogpt: {
+              api: "openai-completions",
+              baseUrl: "https://nano-gpt.com/api/subscription/v1",
+              models: [
+                {
+                  id: "openai/gpt-5.4-mini",
+                  name: "GPT-5.4 Mini",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  cost: {
+                    input: 0.15,
+                    output: 0.6,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  contextWindow: 400000,
+                  maxTokens: 128000,
+                },
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+    process.env.OPENCLAW_AGENT_DIR = agentDir;
+
+    try {
+      expect(
+        provider.resolveDynamicModel?.({
+          provider: "nanogpt",
+          modelId: "openai/gpt-5.4-mini",
+          modelRegistry: {},
+          providerConfig: {
+            api: "openai-completions",
+            baseUrl: "https://nano-gpt.com/api/v1",
+            models: [],
+          },
+        }),
+      ).toMatchObject({
+        id: "openai/gpt-5.4-mini",
+        name: "GPT-5.4 Mini",
+        reasoning: true,
+        input: ["text", "image"],
+        contextWindow: 400000,
+        maxTokens: 128000,
+      });
+    } finally {
+      if (previousAgentDir === undefined) {
+        delete process.env.OPENCLAW_AGENT_DIR;
+      } else {
+        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+      }
+    }
   });
 
   it("resolves unknown NanoGPT model ids dynamically without rewriting them", () => {
