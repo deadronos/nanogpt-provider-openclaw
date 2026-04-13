@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  sanitizeApiKey,
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
   fetchNanoGptUsageSnapshot,
@@ -17,6 +18,14 @@ import {
 afterEach(() => {
   resetNanoGptRuntimeState();
   vi.unstubAllGlobals();
+});
+
+describe("sanitizeApiKey", () => {
+  it("removes carriage returns and line feeds to prevent HTTP header injection", () => {
+    expect(sanitizeApiKey("test-key")).toBe("test-key");
+    expect(sanitizeApiKey("test-key\r\nInjected: true")).toBe("test-keyInjected: true");
+    expect(sanitizeApiKey("\ntest\r")).toBe("test");
+  });
 });
 
 describe("getNanoGptConfig", () => {
@@ -137,6 +146,20 @@ describe("buildNanoGptRequestHeaders", () => {
       Authorization: "Bearer test-key",
       "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
+    });
+  });
+
+  it("sanitizes provider header values before sending them", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key\r\nInjected: true",
+        config: { provider: "openrouter\r\nInjected: true" },
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-keyInjected: true",
+      "X-Billing-Mode": "paygo",
+      "X-Provider": "openrouterInjected: true",
     });
   });
 });
