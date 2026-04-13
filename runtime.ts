@@ -45,6 +45,7 @@ const NANOGPT_PROVIDER_PRICING_BATCH_SIZE = 8;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
 const providerPricingCache = new Map<string, { pricing: NanoGptModelPricing | null; expiresAt: number }>();
+const providerPricingInFlight = new Map<string, Promise<NanoGptModelPricing | null>>();
 
 type NanoGptUsageWindowPayload = Record<string, unknown> | number | string | undefined;
 
@@ -98,6 +99,18 @@ function parseEpochMillis(value: unknown): number | undefined {
 
 function normalizeProviderId(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
 }
 
 function normalizeComparableModelId(value: string): string {
@@ -414,50 +427,74 @@ export async function fetchNanoGptSelectedProviderPricing(params: {
     return null;
   }
 
-  const cacheKey = `${providerId}:${params.modelId}`;
+  const modelId = params.modelId.trim();
+  if (!modelId) {
+    return null;
+  }
+
+  const cacheKey = `${providerId}:${modelId}`;
   const now = Date.now();
   const cached = providerPricingCache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
     return cached.pricing;
   }
 
-  try {
-    const url = new URL(
-      `${NANOGPT_PROVIDER_SELECTION_BASE_URL}/models/${encodeURIComponent(params.modelId)}/providers`,
-    );
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
-      },
-    });
-    if (!response.ok) {
-      // Short cache for failures to avoid immediate retry loops
-      providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + 30_000 });
-      return null;
-    }
-
-    const payload = (await response.json()) as NanoGptProviderPricingPayload | null;
-    if (!payload || !isRecord(payload) || payload.supportsProviderSelection === false) {
-      providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + PROVIDER_PRICING_CACHE_TTL_MS });
-      return null;
-    }
-
-    const providers = Array.isArray(payload.providers) ? payload.providers : [];
-    const match = providers.find(
-      (entry) =>
-        isRecord(entry) &&
-        normalizeProviderId(entry.provider) === providerId &&
-        entry.available !== false,
-    );
-    const pricing = match && isRecord(match.pricing) ? (match.pricing as NanoGptModelPricing) : null;
-    providerPricingCache.set(cacheKey, { pricing, expiresAt: now + PROVIDER_PRICING_CACHE_TTL_MS });
-    return pricing;
-  } catch {
-    // Very short cache for unexpected errors
-    providerPricingCache.set(cacheKey, { pricing: null, expiresAt: now + 5_000 });
-    return null;
+  const inFlight = providerPricingInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
   }
+
+  const deferred = createDeferred<NanoGptModelPricing | null>();
+  providerPricingInFlight.set(cacheKey, deferred.promise);
+
+  void (async () => {
+    try {
+      const url = new URL(
+        `${NANOGPT_PROVIDER_SELECTION_BASE_URL}/models/${encodeURIComponent(modelId)}/providers`,
+      );
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
+        },
+      });
+      if (!response.ok) {
+        // Short cache for failures to avoid immediate retry loops
+        providerPricingCache.set(cacheKey, { pricing: null, expiresAt: Date.now() + 30_000 });
+        deferred.resolve(null);
+        return;
+      }
+
+      const payload = (await response.json()) as NanoGptProviderPricingPayload | null;
+      if (!payload || !isRecord(payload) || payload.supportsProviderSelection === false) {
+        providerPricingCache.set(cacheKey, {
+          pricing: null,
+          expiresAt: Date.now() + PROVIDER_PRICING_CACHE_TTL_MS,
+        });
+        deferred.resolve(null);
+        return;
+      }
+
+      const providers = Array.isArray(payload.providers) ? payload.providers : [];
+      const match = providers.find(
+        (entry) =>
+          isRecord(entry) &&
+          normalizeProviderId(entry.provider) === providerId &&
+          entry.available !== false,
+      );
+      const pricing = match && isRecord(match.pricing) ? (match.pricing as NanoGptModelPricing) : null;
+      providerPricingCache.set(cacheKey, { pricing, expiresAt: Date.now() + PROVIDER_PRICING_CACHE_TTL_MS });
+      deferred.resolve(pricing);
+    } catch {
+      // Very short cache for unexpected errors
+      providerPricingCache.set(cacheKey, { pricing: null, expiresAt: Date.now() + 5_000 });
+      deferred.resolve(null);
+    } finally {
+      providerPricingInFlight.delete(cacheKey);
+    }
+  })();
+
+  return deferred.promise;
 }
 
 async function applyNanoGptSelectedProviderPricing(params: {
@@ -571,4 +608,5 @@ export async function fetchNanoGptUsageSnapshot(
 export function resetNanoGptRuntimeState(): void {
   subscriptionCache.clear();
   providerPricingCache.clear();
+  providerPricingInFlight.clear();
 }
