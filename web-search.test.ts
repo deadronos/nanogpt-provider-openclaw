@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
+
+let originalNanoGptApiKey: string | undefined;
+
+beforeEach(() => {
+  originalNanoGptApiKey = process.env.NANOGPT_API_KEY;
+  delete process.env.NANOGPT_API_KEY;
+});
 
 describe("nanogpt web search provider", () => {
   it("registers the nanogpt web search provider", () => {
@@ -123,4 +130,15 @@ describe("nanogpt web search provider", () => {
       ],
     });
   });
+});
+
+afterEach(() => {
+  if (originalNanoGptApiKey === undefined) {
+    delete process.env.NANOGPT_API_KEY;
+  } else {
+    process.env.NANOGPT_API_KEY = originalNanoGptApiKey;
+  }
+  originalNanoGptApiKey = undefined;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
