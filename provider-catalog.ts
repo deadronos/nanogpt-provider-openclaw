@@ -84,6 +84,13 @@ export async function buildNanoGptProvider(params: {
     throw new Error(validationError);
   }
 
+  const resolvedHeaders = buildNanoGptRequestHeaders({
+    apiKey: params.apiKey,
+    config,
+    routingMode,
+  });
+  const { Authorization: _authorization, ...providerHeaders } = resolvedHeaders;
+
   return {
     baseUrl: resolveRequestBaseUrl({
       config,
@@ -91,11 +98,7 @@ export async function buildNanoGptProvider(params: {
     }),
     api: resolveNanoGptRequestApi(config),
     apiKey: params.apiKey,
-    headers: buildNanoGptRequestHeaders({
-      apiKey: params.apiKey,
-      config,
-      routingMode,
-    }),
+    ...(Object.keys(providerHeaders).length > 0 ? { headers: providerHeaders } : {}),
     models: models.map((model) => ({
       ...model,
       provider: NANOGPT_PROVIDER_ID,
