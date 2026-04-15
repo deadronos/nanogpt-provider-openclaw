@@ -110,6 +110,37 @@ describe("buildNanoGptProvider", () => {
     });
   });
 
+  it("keeps subscription routing when the usage probe only reports state=active", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ state: "active" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "moonshotai/kimi-k2.5:thinking",
+                displayName: "Kimi K2.5 Thinking",
+              },
+            ],
+          }),
+        }),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: { routingMode: "auto", catalogSource: "auto" },
+    });
+
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+    expect(provider.models[0]?.id).toBe("moonshotai/kimi-k2.5:thinking");
+  });
+
   it("adds provider override headers and paygo billing override for subscription routing", async () => {
     vi.stubGlobal(
       "fetch",
