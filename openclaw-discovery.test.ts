@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolvePluginDiscoveryProvidersRuntime } from "./node_modules/openclaw/dist/plugins/provider-discovery.runtime.js";
+import { mergeProcessEnv } from "./test-env.js";
 
 type ProviderCatalogHook = {
   order?: string;
@@ -139,12 +140,11 @@ async function loadNanoGptCatalogProvider(): Promise<ProviderPlugin | undefined>
       },
     },
     workspaceDir: process.cwd(),
-    env: {
-      ...process.env,
+    env: mergeProcessEnv({
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
       VITEST: "1",
       NODE_ENV: "test",
-    },
+    }),
     onlyPluginIds: ["nanogpt"],
   }).then((providers) => providers.find((provider) => provider.id === "nanogpt"));
 
@@ -165,12 +165,11 @@ async function loadNanoGptCatalogProviderWithPluginConfig(pluginConfig: Record<s
       },
     },
     workspaceDir: process.cwd(),
-    env: {
-      ...process.env,
+    env: mergeProcessEnv({
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
       VITEST: "1",
       NODE_ENV: "test",
-    },
+    }),
     onlyPluginIds: ["nanogpt"],
   });
 
@@ -234,12 +233,11 @@ describe("NanoGPT OpenClaw discovery integration", () => {
         },
         agentDir: process.cwd(),
         workspaceDir: process.cwd(),
-        env: {
-          ...process.env,
+        env: mergeProcessEnv({
           OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
           VITEST: "1",
           NODE_ENV: "test",
-        },
+        }),
         resolveProviderApiKey: () => ({ apiKey: "test-key" }),
         resolveProviderAuth: () => ({
           apiKey: "test-key",
@@ -358,12 +356,11 @@ describe("NanoGPT OpenClaw discovery integration", () => {
       },
       agentDir: process.cwd(),
       workspaceDir: process.cwd(),
-      env: {
-        ...process.env,
+        env: mergeProcessEnv({
         OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
         VITEST: "1",
         NODE_ENV: "test",
-      },
+        }),
       resolveProviderApiKey: () => ({ apiKey: "NANOGPT_API_KEY" }),
       resolveProviderAuth: () => ({
         apiKey: "NANOGPT_API_KEY",
