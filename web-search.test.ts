@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
+import { clearEnvKeys, restoreEnv, snapshotEnv } from "./test-env.js";
 import { createNanoGptWebSearchProvider, __testing } from "./web-search.js";
 
-let originalNanoGptApiKey: string | undefined;
+const WEB_SEARCH_ENV_KEYS = ["NANOGPT_API_KEY"] as const;
+
+let webSearchEnvSnapshot: Record<string, string | undefined> | undefined;
 
 beforeEach(() => {
-  originalNanoGptApiKey = process.env.NANOGPT_API_KEY;
-  delete process.env.NANOGPT_API_KEY;
+  webSearchEnvSnapshot = snapshotEnv(WEB_SEARCH_ENV_KEYS);
+  clearEnvKeys(WEB_SEARCH_ENV_KEYS);
 });
 
 describe("nanogpt web search provider", () => {
@@ -186,12 +189,11 @@ describe("nanogpt web search provider", () => {
 });
 
 afterEach(() => {
-  if (originalNanoGptApiKey === undefined) {
-    delete process.env.NANOGPT_API_KEY;
-  } else {
-    process.env.NANOGPT_API_KEY = originalNanoGptApiKey;
+  if (webSearchEnvSnapshot) {
+    restoreEnv(webSearchEnvSnapshot);
   }
-  originalNanoGptApiKey = undefined;
+  webSearchEnvSnapshot = undefined;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
