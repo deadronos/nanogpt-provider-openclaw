@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
-import { createNanoGptWebSearchProvider } from "./web-search.js";
+import { createNanoGptWebSearchProvider, __testing } from "./web-search.js";
 
 let originalNanoGptApiKey: string | undefined;
 
@@ -157,6 +157,31 @@ describe("nanogpt web search provider", () => {
         },
       ],
     });
+  });
+  it("filters out results with unsafe or invalid URLs", () => {
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        url: "javascript:alert(1)",
+        title: "Malicious",
+        snippet: "Malicious",
+      })
+    ).toBeNull();
+
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        url: "data:text/html,<script>alert(1)</script>",
+        title: "Malicious",
+        snippet: "Malicious",
+      })
+    ).toBeNull();
+
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        url: "not-a-valid-url",
+        title: "Invalid",
+        snippet: "Invalid",
+      })
+    ).toBeNull();
   });
 });
 
