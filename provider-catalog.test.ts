@@ -141,6 +141,34 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]?.id).toBe("moonshotai/kimi-k2.5:thinking");
   });
 
+  it("keeps subscription routing when the usage probe errors in auto mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValueOnce(new Error("usage probe failed"))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "moonshotai/kimi-k2.5:thinking",
+                displayName: "Kimi K2.5 Thinking",
+              },
+            ],
+          }),
+        }),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: { routingMode: "auto", catalogSource: "auto" },
+    });
+
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+    expect(provider.models[0]?.id).toBe("moonshotai/kimi-k2.5:thinking");
+  });
+
   it("adds provider override headers and paygo billing override for subscription routing", async () => {
     vi.stubGlobal(
       "fetch",

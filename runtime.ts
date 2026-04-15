@@ -397,7 +397,9 @@ export async function resolveNanoGptRoutingMode(params: {
   try {
     return (await probeNanoGptSubscription(params.apiKey)) ? "subscription" : "paygo";
   } catch {
-    return "paygo";
+    // Favor subscription when auto-probing is ambiguous so temporary usage-endpoint
+    // failures do not silently downgrade subscription-capable requests into paygo.
+    return "subscription";
   }
 }
 

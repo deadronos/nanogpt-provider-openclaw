@@ -111,6 +111,20 @@ describe("resolveNanoGptRoutingMode", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("favors subscription when the usage probe errors in auto mode", async () => {
+    const fetchSpy = vi.fn().mockRejectedValue(new Error("usage probe failed"));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "probe-error-key",
+      }),
+    ).resolves.toBe("subscription");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("caches subscription status per api key", async () => {
     const fetchSpy = vi
       .fn()
@@ -150,6 +164,10 @@ describe("resolveNanoGptRoutingMode", () => {
 describe("resolveCatalogSource", () => {
   it("maps auto to subscription when routing resolved to subscription", () => {
     expect(resolveCatalogSource({ config: {}, routingMode: "subscription" })).toBe("subscription");
+  });
+
+  it("maps auto to canonical when routing resolved to paygo", () => {
+    expect(resolveCatalogSource({ config: {}, routingMode: "paygo" })).toBe("canonical");
   });
 });
 
@@ -199,6 +217,18 @@ describe("buildNanoGptRequestHeaders", () => {
       Authorization: "Bearer test-keyInjected: true",
       "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
+    });
+  });
+
+  it("does not set a paygo billing override when no provider override is configured", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key",
+        config: {},
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-key",
     });
   });
 });

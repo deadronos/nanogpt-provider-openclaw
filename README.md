@@ -119,6 +119,7 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
 ## Model Allowlist in openclaw.json
 
 For example:
+
 ```json5
 "agents":{
   "defaults":{
@@ -144,7 +145,6 @@ For example:
 "
 ```
 
-
 ### Options
 
 - `routingMode`: `auto`, `subscription`, `paygo`
@@ -155,7 +155,9 @@ For example:
 ### Behavior notes
 
 - `routingMode: "auto"` probes NanoGPT subscription status and falls back to
-  `paygo` if the probe fails.
+  `subscription` if the probe is ambiguous or fails. It only resolves to
+  `paygo` when the probe succeeds and explicitly indicates the key is not
+  subscription-active.
 - `catalogSource: "auto"` resolves to `subscription` when text requests are
   routed through subscription mode, otherwise `canonical`.
 - `requestApi: "responses"` uses OpenAI Responses transport (experimental, requires models compatible with Responses API).
@@ -166,6 +168,10 @@ For example:
 - `provider` adds NanoGPT's `X-Provider` override header for text requests.
 - if `provider` is set while the request would otherwise use subscription
   routing, the plugin also sets `X-Billing-Mode: paygo`
+- `requestApi: "responses"` on subscription routing uses NanoGPT's base API
+  endpoint (`/api/v1`) rather than the subscription completions endpoint, so
+  treat it as a separate compatibility/billing path from standard subscription
+  chat-completions routing.
 
 ### Pricing behavior
 
