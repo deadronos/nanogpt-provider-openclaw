@@ -129,7 +129,6 @@ describe("buildNanoGptProvider", () => {
     });
 
     expect(provider.headers).toEqual({
-      Authorization: "Bearer test-key",
       "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
@@ -154,10 +153,29 @@ describe("buildNanoGptProvider", () => {
     });
 
     expect(provider.headers).toEqual({
-      Authorization: "Bearer test-key",
       "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
     });
+  });
+
+  it("omits Authorization from provider config so runtime auth can inject the real key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+      })),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+      },
+    });
+
+    expect(provider.headers).toBeUndefined();
   });
 
   it("surfaces provider-specific model pricing when an upstream provider is configured", async () => {
