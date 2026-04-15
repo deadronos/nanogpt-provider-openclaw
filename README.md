@@ -116,6 +116,35 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
 }
 ```
 
+## Model Allowlist in openclaw.json
+
+For example:
+```json5
+"agents":{
+  "defaults":{
+    "models": {
+        "nanogpt/moonshotai/kimi-k2.5:thinking": {},
+        "nanogpt/minimax/minimax-m2.7": {},
+        "nanogpt/deepseek/deepseek-v3.2:thinking": {},
+        "nanogpt/mistralai/devstral-2-123b-instruct-2512": {},
+        "nanogpt/google/gemma-4-26b-a4b-it:thinking": {},
+        "nanogpt/google/gemma-4-31b-it:thinking": {},
+        "nanogpt/zai-org/glm-5:thinking": {},
+        "nanogpt/zai-org/glm-5": {},
+        "nanogpt/moonshotai/kimi-k2.5": {},
+        "nanogpt/mistralai/mistral-large-3-675b-instruct-2512": {},
+        "nanogpt/nvidia/nemotron-3-super-120b-a12b:thinking": {},
+        "nanogpt/qwen/qwen3.5-397b-a17b-thinking": {},
+        "nanogpt/qwen/qwen3.5-397b-a17b": {},
+        "nanogpt/stepfun-ai/step-3.5-flash": {},
+        "nanogpt/stepfun-ai/step-3.5-flash-2603": {}
+      }
+  }
+}
+"
+```
+
+
 ### Options
 
 - `routingMode`: `auto`, `subscription`, `paygo`
