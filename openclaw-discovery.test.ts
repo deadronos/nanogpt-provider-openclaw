@@ -151,6 +151,32 @@ async function loadNanoGptCatalogProvider(): Promise<ProviderPlugin | undefined>
   return nanoGptCatalogProviderPromise;
 }
 
+async function loadNanoGptCatalogProviderWithPluginConfig(pluginConfig: Record<string, unknown>): Promise<ProviderPlugin | undefined> {
+  const providers = await resolvePluginDiscoveryProviders({
+    config: {
+      plugins: {
+        allow: ["nanogpt"],
+        entries: {
+          nanogpt: {
+            enabled: true,
+            config: pluginConfig,
+          },
+        },
+      },
+    },
+    workspaceDir: process.cwd(),
+    env: {
+      ...process.env,
+      OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
+      VITEST: "1",
+      NODE_ENV: "test",
+    },
+    onlyPluginIds: ["nanogpt"],
+  });
+
+  return providers.find((provider) => provider.id === "nanogpt");
+}
+
 describe("NanoGPT OpenClaw discovery integration", () => {
   it(
     "returns discovered NanoGPT models through the OpenClaw provider catalog hook",
@@ -259,4 +285,118 @@ describe("NanoGPT OpenClaw discovery integration", () => {
     },
     30_000,
   );
+
+  it("does not serialize a placeholder Authorization header through the discovery hook result", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5:thinking",
+              displayName: "Kimi K2.5 Thinking",
+              capabilities: {
+                reasoning: true,
+                vision: true,
+                tool_calling: true,
+              },
+              context_length: 262144,
+              max_output_tokens: 8192,
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          supportsProviderSelection: true,
+          providers: [
+            {
+              provider: "openrouter",
+              available: true,
+              pricing: {
+                inputPer1kTokens: 0.00042,
+                outputPer1kTokens: 0.0018375,
+                unit: "per_1k_tokens",
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = await loadNanoGptCatalogProviderWithPluginConfig({
+      routingMode: "subscription",
+      catalogSource: "subscription",
+      provider: "openrouter",
+    });
+    expect(provider).toBeDefined();
+
+    const result = await runProviderCatalog({
+      provider: provider!,
+      config: {
+        plugins: {
+          allow: ["nanogpt"],
+          entries: {
+            nanogpt: {
+              enabled: true,
+              config: {
+                routingMode: "subscription",
+                catalogSource: "subscription",
+                provider: "openrouter",
+              },
+            },
+          },
+        },
+      },
+      agentDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      env: {
+        ...process.env,
+        OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
+        VITEST: "1",
+        NODE_ENV: "test",
+      },
+      resolveProviderApiKey: () => ({ apiKey: "NANOGPT_API_KEY" }),
+      resolveProviderAuth: () => ({
+        apiKey: "NANOGPT_API_KEY",
+        discoveryApiKey: "NANOGPT_API_KEY",
+        mode: "api_key",
+        source: "env",
+      }),
+    });
+
+    const providers = normalizePluginDiscoveryResult({
+      provider: provider!,
+      result,
+    });
+    const nanogptProvider = providers.nanogpt as Record<string, unknown> | undefined;
+    const serializedProvider = JSON.stringify({ providers: { nanogpt: nanogptProvider } });
+
+    expect(nanogptProvider).toMatchObject({
+      api: "openai-completions",
+      apiKey: "NANOGPT_API_KEY",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      headers: {
+        "X-Billing-Mode": "paygo",
+        "X-Provider": "openrouter",
+      },
+    });
+    expect(serializedProvider).not.toContain("Authorization");
+    expect(serializedProvider).not.toContain("Bearer NANOGPT_API_KEY");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://nano-gpt.com/api/subscription/v1/models?detailed=true",
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      "https://nano-gpt.com/api/models/moonshotai%2Fkimi-k2.5%3Athinking/providers",
+    );
+  });
 });
