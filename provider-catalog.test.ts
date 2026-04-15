@@ -178,6 +178,35 @@ describe("buildNanoGptProvider", () => {
     expect(provider.headers).toBeUndefined();
   });
 
+  it("never serializes a placeholder Authorization header into cached provider configs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+      })),
+    );
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "NANOGPT_API_KEY",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+        provider: "openrouter",
+      },
+    });
+
+    const serializedProvider = JSON.stringify(provider);
+
+    expect(provider.apiKey).toBe("NANOGPT_API_KEY");
+    expect(provider.headers).toEqual({
+      "X-Billing-Mode": "paygo",
+      "X-Provider": "openrouter",
+    });
+    expect(serializedProvider).not.toContain("Authorization");
+    expect(serializedProvider).not.toContain("Bearer NANOGPT_API_KEY");
+  });
+
   it("surfaces provider-specific model pricing when an upstream provider is configured", async () => {
     vi.stubGlobal(
       "fetch",
