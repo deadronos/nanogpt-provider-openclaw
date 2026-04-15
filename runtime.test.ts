@@ -73,6 +73,44 @@ describe("resolveNanoGptRoutingMode", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("treats a state-only active usage payload as subscription", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ state: "active" }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "state-only-key",
+      }),
+    ).resolves.toBe("subscription");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a future grace period as subscription", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        state: "grace",
+        active: false,
+        graceUntil: Date.now() + 60_000,
+      }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "grace-key",
+      }),
+    ).resolves.toBe("subscription");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("caches subscription status per api key", async () => {
     const fetchSpy = vi
       .fn()
