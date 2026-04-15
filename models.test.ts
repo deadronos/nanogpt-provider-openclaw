@@ -75,14 +75,19 @@ describe("buildNanoGptModelDefinition", () => {
     {
       id: "moonshotai/kimi-k2.5",
       capabilities: { tool_calling: true },
-      expected: true,
+      expected: false,
+    },
+    {
+      id: "moonshotai/kimi-k2.5:thinking",
+      capabilities: { tool_calling: true },
+      expected: false,
     },
     {
       id: "minimax-m2.7",
       capabilities: { tool_calling: false },
       expected: false,
     },
-  ] as const)("passes through tool_calling for $id", ({ id, capabilities, expected }) => {
+  ] as const)("derives tool compatibility for $id", ({ id, capabilities, expected }) => {
     expect(
       buildNanoGptModelDefinition({
         id,

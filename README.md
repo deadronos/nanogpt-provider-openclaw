@@ -165,6 +165,10 @@ For example:
 - `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
 - Completions-mode models are still marked with streaming usage compatibility so
   OpenClaw requests `stream_options.include_usage` automatically.
+- `moonshotai/kimi-k2.5` and `moonshotai/kimi-k2.5:thinking` are currently
+  marked as not supporting tools because repeated OpenClaw tool-result follow-up
+  requests on NanoGPT's chat-completions path stalled past extended idle-timeout
+  windows in live repros.
 - `provider` adds NanoGPT's `X-Provider` override header for text requests.
 - if `provider` is set while the request would otherwise use subscription
   routing, the plugin also sets `X-Billing-Mode: paygo`

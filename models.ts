@@ -94,12 +94,28 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
+const NANOGPT_TOOL_TIMEOUT_MODEL_IDS = new Set([
+  "moonshotai/kimi-k2.5",
+  "moonshotai/kimi-k2.5:thinking",
+]);
+
 function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function shouldDisableNanoGptToolCalling(id: string): boolean {
+  return NANOGPT_TOOL_TIMEOUT_MODEL_IDS.has(id.trim().toLowerCase());
+}
+
+export function applyNanoGptToolSupportOverride(
+  modelId: string,
+  supportsTools: boolean | undefined,
+): boolean | undefined {
+  return shouldDisableNanoGptToolCalling(modelId) ? false : supportsTools;
 }
 
 function resolveNanoGptPricingUnit(pricing: NanoGptModelPricing): string {
@@ -131,7 +147,10 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
   const pricing = entry.pricing ?? {};
   const hasVision = Boolean(capabilities.vision ?? entry.vision);
   const hasReasoning = Boolean(capabilities.reasoning ?? entry.reasoning);
-  const hasTools = capabilities.tool_calling ?? entry.tool_calling;
+  const supportsTools = applyNanoGptToolSupportOverride(
+    id,
+    capabilities.tool_calling ?? entry.tool_calling,
+  );
   const contextWindow = entry.context_length ?? entry.contextWindow;
   const maxTokens = entry.max_output_tokens ?? entry.maxTokens;
 
@@ -140,11 +159,11 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
     name: String(entry.displayName ?? entry.name ?? id),
     reasoning: hasReasoning,
     input: hasVision ? ["text", "image"] : ["text"],
-    ...(hasTools === undefined
+    ...(supportsTools === undefined
       ? {}
       : {
           compat: {
-            supportsTools: hasTools,
+            supportsTools,
           },
         }),
     cost: {

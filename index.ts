@@ -6,7 +6,11 @@ import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-aut
 import { readConfiguredProviderCatalogEntries } from "openclaw/plugin-sdk/provider-catalog-shared";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import { applyNanoGptProviderConfig } from "./onboard.js";
-import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
+import {
+  NANOGPT_DEFAULT_MODEL_REF,
+  NANOGPT_PROVIDER_ID,
+  applyNanoGptToolSupportOverride,
+} from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
   fetchNanoGptUsageSnapshot,
@@ -174,6 +178,18 @@ function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnap
       const reasoning = typeof model.reasoning === "boolean" ? model.reasoning : false;
       const catalogInput = normalizeNanoGptCatalogInput(model.input);
       const providerModelInput = normalizeNanoGptProviderModelInput(model.input);
+      const rawCompat = isRecord(model.compat)
+        ? {
+            ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
+          }
+        : undefined;
+      const supportsTools = applyNanoGptToolSupportOverride(id, rawCompat?.supportsTools);
+      const compat = rawCompat || supportsTools !== undefined
+        ? {
+            ...rawCompat,
+            ...(supportsTools === undefined ? {} : { supportsTools }),
+          }
+        : undefined;
 
       const definition: ModelProviderConfig["models"][number] = {
         id,
@@ -184,13 +200,7 @@ function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnap
         contextWindow,
         ...(contextTokens ? { contextTokens } : {}),
         maxTokens,
-        ...(isRecord(model.compat)
-          ? {
-              compat: {
-                ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
-              },
-            }
-          : {}),
+        ...(compat ? { compat } : {}),
         ...(typeof model.api === "string"
           ? { api: model.api as ModelProviderConfig["models"][number]["api"] }
           : {}),

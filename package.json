@@ -69,5 +69,9 @@
       "openclawVersion": "2026.4.5",
       "pluginSdkVersion": "2026.4.5"
     }
+  },
+  "dependencies": {
+    "grammer": "^0.0.3",
+    "grammy": "^1.42.0"
   }
 }
