@@ -169,6 +169,54 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]?.id).toBe("moonshotai/kimi-k2.5:thinking");
   });
 
+  it("does not reuse a failed usage probe as paygo on the next provider build", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValueOnce(new Error("usage probe failed"))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "moonshotai/kimi-k2.5:thinking",
+                displayName: "Kimi K2.5 Thinking",
+              },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ subscribed: true }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "moonshotai/kimi-k2.5:thinking",
+                displayName: "Kimi K2.5 Thinking",
+              },
+            ],
+          }),
+        }),
+    );
+
+    const firstProvider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: { routingMode: "auto", catalogSource: "auto" },
+    });
+
+    const secondProvider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: { routingMode: "auto", catalogSource: "auto" },
+    });
+
+    expect(firstProvider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+    expect(secondProvider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+  });
+
   it("adds provider override headers and paygo billing override for subscription routing", async () => {
     vi.stubGlobal(
       "fetch",
