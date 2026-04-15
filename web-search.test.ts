@@ -158,6 +158,39 @@ describe("nanogpt web search provider", () => {
       ],
     });
   });
+
+  it("normalizes NanoGPT search results and blocks untrusted URL protocols", async () => {
+    const { __testing } = await import("./web-search.js");
+
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        title: "Malicious Link",
+        url: "javascript:alert(1)",
+        snippet: "Click me",
+      })
+    ).toBeNull();
+
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        title: "Malicious Link",
+        url: "data:text/html,<script>alert(1)</script>",
+        snippet: "Click me",
+      })
+    ).toBeNull();
+
+    expect(
+      __testing.normalizeNanoGptWebSearchResult({
+        title: "Valid Link",
+        url: "https://example.com/docs",
+        snippet: "Valid click",
+      })
+    ).toMatchObject({
+      title: expect.any(String),
+      url: "https://example.com/docs",
+      snippet: expect.any(String),
+      siteName: "example.com",
+    });
+  });
 });
 
 afterEach(() => {

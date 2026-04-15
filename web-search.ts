@@ -92,6 +92,16 @@ function normalizeNanoGptWebSearchResult(
     return null;
   }
 
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    return null;
+  }
+
   const title = typeof entry.title === "string" ? entry.title.trim() : "";
   const rawSnippet =
     typeof entry.snippet === "string"
