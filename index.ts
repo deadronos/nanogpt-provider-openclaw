@@ -19,7 +19,10 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
-import { wrapStreamWithToolCallRepair } from "./repair.js";
+import {
+  shouldRepairNanoGptToolCallArguments,
+  wrapStreamWithToolCallRepair,
+} from "./repair.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
   AnyAgentTool,
@@ -449,6 +452,11 @@ export default definePluginEntry({
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
       wrapStreamFn: (ctx) => {
         if (ctx.streamFn) {
+          const repairModelId =
+            typeof ctx.model?.id === "string" && ctx.model.id.trim() ? ctx.model.id : ctx.modelId;
+          if (!shouldRepairNanoGptToolCallArguments(repairModelId)) {
+            return ctx.streamFn;
+          }
           return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger);
         }
         return undefined;

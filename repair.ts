@@ -2,7 +2,6 @@ import { jsonrepair } from "jsonrepair";
 import type {
   AssistantMessage,
   AssistantMessageEvent,
-  ToolCall,
 } from "@mariozechner/pi-ai";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 
@@ -10,6 +9,19 @@ export type RepairLogger = {
   warn: (message: string) => void;
   info: (message: string) => void;
 };
+
+function normalizeNanoGptRepairModelId(modelId: string): string {
+  const normalized = modelId.trim().toLowerCase();
+  return normalized.startsWith("nanogpt/") ? normalized.slice("nanogpt/".length) : normalized;
+}
+
+export function shouldRepairNanoGptToolCallArguments(modelId?: string): boolean {
+  if (!modelId?.trim()) {
+    return false;
+  }
+  const normalized = normalizeNanoGptRepairModelId(modelId);
+  return normalized.startsWith("moonshotai/kimi");
+}
 
 /**
  * Wraps an OpenClaw model stream to automatically repair malformed JSON in tool call arguments.
