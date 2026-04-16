@@ -23,34 +23,91 @@ export function wrapStreamWithToolCallRepair(
     const stream = await streamFn(...args);
     const modelId = args[0]?.id || "unknown";
 
-    return (async function* () {
-      const toolCallArgBuffers = new Map<number, string>();
-
-      for await (const event of stream) {
-        if (event.type === "toolcall_delta") {
-          const current = toolCallArgBuffers.get(event.contentIndex) || "";
-          toolCallArgBuffers.set(event.contentIndex, current + event.delta);
-          yield event;
-        } else if (event.type === "toolcall_end") {
-          const rawArgs = toolCallArgBuffers.get(event.contentIndex);
-          if (rawArgs !== undefined) {
-            const repairedEvent = repairToolCallEndEvent(event, rawArgs, modelId, logger);
-            yield repairedEvent;
-          } else {
-            yield event;
-          }
-        } else if (event.type === "done") {
-          const repairedMessage = repairAssistantMessage(event.message, toolCallArgBuffers, modelId, logger);
-          yield { ...event, message: repairedMessage };
-        } else if (event.type === "error") {
-          const repairedError = repairAssistantMessage(event.error, toolCallArgBuffers, modelId, logger);
-          yield { ...event, error: repairedError };
-        } else {
-          yield event;
-        }
-      }
-    })() as any;
+    return wrapToolCallRepairStream(stream, modelId, logger) as any;
   };
+}
+
+function wrapToolCallRepairStream<TStream extends AsyncIterable<AssistantMessageEvent>>(
+  stream: TStream,
+  modelId: string,
+  logger: RepairLogger,
+): TStream {
+  const toolCallArgBuffers = new Map<number, string>();
+  const wrappedStream = stream as TStream & {
+    result?: () => Promise<AssistantMessage>;
+    [Symbol.asyncIterator]: () => AsyncIterator<AssistantMessageEvent>;
+  };
+
+  const originalAsyncIterator = wrappedStream[Symbol.asyncIterator].bind(wrappedStream);
+  wrappedStream[Symbol.asyncIterator] = function () {
+    const iterator = originalAsyncIterator();
+    return {
+      async next() {
+        const result = await iterator.next();
+        if (result.done) {
+          return result;
+        }
+
+        return {
+          done: false as const,
+          value: repairAssistantMessageEvent(result.value, toolCallArgBuffers, modelId, logger),
+        };
+      },
+      async return(value?: unknown) {
+        return iterator.return?.(value) ?? { done: true as const, value: undefined };
+      },
+      async throw(error?: unknown) {
+        return iterator.throw?.(error) ?? Promise.reject(error);
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  };
+
+  if (typeof wrappedStream.result === "function") {
+    const originalResult = wrappedStream.result.bind(wrappedStream);
+    wrappedStream.result = async () => {
+      const message = await originalResult();
+      return repairAssistantMessage(message, toolCallArgBuffers, modelId, logger);
+    };
+  }
+
+  return wrappedStream;
+}
+
+function repairAssistantMessageEvent(
+  event: AssistantMessageEvent,
+  toolCallArgBuffers: Map<number, string>,
+  modelId: string,
+  logger: RepairLogger,
+): AssistantMessageEvent {
+  if (event.type === "toolcall_delta") {
+    const current = toolCallArgBuffers.get(event.contentIndex) || "";
+    toolCallArgBuffers.set(event.contentIndex, current + event.delta);
+    return event;
+  }
+
+  if (event.type === "toolcall_end") {
+    const rawArgs = toolCallArgBuffers.get(event.contentIndex);
+    return rawArgs !== undefined ? repairToolCallEndEvent(event, rawArgs, modelId, logger) : event;
+  }
+
+  if (event.type === "done") {
+    return {
+      ...event,
+      message: repairAssistantMessage(event.message, toolCallArgBuffers, modelId, logger),
+    };
+  }
+
+  if (event.type === "error") {
+    return {
+      ...event,
+      error: repairAssistantMessage(event.error, toolCallArgBuffers, modelId, logger),
+    };
+  }
+
+  return event;
 }
 
 function repairToolCallEndEvent(

@@ -135,4 +135,109 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(toolEndEvent.toolCall.arguments).toEqual({ location: "Paris" });
     expect(logger.warn).toHaveBeenCalled();
   });
+
+  it("preserves bind-compatible stream methods for downstream wrappers", async () => {
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"location":"Berlin',
+        partial: {} as any,
+      },
+      {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_789",
+          name: "get_weather",
+          arguments: {},
+        },
+        partial: {
+          content: [
+            {
+              type: "toolCall",
+              id: "call_789",
+              name: "get_weather",
+              arguments: {},
+            },
+          ],
+        } as any,
+      },
+      {
+        type: "done",
+        reason: "toolUse",
+        message: {
+          content: [
+            {
+              type: "toolCall",
+              id: "call_789",
+              name: "get_weather",
+              arguments: {},
+            },
+          ],
+        } as any,
+      },
+    ];
+
+    const originalStream = {
+      async result() {
+        return {
+          content: [
+            {
+              type: "toolCall",
+              id: "call_789",
+              name: "get_weather",
+              arguments: {},
+            },
+          ],
+        } as any;
+      },
+      [Symbol.asyncIterator]() {
+        let index = 0;
+        return {
+          next: async () => {
+            if (index >= mockEvents.length) {
+              return { done: true as const, value: undefined };
+            }
+            const value = mockEvents[index++];
+            return { done: false as const, value };
+          },
+          async return(value?: unknown) {
+            return { done: true as const, value };
+          },
+          async throw(error?: unknown) {
+            throw error;
+          },
+          [Symbol.asyncIterator]() {
+            return this;
+          },
+        };
+      },
+    };
+
+    const mockStreamFn = vi.fn().mockResolvedValue(originalStream);
+    const logger = { warn: vi.fn(), info: vi.fn() };
+
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const wrappedStream = await wrapped({ id: "test-model" } as any, {} as any, {} as any);
+
+    expect(typeof (wrappedStream as any).result).toBe("function");
+    expect(typeof (wrappedStream as any)[Symbol.asyncIterator]).toBe("function");
+
+    const boundResult = (wrappedStream as any).result.bind(wrappedStream);
+    const boundAsyncIterator = (wrappedStream as any)[Symbol.asyncIterator].bind(wrappedStream);
+
+    const iterator = boundAsyncIterator();
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of iterator as AsyncIterable<AssistantMessageEvent>) {
+      receivedEvents.push(event);
+    }
+
+    const repairedEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(repairedEndEvent.toolCall.arguments).toEqual({ location: "Berlin" });
+
+    const resultMessage = await boundResult();
+    expect(resultMessage.content[0].arguments).toEqual({ location: "Berlin" });
+  });
 });
