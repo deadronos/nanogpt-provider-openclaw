@@ -94,12 +94,26 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
+const NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS = new Set<string>([]);
+
+export const NANOGPT_WEB_FETCH_TOOL_ALIAS = "fetch_web_page";
+
 function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function normalizeNanoGptComparableModelId(id: string): string {
+  const normalized = id.trim().toLowerCase();
+  const providerPrefix = `${NANOGPT_PROVIDER_ID}/`;
+  return normalized.startsWith(providerPrefix) ? normalized.slice(providerPrefix.length) : normalized;
+}
+
+export function shouldAliasNanoGptWebFetchTool(modelId: string): boolean {
+  return NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS.has(normalizeNanoGptComparableModelId(modelId));
 }
 
 function resolveNanoGptPricingUnit(pricing: NanoGptModelPricing): string {
@@ -131,7 +145,7 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
   const pricing = entry.pricing ?? {};
   const hasVision = Boolean(capabilities.vision ?? entry.vision);
   const hasReasoning = Boolean(capabilities.reasoning ?? entry.reasoning);
-  const hasTools = capabilities.tool_calling ?? entry.tool_calling;
+  const supportsTools = capabilities.tool_calling ?? entry.tool_calling;
   const contextWindow = entry.context_length ?? entry.contextWindow;
   const maxTokens = entry.max_output_tokens ?? entry.maxTokens;
 
@@ -140,11 +154,11 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
     name: String(entry.displayName ?? entry.name ?? id),
     reasoning: hasReasoning,
     input: hasVision ? ["text", "image"] : ["text"],
-    ...(hasTools === undefined
+    ...(supportsTools === undefined
       ? {}
       : {
           compat: {
-            supportsTools: hasTools,
+            supportsTools,
           },
         }),
     cost: {

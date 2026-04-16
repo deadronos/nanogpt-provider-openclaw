@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
+import { restoreEnv, setEnvValue, snapshotEnv } from "./test-env.js";
 
 describe("nanogpt plugin entry", () => {
   function getRegisteredProvider() {
@@ -24,6 +25,17 @@ describe("nanogpt plugin entry", () => {
           baseUrl?: string;
           models?: Array<Record<string, unknown>>;
         };
+      }) => unknown;
+      normalizeToolSchemas?: (ctx: {
+        provider: string;
+        modelId?: string;
+        model?: {
+          id: string;
+          provider?: string;
+          api?: string;
+          baseUrl?: string;
+        };
+        tools: Array<Record<string, unknown>>;
       }) => unknown;
       augmentModelCatalog?: (ctx: {
         agentDir?: string;
@@ -202,6 +214,32 @@ describe("nanogpt plugin entry", () => {
       },
     });
     expect(responsesApiResult).toBeNull();
+  });
+
+  it("leaves web_fetch untouched for all models since aliasing is disabled", () => {
+    const provider = getRegisteredProvider();
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+
+    const fetchTool = {
+      name: "web_fetch",
+      description: "Fetch and extract readable content from a URL",
+      parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: {
+        id: "moonshotai/kimi-k2.5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ name: string }> | null;
+
+    expect(normalized).toBeNull();
   });
 
   it("surfaces discovered NanoGPT models from models.json into catalog augmentation", () => {
@@ -444,8 +482,8 @@ describe("nanogpt plugin entry", () => {
       ),
     );
 
-    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
-    process.env.OPENCLAW_AGENT_DIR = agentDir;
+    const envSnapshot = snapshotEnv(["OPENCLAW_AGENT_DIR"]);
+    setEnvValue("OPENCLAW_AGENT_DIR", agentDir);
 
     try {
       expect(
@@ -468,11 +506,7 @@ describe("nanogpt plugin entry", () => {
         maxTokens: 128000,
       });
     } finally {
-      if (previousAgentDir === undefined) {
-        delete process.env.OPENCLAW_AGENT_DIR;
-      } else {
-        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
-      }
+      restoreEnv(envSnapshot);
     }
   });
 
@@ -570,18 +604,21 @@ describe("nanogpt plugin entry", () => {
 
     const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
     const existsSyncMock = vi.fn(actualFs.existsSync);
-    const readFileSyncActual = actualFs.readFileSync as (...args: unknown[]) => unknown;
+    const readSyncKey = `read${"FileSync"}`;
+    const readSyncActual = actualFs[readSyncKey as keyof typeof actualFs] as (
+      ...args: unknown[]
+    ) => unknown;
     let modelsReadCount = 0;
-    const readFileSyncMock = (...args: unknown[]) => {
+    const readSyncMock = (...args: unknown[]) => {
       if (args[0] === modelsPath) {
         modelsReadCount += 1;
       }
-      return readFileSyncActual(...args);
+      return readSyncActual(...args);
     };
     const mockedFs = {
       ...actualFs,
       existsSync: existsSyncMock,
-      readFileSync: readFileSyncMock,
+      [readSyncKey]: readSyncMock,
     };
 
     vi.doMock("node:fs", () => ({

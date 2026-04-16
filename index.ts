@@ -6,7 +6,12 @@ import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-aut
 import { readConfiguredProviderCatalogEntries } from "openclaw/plugin-sdk/provider-catalog-shared";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import { applyNanoGptProviderConfig } from "./onboard.js";
-import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
+import {
+  NANOGPT_DEFAULT_MODEL_REF,
+  NANOGPT_PROVIDER_ID,
+  NANOGPT_WEB_FETCH_TOOL_ALIAS,
+  shouldAliasNanoGptWebFetchTool,
+} from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
   fetchNanoGptUsageSnapshot,
@@ -15,8 +20,10 @@ import {
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
+  AnyAgentTool,
   ProviderCatalogContext,
   ProviderResolveDynamicModelContext,
+  ProviderNormalizeToolSchemasContext,
   ProviderRuntimeModel,
 } from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
@@ -174,6 +181,12 @@ function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnap
       const reasoning = typeof model.reasoning === "boolean" ? model.reasoning : false;
       const catalogInput = normalizeNanoGptCatalogInput(model.input);
       const providerModelInput = normalizeNanoGptProviderModelInput(model.input);
+      const rawCompat = isRecord(model.compat)
+        ? {
+            ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
+          }
+        : undefined;
+      const compat = rawCompat ? { ...rawCompat } : undefined;
 
       const definition: ModelProviderConfig["models"][number] = {
         id,
@@ -184,13 +197,7 @@ function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnap
         contextWindow,
         ...(contextTokens ? { contextTokens } : {}),
         maxTokens,
-        ...(isRecord(model.compat)
-          ? {
-              compat: {
-                ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
-              },
-            }
-          : {}),
+        ...(compat ? { compat } : {}),
         ...(typeof model.api === "string"
           ? { api: model.api as ModelProviderConfig["models"][number]["api"] }
           : {}),
@@ -344,6 +351,35 @@ function applyNanoGptNativeStreamingUsageCompat(
   return changed ? { ...providerConfig, models } : null;
 }
 
+function resolveNanoGptToolSchemaModelId(ctx: ProviderNormalizeToolSchemasContext): string {
+  if (typeof ctx.model?.id === "string" && ctx.model.id.trim()) {
+    return ctx.model.id;
+  }
+  return typeof ctx.modelId === "string" ? ctx.modelId : "";
+}
+
+function normalizeNanoGptToolSchemas(
+  ctx: ProviderNormalizeToolSchemasContext,
+): AnyAgentTool[] | null {
+  if (!shouldAliasNanoGptWebFetchTool(resolveNanoGptToolSchemaModelId(ctx))) {
+    return null;
+  }
+
+  let changed = false;
+  const tools = ctx.tools.map((tool) => {
+    if (tool.name !== "web_fetch") {
+      return tool;
+    }
+    changed = true;
+    return {
+      ...tool,
+      name: NANOGPT_WEB_FETCH_TOOL_ALIAS,
+    } as AnyAgentTool;
+  });
+
+  return changed ? tools : null;
+}
+
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
   name: "NanoGPT Provider",
@@ -403,6 +439,7 @@ export default definePluginEntry({
           agentDir: ctx.agentDir,
           model: ctx.model,
         }),
+      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx),
       resolveDynamicModel: (ctx) => resolveNanoGptDynamicModelWithSnapshot(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),

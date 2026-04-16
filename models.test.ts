@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   NANOGPT_DEFAULT_MODEL_REF,
   NANOGPT_FALLBACK_MODELS,
+  NANOGPT_WEB_FETCH_TOOL_ALIAS,
   applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
+  shouldAliasNanoGptWebFetchTool,
 } from "./models.js";
 
 describe("model constants", () => {
@@ -78,11 +80,16 @@ describe("buildNanoGptModelDefinition", () => {
       expected: true,
     },
     {
+      id: "moonshotai/kimi-k2.5:thinking",
+      capabilities: { tool_calling: true },
+      expected: true,
+    },
+    {
       id: "minimax-m2.7",
       capabilities: { tool_calling: false },
       expected: false,
     },
-  ] as const)("passes through tool_calling for $id", ({ id, capabilities, expected }) => {
+  ] as const)("derives tool compatibility for $id", ({ id, capabilities, expected }) => {
     expect(
       buildNanoGptModelDefinition({
         id,
@@ -117,5 +124,15 @@ describe("buildNanoGptModelDefinition", () => {
     expect(priced.cost.output).toBeCloseTo(1.8375, 10);
     expect(priced.cost.cacheRead).toBe(0);
     expect(priced.cost.cacheWrite).toBe(0);
+  });
+});
+
+describe("shouldAliasNanoGptWebFetchTool", () => {
+  it("does not alias anything currently", () => {
+    expect(NANOGPT_WEB_FETCH_TOOL_ALIAS).toBe("fetch_web_page");
+    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5")).toBe(false);
+    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5:thinking")).toBe(false);
+    expect(shouldAliasNanoGptWebFetchTool("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(false);
+    expect(shouldAliasNanoGptWebFetchTool("gpt-5.4-mini")).toBe(false);
   });
 });

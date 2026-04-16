@@ -125,6 +125,33 @@ describe("resolveNanoGptRoutingMode", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("does not cache a probe failure as paygo for the next auto-routed call", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("usage probe failed"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ subscribed: true }),
+      });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "retry-key",
+      }),
+    ).resolves.toBe("subscription");
+
+    await expect(
+      resolveNanoGptRoutingMode({
+        config: { routingMode: "auto" },
+        apiKey: "retry-key",
+      }),
+    ).resolves.toBe("subscription");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("caches subscription status per api key", async () => {
     const fetchSpy = vi
       .fn()

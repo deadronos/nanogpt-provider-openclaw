@@ -298,6 +298,8 @@ export function resolveNanoGptDynamicModel(
   const template = resolveNanoGptDynamicModelTemplate(modelId, ctx.providerConfig?.models);
   const reasoning = /:(thinking|reasoning)$/i.test(modelId) || template?.reasoning === true;
   const input = Array.isArray(template?.input) && template.input.length > 0 ? [...template.input] : ["text"];
+  const compat = template?.compat ? { ...template.compat } : undefined;
+  const supportsTools = compat?.supportsTools;
 
   return {
     id: modelId,
@@ -310,7 +312,14 @@ export function resolveNanoGptDynamicModel(
     cost: template?.cost ?? { ...NANOGPT_DEFAULT_COST },
     contextWindow: template?.contextWindow ?? 200000,
     maxTokens: template?.maxTokens ?? 32768,
-    ...(template?.compat ? { compat: { ...template.compat } } : {}),
+    ...(compat || supportsTools !== undefined
+      ? {
+          compat: {
+            ...compat,
+            ...(supportsTools === undefined ? {} : { supportsTools }),
+          },
+        }
+      : {}),
   } as ProviderRuntimeModel;
 }
 
@@ -380,7 +389,10 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
     subscriptionCache.set(apiKey, { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS });
     return active;
   } catch (error) {
-    subscriptionCache.set(apiKey, { active: false, expiresAt: now + 5000 });
+    // Do not cache probe failures as inactive. Auto-routing treats probe errors
+    // as ambiguous and prefers subscription, so caching `false` here would
+    // silently poison subsequent calls into paygo for a short window.
+    subscriptionCache.delete(apiKey);
     throw error;
   }
 }
