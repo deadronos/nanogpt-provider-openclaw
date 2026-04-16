@@ -128,11 +128,11 @@ describe("buildNanoGptModelDefinition", () => {
 });
 
 describe("shouldAliasNanoGptWebFetchTool", () => {
-  it("aliases web_fetch for the two affected Kimi 2.5 ids", () => {
+  it("does not alias anything currently", () => {
     expect(NANOGPT_WEB_FETCH_TOOL_ALIAS).toBe("fetch_web_page");
-    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5")).toBe(true);
-    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5:thinking")).toBe(true);
-    expect(shouldAliasNanoGptWebFetchTool("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(true);
+    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5")).toBe(false);
+    expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5:thinking")).toBe(false);
+    expect(shouldAliasNanoGptWebFetchTool("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(false);
     expect(shouldAliasNanoGptWebFetchTool("gpt-5.4-mini")).toBe(false);
   });
 });

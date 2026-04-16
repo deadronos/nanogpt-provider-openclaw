@@ -216,48 +216,7 @@ describe("nanogpt plugin entry", () => {
     expect(responsesApiResult).toBeNull();
   });
 
-  it("aliases web_fetch for the affected Kimi models without disabling other tools", () => {
-    const provider = getRegisteredProvider();
-    const normalizeToolSchemas = provider.normalizeToolSchemas;
-    expect(normalizeToolSchemas).toEqual(expect.any(Function));
-
-    const fetchTool = {
-      name: "web_fetch",
-      description: "Fetch and extract readable content from a URL",
-      parameters: {
-        type: "object",
-        properties: {
-          url: { type: "string" },
-        },
-      },
-      execute: async () => ({ ok: true }),
-    };
-    const readTool = {
-      name: "read",
-      description: "Read a file",
-      parameters: {
-        type: "object",
-      },
-      execute: async () => ({ ok: true }),
-    };
-
-    const normalized = normalizeToolSchemas?.({
-      provider: "nanogpt",
-      modelId: "moonshotai/kimi-k2.5:thinking",
-      model: {
-        id: "moonshotai/kimi-k2.5:thinking",
-        provider: "nanogpt",
-        api: "openai-completions",
-      },
-      tools: [fetchTool, readTool],
-    }) as Array<{ name: string; execute?: unknown }> | null;
-
-    expect(normalized).toMatchObject([{ name: "fetch_web_page" }, { name: "read" }]);
-    expect(normalized?.[0]?.execute).toBe(fetchTool.execute);
-    expect(normalized?.[1]?.execute).toBe(readTool.execute);
-  });
-
-  it("leaves web_fetch untouched for unaffected models", () => {
+  it("leaves web_fetch untouched for all models since aliasing is disabled", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -271,9 +230,9 @@ describe("nanogpt plugin entry", () => {
 
     const normalized = normalizeToolSchemas?.({
       provider: "nanogpt",
-      modelId: "gpt-5.4-mini",
+      modelId: "moonshotai/kimi-k2.5:thinking",
       model: {
-        id: "gpt-5.4-mini",
+        id: "moonshotai/kimi-k2.5:thinking",
         provider: "nanogpt",
         api: "openai-completions",
       },

@@ -94,10 +94,7 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
-const NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS = new Set([
-  "moonshotai/kimi-k2.5",
-  "moonshotai/kimi-k2.5:thinking",
-]);
+const NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS = new Set<string>([]);
 
 export const NANOGPT_WEB_FETCH_TOOL_ALIAS = "fetch_web_page";
 
