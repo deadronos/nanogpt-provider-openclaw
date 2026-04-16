@@ -38,7 +38,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\" && npm run typecheck && npm pack --pack-destination ./dist"
+    "build": "npm run typecheck && node ./scripts/stage-package-dir.mjs",
+    "build:tgz": "npm run build && npm pack ./dist/package --pack-destination ./dist"
   },
   "peerDependencies": {
     "openclaw": ">=2026.3.24-beta.2"
