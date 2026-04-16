@@ -1,6 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { wrapStreamWithToolCallRepair } from "./repair.js";
+import {
+  shouldRepairNanoGptToolCallArguments,
+  wrapStreamWithToolCallRepair,
+} from "./repair.js";
 import type { AssistantMessageEvent } from "@mariozechner/pi-ai";
+
+describe("shouldRepairNanoGptToolCallArguments", () => {
+  it("only enables repair for Kimi-style NanoGPT model ids", () => {
+    expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5:thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("mistralai/mistral-large-3-675b-instruct-2512")).toBe(false);
+    expect(shouldRepairNanoGptToolCallArguments(undefined)).toBe(false);
+  });
+});
 
 describe("wrapStreamWithToolCallRepair", () => {
   it("should repair malformed tool call arguments", async () => {

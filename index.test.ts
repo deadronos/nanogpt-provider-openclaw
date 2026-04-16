@@ -26,6 +26,13 @@ describe("nanogpt plugin entry", () => {
           models?: Array<Record<string, unknown>>;
         };
       }) => unknown;
+      wrapStreamFn?: (ctx: {
+        streamFn?: (...args: unknown[]) => unknown;
+        modelId: string;
+        model?: {
+          id?: string;
+        };
+      }) => unknown;
       normalizeToolSchemas?: (ctx: {
         provider: string;
         modelId?: string;
@@ -214,6 +221,28 @@ describe("nanogpt plugin entry", () => {
       },
     });
     expect(responsesApiResult).toBeNull();
+  });
+
+  it("only applies tool-call JSON repair to Kimi-style models", () => {
+    const provider = getRegisteredProvider();
+    expect(provider.wrapStreamFn).toEqual(expect.any(Function));
+
+    const baseStreamFn = vi.fn();
+
+    const mistralStreamFn = provider.wrapStreamFn?.({
+      streamFn: baseStreamFn,
+      modelId: "mistralai/mistral-large-3-675b-instruct-2512",
+      model: { id: "mistralai/mistral-large-3-675b-instruct-2512" },
+    });
+    expect(mistralStreamFn).toBe(baseStreamFn);
+
+    const kimiStreamFn = provider.wrapStreamFn?.({
+      streamFn: baseStreamFn,
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: { id: "moonshotai/kimi-k2.5:thinking" },
+    });
+    expect(kimiStreamFn).toEqual(expect.any(Function));
+    expect(kimiStreamFn).not.toBe(baseStreamFn);
   });
 
   it("leaves web_fetch untouched for all models since aliasing is disabled", () => {
