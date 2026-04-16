@@ -23,6 +23,7 @@
     "index.ts",
     "api.ts",
     "models.ts",
+    "repair.ts",
     "runtime.ts",
     "provider-catalog.ts",
     "provider-discovery.ts",
@@ -36,7 +37,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\" && npm run typecheck && npm pack --pack-destination ./dist"
   },
   "peerDependencies": {
     "openclaw": ">=2026.3.24-beta.2"

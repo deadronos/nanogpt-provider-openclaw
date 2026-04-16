@@ -36,9 +36,12 @@ it does not reconstruct token counts from them.
 
 ## Install
 
-### Local install from a checkout
+### Local install from a clean checkout
 
-This is the most practical path right now.
+This only works if the checkout is small enough for OpenClaw's manifest scan.
+If you've already run `pnpm install` in the repo root, the local `node_modules/`
+tree can push the scan past OpenClaw's directory cap. In that case, use the
+tarball flow below instead.
 
 ```bash
 cd ~/Github
@@ -49,9 +52,12 @@ openclaw gateway restart
 
 ### Install from a tarball
 
+This is the safest local-install path because OpenClaw scans the packed plugin
+surface rather than the whole working tree.
+
 ```bash
-npm pack
-openclaw plugins install ./deadronos-openclaw-nanogpt-provider-0.1.0.tgz
+npm run build
+openclaw plugins install ./dist/*.tgz
 openclaw gateway restart
 ```
 
