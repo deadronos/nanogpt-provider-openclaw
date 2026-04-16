@@ -15,6 +15,7 @@ import {
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
   fetchNanoGptUsageSnapshot,
+  getNanoGptConfig,
   resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
@@ -445,6 +446,17 @@ export default definePluginEntry({
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
+      classifyFailoverReason: (ctx) => {
+        if (
+          (ctx.errorMessage.includes("402") || ctx.errorMessage.includes("Insufficient balance")) &&
+          !getNanoGptConfig(api.pluginConfig).provider
+        ) {
+          api.logger.warn(
+            `NanoGPT upstream billing error on model ${ctx.modelId}. This typically means an hourly subscription limit was reached, or a provider failover misrouted to your empty PayGo wallet.`
+          );
+        }
+        return undefined;
+      },
     });
 
     api.registerWebSearchProvider(createNanoGptWebSearchProvider());
