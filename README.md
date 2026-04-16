@@ -36,12 +36,17 @@ it does not reconstruct token counts from them.
 
 ## Install
 
-### Recommended: install from a clean build directory
+### Clean install from source (recommended)
 
-This mirrors a local OpenClaw checkout: run from a clean built surface under
-`dist/` instead of pointing the installer at the whole working tree.
+This is the most reliable local install path. Clone the repo, install
+dependencies, build a clean plugin surface under `dist/`, and install from
+`dist/package` instead of pointing OpenClaw at the whole working tree.
 
 ```bash
+cd ~/Github
+git clone git@github.com:deadronos/nanogpt-provider-openclaw.git
+cd nanogpt-provider-openclaw
+npm install
 npm run build
 openclaw plugins install ./dist/package
 openclaw gateway restart
@@ -58,12 +63,12 @@ openclaw plugins install ./dist/*.tgz
 openclaw gateway restart
 ```
 
-### Local install from a clean checkout
+### Direct install from a raw checkout
 
 This only works if the checkout is small enough for OpenClaw's manifest scan.
 If you've already run `pnpm install` in the repo root, the local `node_modules/`
 tree can push the scan past OpenClaw's directory cap. In that case, use the
-build-directory flow below instead.
+recommended build flow above instead.
 
 ```bash
 cd ~/Github
