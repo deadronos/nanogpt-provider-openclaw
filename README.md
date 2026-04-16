@@ -165,11 +165,12 @@ For example:
 - `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
 - Completions-mode models are still marked with streaming usage compatibility so
   OpenClaw requests `stream_options.include_usage` automatically.
-- `moonshotai/kimi-k2.5` and `moonshotai/kimi-k2.5:thinking` keep tool support
-  enabled, but the plugin aliases OpenClaw's `web_fetch` tool to
-  `fetch_web_page` for those two model ids. Live NanoGPT checks showed the exact
-  `web_fetch` tool name could trigger billing-limit/timeout failures on the
-  post-tool follow-up, while the aliased tool name completed normally.
+- `zai-org/glm-5`, `zai-org/glm-5:thinking`, `moonshotai/kimi-k2.5`, and
+  `moonshotai/kimi-k2.5:thinking` keep tool support enabled, but the plugin
+  aliases OpenClaw's `web_fetch` tool to `fetch_web_page` for those model ids.
+  Live NanoGPT checks showed the exact `web_fetch` tool name could trigger
+  billing-limit/timeout failures on the post-tool follow-up, while the aliased
+  tool name completed normally.
 - `provider` adds NanoGPT's `X-Provider` override header for text requests.
 - if `provider` is set while the request would otherwise use subscription
   routing, the plugin also sets `X-Billing-Mode: paygo`

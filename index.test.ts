@@ -216,7 +216,7 @@ describe("nanogpt plugin entry", () => {
     expect(responsesApiResult).toBeNull();
   });
 
-  it("aliases web_fetch for the affected Kimi models without disabling other tools", () => {
+  it("aliases web_fetch for the affected GLM-5 and Kimi models without disabling other tools", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -241,20 +241,22 @@ describe("nanogpt plugin entry", () => {
       execute: async () => ({ ok: true }),
     };
 
-    const normalized = normalizeToolSchemas?.({
-      provider: "nanogpt",
-      modelId: "moonshotai/kimi-k2.5:thinking",
-      model: {
-        id: "moonshotai/kimi-k2.5:thinking",
+    for (const modelId of ["zai-org/glm-5", "moonshotai/kimi-k2.5:thinking"]) {
+      const normalized = normalizeToolSchemas?.({
         provider: "nanogpt",
-        api: "openai-completions",
-      },
-      tools: [fetchTool, readTool],
-    }) as Array<{ name: string; execute?: unknown }> | null;
+        modelId,
+        model: {
+          id: modelId,
+          provider: "nanogpt",
+          api: "openai-completions",
+        },
+        tools: [fetchTool, readTool],
+      }) as Array<{ name: string; execute?: unknown }> | null;
 
-    expect(normalized).toMatchObject([{ name: "fetch_web_page" }, { name: "read" }]);
-    expect(normalized?.[0]?.execute).toBe(fetchTool.execute);
-    expect(normalized?.[1]?.execute).toBe(readTool.execute);
+      expect(normalized).toMatchObject([{ name: "fetch_web_page" }, { name: "read" }]);
+      expect(normalized?.[0]?.execute).toBe(fetchTool.execute);
+      expect(normalized?.[1]?.execute).toBe(readTool.execute);
+    }
   });
 
   it("leaves web_fetch untouched for unaffected models", () => {

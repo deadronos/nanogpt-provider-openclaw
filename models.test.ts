@@ -128,8 +128,10 @@ describe("buildNanoGptModelDefinition", () => {
 });
 
 describe("shouldAliasNanoGptWebFetchTool", () => {
-  it("aliases web_fetch for the two affected Kimi 2.5 ids", () => {
+  it("aliases web_fetch for the affected GLM-5 and Kimi 2.5 ids", () => {
     expect(NANOGPT_WEB_FETCH_TOOL_ALIAS).toBe("fetch_web_page");
+    expect(shouldAliasNanoGptWebFetchTool("zai-org/glm-5")).toBe(true);
+    expect(shouldAliasNanoGptWebFetchTool("nanogpt/zai-org/glm-5:thinking")).toBe(true);
     expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5")).toBe(true);
     expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5:thinking")).toBe(true);
     expect(shouldAliasNanoGptWebFetchTool("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(true);
