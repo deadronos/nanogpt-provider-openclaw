@@ -5,7 +5,6 @@ import {
   NANOGPT_PERSONALIZED_BASE_URL,
   NANOGPT_PAID_BASE_URL,
   NANOGPT_SUBSCRIPTION_BASE_URL,
-  applyNanoGptToolSupportOverride,
   applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
   type NanoGptCatalogSource,
@@ -300,7 +299,7 @@ export function resolveNanoGptDynamicModel(
   const reasoning = /:(thinking|reasoning)$/i.test(modelId) || template?.reasoning === true;
   const input = Array.isArray(template?.input) && template.input.length > 0 ? [...template.input] : ["text"];
   const compat = template?.compat ? { ...template.compat } : undefined;
-  const supportsTools = applyNanoGptToolSupportOverride(modelId, compat?.supportsTools);
+  const supportsTools = compat?.supportsTools;
 
   return {
     id: modelId,

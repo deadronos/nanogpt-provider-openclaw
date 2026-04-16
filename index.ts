@@ -9,7 +9,8 @@ import { applyNanoGptProviderConfig } from "./onboard.js";
 import {
   NANOGPT_DEFAULT_MODEL_REF,
   NANOGPT_PROVIDER_ID,
-  applyNanoGptToolSupportOverride,
+  NANOGPT_WEB_FETCH_TOOL_ALIAS,
+  shouldAliasNanoGptWebFetchTool,
 } from "./models.js";
 import { buildNanoGptProvider } from "./provider-catalog.js";
 import {
@@ -19,8 +20,10 @@ import {
 } from "./runtime.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
+  AnyAgentTool,
   ProviderCatalogContext,
   ProviderResolveDynamicModelContext,
+  ProviderNormalizeToolSchemasContext,
   ProviderRuntimeModel,
 } from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
@@ -183,13 +186,7 @@ function readNanoGptModelsJsonSnapshot(agentDir?: string): NanoGptModelsJsonSnap
             ...(model.compat as NonNullable<ModelProviderConfig["models"][number]["compat"]>),
           }
         : undefined;
-      const supportsTools = applyNanoGptToolSupportOverride(id, rawCompat?.supportsTools);
-      const compat = rawCompat || supportsTools !== undefined
-        ? {
-            ...rawCompat,
-            ...(supportsTools === undefined ? {} : { supportsTools }),
-          }
-        : undefined;
+      const compat = rawCompat ? { ...rawCompat } : undefined;
 
       const definition: ModelProviderConfig["models"][number] = {
         id,
@@ -354,6 +351,35 @@ function applyNanoGptNativeStreamingUsageCompat(
   return changed ? { ...providerConfig, models } : null;
 }
 
+function resolveNanoGptToolSchemaModelId(ctx: ProviderNormalizeToolSchemasContext): string {
+  if (typeof ctx.model?.id === "string" && ctx.model.id.trim()) {
+    return ctx.model.id;
+  }
+  return typeof ctx.modelId === "string" ? ctx.modelId : "";
+}
+
+function normalizeNanoGptToolSchemas(
+  ctx: ProviderNormalizeToolSchemasContext,
+): AnyAgentTool[] | null {
+  if (!shouldAliasNanoGptWebFetchTool(resolveNanoGptToolSchemaModelId(ctx))) {
+    return null;
+  }
+
+  let changed = false;
+  const tools = ctx.tools.map((tool) => {
+    if (tool.name !== "web_fetch") {
+      return tool;
+    }
+    changed = true;
+    return {
+      ...tool,
+      name: NANOGPT_WEB_FETCH_TOOL_ALIAS,
+    } as AnyAgentTool;
+  });
+
+  return changed ? tools : null;
+}
+
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
   name: "NanoGPT Provider",
@@ -413,6 +439,7 @@ export default definePluginEntry({
           agentDir: ctx.agentDir,
           model: ctx.model,
         }),
+      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx),
       resolveDynamicModel: (ctx) => resolveNanoGptDynamicModelWithSnapshot(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),

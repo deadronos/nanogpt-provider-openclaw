@@ -94,10 +94,12 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
-const NANOGPT_TOOL_TIMEOUT_MODEL_IDS = new Set([
+const NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS = new Set([
   "moonshotai/kimi-k2.5",
   "moonshotai/kimi-k2.5:thinking",
 ]);
+
+export const NANOGPT_WEB_FETCH_TOOL_ALIAS = "fetch_web_page";
 
 function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -107,15 +109,14 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
-function shouldDisableNanoGptToolCalling(id: string): boolean {
-  return NANOGPT_TOOL_TIMEOUT_MODEL_IDS.has(id.trim().toLowerCase());
+function normalizeNanoGptComparableModelId(id: string): string {
+  const normalized = id.trim().toLowerCase();
+  const providerPrefix = `${NANOGPT_PROVIDER_ID}/`;
+  return normalized.startsWith(providerPrefix) ? normalized.slice(providerPrefix.length) : normalized;
 }
 
-export function applyNanoGptToolSupportOverride(
-  modelId: string,
-  supportsTools: boolean | undefined,
-): boolean | undefined {
-  return shouldDisableNanoGptToolCalling(modelId) ? false : supportsTools;
+export function shouldAliasNanoGptWebFetchTool(modelId: string): boolean {
+  return NANOGPT_WEB_FETCH_ALIAS_MODEL_IDS.has(normalizeNanoGptComparableModelId(modelId));
 }
 
 function resolveNanoGptPricingUnit(pricing: NanoGptModelPricing): string {
@@ -147,10 +148,7 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
   const pricing = entry.pricing ?? {};
   const hasVision = Boolean(capabilities.vision ?? entry.vision);
   const hasReasoning = Boolean(capabilities.reasoning ?? entry.reasoning);
-  const supportsTools = applyNanoGptToolSupportOverride(
-    id,
-    capabilities.tool_calling ?? entry.tool_calling,
-  );
+  const supportsTools = capabilities.tool_calling ?? entry.tool_calling;
   const contextWindow = entry.context_length ?? entry.contextWindow;
   const maxTokens = entry.max_output_tokens ?? entry.maxTokens;
 

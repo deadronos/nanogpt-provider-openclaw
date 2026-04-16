@@ -25,6 +25,15 @@ export function clearEnvKeys(keys: readonly string[]): void {
   }
 }
 
+export function setEnvValue(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
 export function mergeProcessEnv(overrides: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,

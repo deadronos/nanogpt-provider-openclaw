@@ -379,7 +379,7 @@ describe("discoverNanoGptModels", () => {
         reasoning: true,
         input: ["text", "image"],
         compat: {
-          supportsTools: false,
+          supportsTools: true,
         },
         contextWindow: 262144,
         maxTokens: 8192,
@@ -734,7 +734,7 @@ describe("resolveNanoGptDynamicModel", () => {
       reasoning: true,
       input: ["text", "image"],
       compat: {
-        supportsTools: false,
+        supportsTools: true,
       },
       contextWindow: 262144,
       maxTokens: 8192,
