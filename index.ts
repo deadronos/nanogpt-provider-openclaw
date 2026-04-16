@@ -19,6 +19,7 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
+import { wrapStreamWithToolCallRepair } from "./repair.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
   AnyAgentTool,
@@ -446,6 +447,12 @@ export default definePluginEntry({
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
+      wrapStreamFn: (ctx) => {
+        if (ctx.streamFn) {
+          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger);
+        }
+        return undefined;
+      },
       classifyFailoverReason: (ctx) => {
         if (
           (ctx.errorMessage.includes("402") || ctx.errorMessage.includes("Insufficient balance")) &&
