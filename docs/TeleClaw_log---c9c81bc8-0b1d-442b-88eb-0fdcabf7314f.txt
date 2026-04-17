@@ -1,0 +1,25 @@
+[17.04.2026 15:49] TeleClaw: I don't see a glm-5:thinking session in the visible recent sessions. Let me check the session logs directory directly:
+[17.04.2026 15:49] TeleClaw: Here's what I found from the glm-5:thinking session earlier today (Apr 17, ~13:00-13:25):
+
+🔴 Tool Call Errors:
+
+| Error                             | Context                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| Path escapes sandbox root         | glm-5 tried read on /Users/openclaw/.config/himalaya/config.toml — sandbox wouldn't allow it |
+| click requires ref or selector    | glm-5 tried browser act with kind: click but no ref or selector                              |
+| fill requires fields              | glm-5 used fill action with wrong params — fields not provided                               |
+| Element "e3"/"e5" not found       | Stale refs from old snapshots — gm-5 didn't re-snapshot before interacting                   |
+| getaddrinfo ENOTFOUND app.gmx.net | DNS failure for GMX subdomain                                                                |
+| TimeoutError: locator.click       | GMX username field couldn't be found (SPA rendering issue)                                   |
+| net::ERR_CONNECTION_REFUSED       | Tried https://mail.gmx.net/?_diag=login                                                      |
+[17.04.2026 15:49] TeleClaw: — wrong endpoint |
+| LLM idle timeout (120s) | glm-5 stopped responding mid-session |
+
+🔧 Root Causes:
+
+1. Wrong tool params — glm-5 didn't spec ref/selector for click, didn't spec fields for fill
+2. No re-snapshot — it re-used stale element refs instead of doing a fresh snapshot
+3. DNS/networking — GMX's internal hostnames (app.gmx.net, accounts.gmx.com) weren't reachable from wherever the browser was running
+4. Idle timeout — model stopped responding for 2 min, causing a session gap
+
+Verdict: Mostly bad tool calls (wrong params, stale refs) + GMX being difficult with its JavaScript SPA. Not catastrophic but noisy — lots of failed retries.
