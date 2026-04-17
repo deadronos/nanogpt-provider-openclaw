@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   shouldRepairNanoGptToolCallArguments,
+  wrapStreamWithMalformedToolCallGuard,
   wrapStreamWithToolCallRepair,
 } from "./repair.js";
 import type { AssistantMessageEvent } from "@mariozechner/pi-ai";
@@ -584,6 +585,72 @@ describe("wrapStreamWithToolCallRepair", () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('"repairStage":"toolcall_end"'),
+    );
+  });
+});
+
+describe("wrapStreamWithMalformedToolCallGuard", () => {
+  it("logs malformed tool-call arguments for non-Kimi models without mutating them", async () => {
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"location":"Mad',
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+        }),
+      },
+      {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_guard",
+          name: "get_weather",
+          arguments: {},
+        },
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+        }),
+      },
+      {
+        type: "done",
+        reason: "toolUse",
+        message: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+          stopReason: "toolUse",
+        }),
+      },
+    ];
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      for (const event of mockEvents) {
+        yield event;
+      }
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithMalformedToolCallGuard(mockStreamFn as any, logger, {
+      debug: true,
+    });
+    const resultStream = await wrapped(
+      { id: "mistralai/mistral-large-3-675b-instruct-2512", api: "openai-completions" } as any,
+      { messages: [], tools: [] } as any,
+      {} as any,
+    );
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream) {
+      receivedEvents.push(event);
+    }
+
+    const toolEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(toolEndEvent.toolCall.arguments).toEqual({});
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Observed malformed tool call arguments from model mistralai/mistral-large-3-675b-instruct-2512"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"malformed_tool_call_observed"'),
     );
   });
 });

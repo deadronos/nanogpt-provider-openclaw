@@ -149,6 +149,39 @@ function logReliabilityArtifact(
   );
 }
 
+function isMalformedToolCallJson(rawArgs: string): boolean {
+  try {
+    JSON.parse(rawArgs);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function logObservedMalformedToolCall(params: {
+  contentIndex: number;
+  toolName: string;
+  rawArgs: string;
+  logger: RepairLogger;
+  meta: RepairRuntimeMeta;
+  loggedContentIndexes: Set<number>;
+}): void {
+  if (params.loggedContentIndexes.has(params.contentIndex)) {
+    return;
+  }
+
+  params.loggedContentIndexes.add(params.contentIndex);
+  params.logger.warn(
+    `[nanogpt] Observed malformed tool call arguments from model ${params.meta.modelId} (api=${params.meta.requestApi ?? "unknown"}) for tool "${params.toolName}". Automatic repair is not enabled for this model family; investigate whether this model should get targeted reliability handling.`,
+  );
+  logReliabilityArtifact(params.logger, params.meta, {
+    event: "malformed_tool_call_observed",
+    toolName: params.toolName,
+    rawArgumentLength: params.rawArgs.length,
+    repairEnabled: false,
+  });
+}
+
 function buildRetryContext(context: Parameters<StreamFn>[1]): Parameters<StreamFn>[1] {
   return {
     ...context,
@@ -638,6 +671,102 @@ export function wrapStreamWithToolCallRepair(
     }
 
     return createReplayStream(selectedAttempt.events, selectedAttempt.finalMessage) as any;
+  };
+}
+
+export function wrapStreamWithMalformedToolCallGuard(
+  streamFn: StreamFn,
+  logger: RepairLogger,
+  options: ToolCallRepairOptions = {},
+): StreamFn {
+  return async (...args) => {
+    const stream = await streamFn(...args);
+    const meta: RepairRuntimeMeta = {
+      modelId: args[0]?.id || "unknown",
+      requestApi: args[0]?.api,
+      attempt: 0,
+      debug: options.debug === true,
+    };
+    const toolCallArgBuffers = new Map<number, string>();
+    const loggedContentIndexes = new Set<number>();
+    const wrappedStream = stream as typeof stream & {
+      result?: () => Promise<AssistantMessage>;
+      [Symbol.asyncIterator]: () => AsyncIterator<AssistantMessageEvent>;
+    };
+
+    const originalAsyncIterator = wrappedStream[Symbol.asyncIterator].bind(wrappedStream);
+    wrappedStream[Symbol.asyncIterator] = function () {
+      const iterator = originalAsyncIterator();
+      return {
+        async next() {
+          const result = await iterator.next();
+          if (result.done) {
+            return result;
+          }
+
+          const event = result.value;
+          if (event.type === "toolcall_delta") {
+            const current = toolCallArgBuffers.get(event.contentIndex) || "";
+            toolCallArgBuffers.set(event.contentIndex, current + event.delta);
+          }
+
+          if (event.type === "toolcall_end") {
+            const rawArgs = toolCallArgBuffers.get(event.contentIndex);
+            if (typeof rawArgs === "string" && isMalformedToolCallJson(rawArgs)) {
+              logObservedMalformedToolCall({
+                contentIndex: event.contentIndex,
+                toolName: event.toolCall.name,
+                rawArgs,
+                logger,
+                meta,
+                loggedContentIndexes,
+              });
+            }
+          }
+
+          return {
+            done: false as const,
+            value: event,
+          };
+        },
+        async return(value?: unknown) {
+          return iterator.return?.(value) ?? { done: true as const, value: undefined };
+        },
+        async throw(error?: unknown) {
+          return iterator.throw?.(error) ?? Promise.reject(error);
+        },
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+    };
+
+    if (typeof wrappedStream.result === "function") {
+      const originalResult = wrappedStream.result.bind(wrappedStream);
+      wrappedStream.result = async () => {
+        const message = await originalResult();
+        message.content.forEach((block, index) => {
+          if (block.type !== "toolCall") {
+            return;
+          }
+
+          const rawArgs = toolCallArgBuffers.get(index);
+          if (typeof rawArgs === "string" && isMalformedToolCallJson(rawArgs)) {
+            logObservedMalformedToolCall({
+              contentIndex: index,
+              toolName: block.name,
+              rawArgs,
+              logger,
+              meta,
+              loggedContentIndexes,
+            });
+          }
+        });
+        return message;
+      };
+    }
+
+    return wrappedStream as any;
   };
 }
 
