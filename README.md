@@ -259,6 +259,13 @@ The plugin registers a NanoGPT image generation provider backed by:
 
 The default image model is `hidream`.
 
+When NanoGPT is the only configured image provider and `NANOGPT_API_KEY` is
+available, current OpenClaw builds can infer `nanogpt/hidream` automatically.
+You can still switch models per call with provider/model refs such as
+`nanogpt/chroma` or `nanogpt/qwen-image`; explicit
+`agents.defaults.imageGenerationModel.primary` is only needed if you want a
+different default pinned in config.
+
 ### Current image capabilities
 
 - generation and edit flows are enabled

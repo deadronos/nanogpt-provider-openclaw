@@ -1,3 +1,4 @@
+import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { sanitizeApiKey } from "./runtime.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
@@ -54,8 +55,10 @@ function toDataUrl(buffer: Uint8Array, mimeType: string): string {
 }
 
 function normalizeImageModelName(model: string): string {
-  const normalizedKey = model.trim().toLowerCase().replace(/[_\s]+/g, " ");
-  return NANOGPT_IMAGE_MODEL_ALIASES.get(normalizedKey) ?? model.trim();
+  const trimmed = model.trim();
+  const withoutProviderPrefix = trimmed.replace(new RegExp(`^${NANOGPT_PROVIDER_ID}/`, "i"), "");
+  const normalizedKey = withoutProviderPrefix.toLowerCase().replace(/[_\s]+/g, " ");
+  return NANOGPT_IMAGE_MODEL_ALIASES.get(normalizedKey) ?? withoutProviderPrefix;
 }
 
 function buildUnsupportedModelGuidance(model: string): string {
@@ -68,7 +71,7 @@ function buildUnsupportedModelGuidance(model: string): string {
 
 export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
   return {
-    id: "nanogpt",
+    id: NANOGPT_PROVIDER_ID,
     label: "NanoGPT",
     defaultModel: NANOGPT_DEFAULT_IMAGE_MODEL,
     models: [...NANOGPT_IMAGE_MODELS],
@@ -93,7 +96,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
     },
     async generateImage(req) {
       const auth = await resolveApiKeyForProvider({
-        provider: "nanogpt",
+        provider: NANOGPT_PROVIDER_ID,
         cfg: req.cfg,
         agentDir: req.agentDir,
         store: req.authStore,
