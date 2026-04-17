@@ -190,6 +190,40 @@ describe("nanogpt image-generation provider", () => {
     expect(result.model).toBe("qwen-image-2512");
   });
 
+  it("accepts provider-prefixed model overrides like nanogpt/chroma", async () => {
+    mockNanoGptApiKey();
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              b64_json: Buffer.from("chroma-data").toString("base64"),
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const provider = buildNanoGptImageGenerationProvider();
+    const result = await provider.generateImage({
+      provider: "nanogpt",
+      model: "nanogpt/chroma",
+      prompt: "debugging in neon rain",
+      cfg: {},
+    });
+
+    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
+      model: "chroma",
+      prompt: "debugging in neon rain",
+    });
+    expect(result.model).toBe("chroma");
+  });
+
   it("surfaces curated model guidance when NanoGPT rejects an image model id", async () => {
     mockNanoGptApiKey();
     vi.stubGlobal(
