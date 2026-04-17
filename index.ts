@@ -385,6 +385,11 @@ function normalizeNanoGptToolSchemas(
   return changed ? tools : null;
 }
 
+function shouldDebugNanoGptToolReliability(): boolean {
+  const raw = process.env.NANOGPT_DEBUG_TOOL_RELIABILITY?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
   name: "NanoGPT Provider",
@@ -457,7 +462,9 @@ export default definePluginEntry({
           if (!shouldRepairNanoGptToolCallArguments(repairModelId)) {
             return ctx.streamFn;
           }
-          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger);
+          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger, {
+            debug: shouldDebugNanoGptToolReliability(),
+          });
         }
         return undefined;
       },

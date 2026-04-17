@@ -5,6 +5,29 @@ import {
 } from "./repair.js";
 import type { AssistantMessageEvent } from "@mariozechner/pi-ai";
 
+const DEFAULT_USAGE = {
+  input: 0,
+  output: 0,
+  totalTokens: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+function createAssistantMessage(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    role: "assistant",
+    content: [],
+    api: "openai-completions",
+    provider: "nanogpt",
+    model: "test-model",
+    usage: { ...DEFAULT_USAGE, cost: { ...DEFAULT_USAGE.cost } },
+    stopReason: "stop",
+    timestamp: Date.now(),
+    ...overrides,
+  } as any;
+}
+
 describe("shouldRepairNanoGptToolCallArguments", () => {
   it("only enables repair for Kimi-style NanoGPT model ids", () => {
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);
@@ -252,5 +275,315 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const resultMessage = await boundResult();
     expect(resultMessage.content[0].arguments).toEqual({ location: "Berlin" });
+  });
+
+  it("salvages fenced structured tool payloads from assistant text", async () => {
+    const toolPayload = [
+      "Sure — retrying with a structured payload.",
+      "```json",
+      JSON.stringify({
+        tool_calls: [
+          {
+            name: "get_weather",
+            arguments: {
+              location: "Paris",
+            },
+          },
+        ],
+      }),
+      "```",
+    ].join("\n");
+
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "start",
+        partial: createAssistantMessage(),
+      },
+      {
+        type: "text_start",
+        contentIndex: 0,
+        partial: createAssistantMessage({
+          content: [{ type: "text", text: "" }],
+        }),
+      },
+      {
+        type: "text_delta",
+        contentIndex: 0,
+        delta: toolPayload,
+        partial: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      },
+      {
+        type: "text_end",
+        contentIndex: 0,
+        content: toolPayload,
+        partial: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      },
+      {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      },
+    ];
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      for (const event of mockEvents) {
+        yield event;
+      }
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "get_weather",
+            description: "Weather lookup",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream) {
+      receivedEvents.push(event);
+    }
+
+    const toolEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(toolEndEvent.toolCall.name).toBe("get_weather");
+    expect(toolEndEvent.toolCall.arguments).toEqual({ location: "Paris" });
+
+    const doneEvent = receivedEvents.find((event) => event.type === "done") as any;
+    expect(doneEvent.reason).toBe("toolUse");
+    expect(doneEvent.message.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "get_weather",
+        arguments: { location: "Paris" },
+      },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+  });
+
+  it("salvages flattened tool arguments from assistant text", async () => {
+    const toolPayload = JSON.stringify({
+      tool_calls: [
+        {
+          name: "bash",
+          command: "mkdir -p src tests",
+          description: "Create folders",
+        },
+      ],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "bash",
+            description: "Run a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content[0]).toEqual({
+      type: "toolCall",
+      id: "call_salvaged_1",
+      name: "bash",
+      arguments: {
+        command: "mkdir -p src tests",
+        description: "Create folders",
+      },
+    });
+  });
+
+  it("retries one empty tool-enabled turn once and appends a retry prompt", async () => {
+    const emptyAttempt = (async function* () {
+      yield {
+        type: "start",
+        partial: createAssistantMessage(),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage(),
+      } satisfies AssistantMessageEvent;
+    })();
+
+    const successfulAttempt = (async function* () {
+      yield {
+        type: "start",
+        partial: createAssistantMessage(),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "toolcall_start",
+        contentIndex: 0,
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_retry", name: "get_weather", arguments: {} }],
+        }),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"location":"Berlin"}',
+        partial: createAssistantMessage({
+          content: [
+            {
+              type: "toolCall",
+              id: "call_retry",
+              name: "get_weather",
+              arguments: { location: "Berlin" },
+            },
+          ],
+        }),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_retry",
+          name: "get_weather",
+          arguments: { location: "Berlin" },
+        },
+        partial: createAssistantMessage({
+          content: [
+            {
+              type: "toolCall",
+              id: "call_retry",
+              name: "get_weather",
+              arguments: { location: "Berlin" },
+            },
+          ],
+        }),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "done",
+        reason: "toolUse",
+        message: createAssistantMessage({
+          content: [
+            {
+              type: "toolCall",
+              id: "call_retry",
+              name: "get_weather",
+              arguments: { location: "Berlin" },
+            },
+          ],
+          stopReason: "toolUse",
+        }),
+      } satisfies AssistantMessageEvent;
+    })();
+
+    const mockStreamFn = vi
+      .fn()
+      .mockResolvedValueOnce(emptyAttempt)
+      .mockResolvedValueOnce(successfulAttempt);
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      {
+        systemPrompt: "Use tools when needed.",
+        messages: [],
+        tools: [
+          {
+            name: "get_weather",
+            description: "Weather lookup",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(mockStreamFn.mock.calls[1]?.[1]?.systemPrompt).toContain(
+      "previous response was invalid because it produced no visible content or tool call",
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content[0].arguments).toEqual({ location: "Berlin" });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Retrying empty tool-enabled turn"),
+    );
+  });
+
+  it("emits structured debug artifacts when debug mode is enabled", async () => {
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"location":"Mad',
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_debug", name: "get_weather", arguments: {} }],
+        }),
+      } satisfies AssistantMessageEvent;
+      yield {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_debug",
+          name: "get_weather",
+          arguments: {},
+        },
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_debug", name: "get_weather", arguments: {} }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger, { debug: true });
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      { messages: [], tools: [] } as any,
+      {} as any,
+    );
+
+    for await (const _event of resultStream) {
+      // Exhaust stream
+    }
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"repair_success"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"repairStage":"toolcall_end"'),
+    );
   });
 });

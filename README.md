@@ -187,11 +187,15 @@ For example:
 - `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
 - Completions-mode models are still marked with streaming usage compatibility so
   OpenClaw requests `stream_options.include_usage` automatically.
-- `moonshotai/kimi-k2.5` and `moonshotai/kimi-k2.5:thinking` keep tool support
-  enabled, but the plugin aliases OpenClaw's `web_fetch` tool to
-  `fetch_web_page` for those two model ids. Live NanoGPT checks showed the exact
-  `web_fetch` tool name could trigger billing-limit/timeout failures on the
-  post-tool follow-up, while the aliased tool name completed normally.
+- `moonshotai/kimi*` models keep tool support enabled and get extra reliability
+  handling in the stream wrapper:
+  - malformed tool-call argument JSON repair
+  - one-shot retry for tool-enabled turns that end with no visible content or
+    recognized tool call
+  - best-effort salvage of structured tool payloads wrapped as assistant text
+- The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
+  `main`; that earlier experiment remains documented in repo history, but the
+  alias is currently disabled in code.
 - `provider` adds NanoGPT's `X-Provider` override header for text requests.
 - if `provider` is set while the request would otherwise use subscription
   routing, the plugin also sets `X-Billing-Mode: paygo`
@@ -306,6 +310,15 @@ expose that data directly.
 npm test
 npm run typecheck
 ```
+
+### Tool-call reliability debugging
+
+Set `NANOGPT_DEBUG_TOOL_RELIABILITY=1` before running OpenClaw to emit
+structured info logs for Kimi-targeted repair, salvage, and retry decisions.
+
+The debug logs are intended for diagnosing tool-call failures and include fields
+such as the model id, request API, repair stage, retry attempt, and whether a
+structured tool payload was salvaged from assistant text.
 
 ### Publish workflow
 

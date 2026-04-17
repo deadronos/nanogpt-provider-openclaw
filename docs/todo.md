@@ -12,19 +12,19 @@ Actionable follow-up work based on:
 
 ### Docs and behavior alignment
 
-- [ ] Resolve the Kimi `web_fetch` aliasing mismatch.
+- [x] Resolve the Kimi `web_fetch` aliasing mismatch.
   - `README.md` still says Kimi aliases `web_fetch` to `fetch_web_page`.
   - `models.ts` currently keeps aliasing disabled via an empty alias-model set.
   - Pick one truth:
     - re-enable the alias with fresh tests and evidence, or
     - remove the README claim and document the current disabled state.
-- [ ] Refresh or trim stale findings docs.
+- [x] Refresh or trim stale findings docs.
   - `docs/findings.md` contains at least some observations that are no longer true on `main`.
   - Re-scan and either update it or archive old findings into dated docs.
 
 ### Reliability observability
 
-- [ ] Add structured, opt-in debug artifacts for tool-call reliability failures.
+- [x] Add structured, opt-in debug artifacts for tool-call reliability failures.
   - Capture at least:
     - model id
     - request API (`completions` vs `responses`)
@@ -36,12 +36,12 @@ Actionable follow-up work based on:
   - Likely files:
     - `repair.ts`
     - `index.ts`
-- [ ] Document the debug mode once added.
+- [x] Document the debug mode once added.
   - Update `README.md` with the intended troubleshooting flow.
 
 ### Reliability test coverage
 
-- [ ] Expand the failure-taxonomy tests beyond malformed JSON arguments.
+- [x] Expand the failure-taxonomy tests beyond malformed JSON arguments.
   - Add targeted cases for:
     - empty tool-enabled turns
     - prose-wrapped tool payloads
@@ -62,13 +62,13 @@ Actionable follow-up work based on:
     - `createStreamFn`
     - `prepareExtraParams`
     - `wrapStreamFn`
-- [ ] Add a one-shot retry for invalid empty tool turns.
+- [x] Add a one-shot retry for invalid empty tool turns.
   - Scope it narrowly:
     - tool-enabled turns only
     - known-problem model families only
     - exactly one retry
   - This should be treated as a protocol-recovery step, not a general retry policy.
-- [ ] Add broader salvage parsing for near-valid tool payloads.
+- [x] Add broader salvage parsing for near-valid tool payloads.
   - Accept or normalize more than just malformed argument JSON when practical.
   - Focus on cases where the model output is structurally obvious but not in the exact downstream tool-call shape.
 - [ ] Decide whether raw-response recovery belongs in-process or behind a sidecar/proxy mode.
@@ -152,10 +152,10 @@ Actionable follow-up work based on:
 
 ## Suggested execution order
 
-1. [ ] Fix README/code drift and refresh stale findings docs.
-2. [ ] Add structured debug artifacts for reliability work.
-3. [ ] Expand reliability test coverage.
-4. [ ] Prototype one-shot invalid-empty retry and broader salvage parsing.
+1. [x] Fix README/code drift and refresh stale findings docs.
+2. [x] Add structured debug artifacts for reliability work.
+3. [x] Expand reliability test coverage.
+4. [x] Prototype one-shot invalid-empty retry and broader salvage parsing.
 5. [ ] Decide whether a stronger in-process hook or a sidecar/proxy path is the right long-term reliability architecture.
 6. [ ] Add embeddings.
 7. [ ] Expand web search.
