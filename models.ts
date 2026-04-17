@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
 
 export const NANOGPT_PROVIDER_ID = "nanogpt";
@@ -110,6 +112,33 @@ function normalizeNanoGptComparableModelId(id: string): string {
   const normalized = id.trim().toLowerCase();
   const providerPrefix = `${NANOGPT_PROVIDER_ID}/`;
   return normalized.startsWith(providerPrefix) ? normalized.slice(providerPrefix.length) : normalized;
+}
+
+export function resolveNanoGptAgentDir(
+  agentDir?: string,
+  env?: Record<string, string | undefined>,
+): string | undefined {
+  const explicit = typeof agentDir === "string" && agentDir.trim() ? agentDir.trim() : undefined;
+  if (explicit) {
+    return explicit;
+  }
+
+  const resolvedEnv = env ?? process.env;
+
+  const envAgentDir =
+    resolvedEnv.OPENCLAW_AGENT_DIR?.trim() || resolvedEnv.PI_CODING_AGENT_DIR?.trim();
+  if (envAgentDir) {
+    return envAgentDir;
+  }
+
+  const stateDir = resolvedEnv.OPENCLAW_STATE_DIR?.trim();
+  if (stateDir) {
+    return path.join(stateDir, "agents", "default", "agent");
+  }
+
+  const homeDir =
+    resolvedEnv.OPENCLAW_HOME?.trim() || resolvedEnv.HOME?.trim() || os.homedir();
+  return homeDir ? path.join(homeDir, ".openclaw", "agents", "default", "agent") : undefined;
 }
 
 export function shouldAliasNanoGptWebFetchTool(modelId: string): boolean {

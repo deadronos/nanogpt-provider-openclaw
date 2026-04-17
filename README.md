@@ -193,6 +193,12 @@ For example:
   - one-shot retry for tool-enabled turns that end with no visible content or
     recognized tool call
   - best-effort salvage of structured tool payloads wrapped as assistant text
+  - turns without tool definitions use the lighter live guard path instead of
+    the full buffered collect/replay wrapper
+- `zai-org/glm*` models stay on the live malformed-tool-call guard path,
+  emit semantic warnings when tool schemas look incomplete, and get light
+  schema hints in `normalizeToolSchemas` to nudge required
+  ref/selector/fields-style arguments without renaming `web_fetch`.
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
@@ -320,8 +326,10 @@ npm run typecheck
 
 ### Tool-call reliability debugging
 
-Set `NANOGPT_DEBUG_TOOL_RELIABILITY=1` before running OpenClaw to emit
-structured info logs for Kimi-targeted repair, salvage, and retry decisions.
+Enable OpenClaw verbose logging before running the plugin to emit structured
+info logs for Kimi-targeted repair, salvage, and retry decisions. GLM semantic
+tool diagnostics use the same structured reliability log envelope when the
+guard path spots a semantic issue, even without verbose logging.
 
 The debug logs are intended for diagnosing tool-call failures and include fields
 such as the model id, request API, repair stage, retry attempt, and whether a
