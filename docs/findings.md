@@ -4,6 +4,11 @@
 **Reviewer:** Claude Code
 **Scope:** Full project review — index.ts, runtime.ts, models.ts, api.ts, provider-catalog.ts, web-search.ts, image-generation-provider.ts, onboard.ts, openclaw.plugin.json
 
+> Status refresh (2026-04-17): this document is a historical review snapshot.
+> Some observations below were true at the time but are no longer current on
+> `main`. Prefer the newer dated audits in `docs/` for current capability and
+> lifecycle coverage.
+
 ---
 
 ## Overview
@@ -56,9 +61,11 @@ Hardcoded fallback models have `cost: { input: 0, output: 0, ...}`. This means i
 
 All tests mock `fetch` globally. There are no tests against a real NanoGPT API endpoint. This is acceptable for a plugin but worth noting as a gap.
 
-### `openclaw.plugin.json` — `webSearch` config not in schema
+### `openclaw.plugin.json` — `webSearch` config not in schema (resolved on `main`)
 
-The README documents `plugins.entries.nanogpt.config.webSearch.apiKey` but the plugin schema only validates the top-level fields (`routingMode`, `catalogSource`, `requestApi`, `provider`). The `webSearch` sub-config is accessed via SDK helpers but is not declared in the schema.
+This issue has since been fixed. `openclaw.plugin.json` now declares the
+`webSearch.apiKey` config schema entry, so this finding is only preserved as a
+historical note from the original review.
 
 ### `__testing` export in `web-search.ts:205-208`
 
@@ -69,7 +76,7 @@ Exported for tests but has no `export type`. Standard pattern in this codebase t
 ## Summary
 
 | Area | Status |
-|------|--------|
+| ---- | ------ |
 | Tests | 23/23 passing |
 | TypeScript | Clean (`tsc --noEmit`) |
 | Architecture | Well-separated |

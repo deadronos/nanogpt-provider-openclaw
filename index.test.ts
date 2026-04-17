@@ -234,7 +234,8 @@ describe("nanogpt plugin entry", () => {
       modelId: "mistralai/mistral-large-3-675b-instruct-2512",
       model: { id: "mistralai/mistral-large-3-675b-instruct-2512" },
     });
-    expect(mistralStreamFn).toBe(baseStreamFn);
+    expect(mistralStreamFn).toEqual(expect.any(Function));
+    expect(mistralStreamFn).not.toBe(baseStreamFn);
 
     const kimiStreamFn = provider.wrapStreamFn?.({
       streamFn: baseStreamFn,

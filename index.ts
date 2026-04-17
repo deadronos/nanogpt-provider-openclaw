@@ -21,6 +21,7 @@ import {
 } from "./runtime.js";
 import {
   shouldRepairNanoGptToolCallArguments,
+  wrapStreamWithMalformedToolCallGuard,
   wrapStreamWithToolCallRepair,
 } from "./repair.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
@@ -385,6 +386,11 @@ function normalizeNanoGptToolSchemas(
   return changed ? tools : null;
 }
 
+function shouldDebugNanoGptToolReliability(): boolean {
+  const raw = process.env.NANOGPT_DEBUG_TOOL_RELIABILITY?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
   name: "NanoGPT Provider",
@@ -454,10 +460,17 @@ export default definePluginEntry({
         if (ctx.streamFn) {
           const repairModelId =
             typeof ctx.model?.id === "string" && ctx.model.id.trim() ? ctx.model.id : ctx.modelId;
+          const reliabilityOptions = {
+            debug: shouldDebugNanoGptToolReliability(),
+          };
           if (!shouldRepairNanoGptToolCallArguments(repairModelId)) {
-            return ctx.streamFn;
+            return wrapStreamWithMalformedToolCallGuard(
+              ctx.streamFn,
+              api.logger,
+              reliabilityOptions,
+            );
           }
-          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger);
+          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger, reliabilityOptions);
         }
         return undefined;
       },
