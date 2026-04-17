@@ -246,6 +246,61 @@ describe("nanogpt plugin entry", () => {
     expect(kimiStreamFn).not.toBe(baseStreamFn);
   });
 
+  it("keeps GLM thinking models on the malformed-tool-call guard path", async () => {
+    const provider = getRegisteredProvider();
+    expect(provider.wrapStreamFn).toEqual(expect.any(Function));
+
+    const createStream = () => ({
+      async result() {
+        return { content: [] } as any;
+      },
+      [Symbol.asyncIterator]() {
+        return {
+          async next() {
+            return { done: true as const, value: undefined };
+          },
+          async return(value?: unknown) {
+            return { done: true as const, value };
+          },
+          async throw(error?: unknown) {
+            throw error;
+          },
+          [Symbol.asyncIterator]() {
+            return this;
+          },
+        };
+      },
+    });
+
+    const kimiOriginalStream = createStream();
+    const kimiBaseStreamFn = vi.fn().mockResolvedValue(kimiOriginalStream);
+    const kimiWrappedFn = provider.wrapStreamFn?.({
+      streamFn: kimiBaseStreamFn,
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: { id: "moonshotai/kimi-k2.5:thinking" },
+    }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
+    const kimiResultStream = await kimiWrappedFn?.(
+      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools: [] } as any,
+      {} as any,
+    );
+    expect(kimiResultStream).not.toBe(kimiOriginalStream);
+
+    const glmOriginalStream = createStream();
+    const glmBaseStreamFn = vi.fn().mockResolvedValue(glmOriginalStream);
+    const glmWrappedFn = provider.wrapStreamFn?.({
+      streamFn: glmBaseStreamFn,
+      modelId: "zai-org/glm-5:thinking",
+      model: { id: "zai-org/glm-5:thinking" },
+    }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
+    const glmResultStream = await glmWrappedFn?.(
+      { id: "zai-org/glm-5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools: [] } as any,
+      {} as any,
+    );
+    expect(glmResultStream).toBe(glmOriginalStream);
+  });
+
   it("leaves web_fetch untouched for all models since aliasing is disabled", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;

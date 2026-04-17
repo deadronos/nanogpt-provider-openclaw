@@ -51,6 +51,8 @@ const INVALID_EMPTY_TOOL_TURN_RETRY_PROMPT =
 
 const TOOL_CALL_CONTAINER_KEYS = ["tool_calls", "toolCalls", "tools", "calls", "actions"] as const;
 const TOOL_ARGUMENT_KEYS = ["arguments", "args", "parameters", "input"] as const;
+const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall"]);
+const PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN = /\bname\s*=\s*(?:"([^"]+)"|'([^']+)')/i;
 const TOOL_CALL_RESERVED_KEYS = new Set<string>([
   "id",
   "type",
@@ -199,6 +201,15 @@ function parseJsonCandidate(candidate: string): unknown {
   }
 }
 
+function isStructuredJsonCandidate(candidate: string): boolean {
+  try {
+    const parsed = parseJsonCandidate(candidate);
+    return isRecord(parsed) || Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
 function extractBalancedJsonCandidate(text: string, opener: "{" | "[", closer: "}" | "]") {
   let startIndex = -1;
   let depth = 0;
@@ -240,7 +251,7 @@ function extractBalancedJsonCandidate(text: string, opener: "{" | "[", closer: "
   return undefined;
 }
 
-function extractToolPayloadCandidates(text: string): string[] {
+function extractRawToolPayloadCandidates(text: string): string[] {
   const candidates = new Set<string>();
   const trimmed = text.trim();
   if (trimmed) {
@@ -263,6 +274,44 @@ function extractToolPayloadCandidates(text: string): string[] {
   const arrayCandidate = extractBalancedJsonCandidate(trimmed, "[", "]");
   if (arrayCandidate) {
     candidates.add(arrayCandidate.trim());
+  }
+
+  return [...candidates];
+}
+
+function extractPseudoToolWrapperName(attributes: string): string | undefined {
+  const match = attributes.match(PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN);
+  const value = match?.[1] ?? match?.[2];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function extractToolPayloadCandidates(text: string): string[] {
+  const candidates = new Set<string>(extractRawToolPayloadCandidates(text));
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return [...candidates];
+  }
+
+  const pseudoToolWrapperPattern = /<([a-zA-Z][\w-]*)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+  for (const match of trimmed.matchAll(pseudoToolWrapperPattern)) {
+    const tagName = match[1]?.trim().toLowerCase();
+    if (!tagName || !PSEUDO_TOOL_WRAPPER_TAG_NAMES.has(tagName)) {
+      continue;
+    }
+
+    const toolName = extractPseudoToolWrapperName(match[2] ?? "");
+    const body = match[3]?.trim();
+    if (!toolName || !body) {
+      continue;
+    }
+
+    for (const innerCandidate of extractRawToolPayloadCandidates(body)) {
+      if (!isStructuredJsonCandidate(innerCandidate)) {
+        continue;
+      }
+
+      candidates.add(JSON.stringify({ name: toolName, arguments: innerCandidate }));
+    }
   }
 
   return [...candidates];

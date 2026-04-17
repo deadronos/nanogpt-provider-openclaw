@@ -34,6 +34,8 @@ describe("shouldRepairNanoGptToolCallArguments", () => {
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5:thinking")).toBe(true);
     expect(shouldRepairNanoGptToolCallArguments("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("zai-org/glm-5:thinking")).toBe(false);
+    expect(shouldRepairNanoGptToolCallArguments("nanogpt/zai-org/glm-5:thinking")).toBe(false);
     expect(shouldRepairNanoGptToolCallArguments("mistralai/mistral-large-3-675b-instruct-2512")).toBe(false);
     expect(shouldRepairNanoGptToolCallArguments(undefined)).toBe(false);
   });
@@ -372,6 +374,73 @@ describe("wrapStreamWithToolCallRepair", () => {
         id: "call_salvaged_1",
         name: "get_weather",
         arguments: { location: "Paris" },
+      },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+  });
+
+  it("salvages pseudo-tool wrapper payloads from assistant text", async () => {
+    const toolPayload = [
+      '<use_tool name="browser">',
+      JSON.stringify({
+        query: "NanoGPT",
+        url: "https://example.com/search",
+      }),
+      "</use_tool>",
+    ].join("");
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "browser",
+            description: "Browser navigation tool",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream) {
+      receivedEvents.push(event);
+    }
+
+    const toolEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(toolEndEvent.toolCall.name).toBe("browser");
+    expect(toolEndEvent.toolCall.arguments).toEqual({
+      query: "NanoGPT",
+      url: "https://example.com/search",
+    });
+
+    const doneEvent = receivedEvents.find((event) => event.type === "done") as any;
+    expect(doneEvent.reason).toBe("toolUse");
+    expect(doneEvent.message.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "browser",
+        arguments: {
+          query: "NanoGPT",
+          url: "https://example.com/search",
+        },
       },
     ]);
     expect(logger.warn).toHaveBeenCalledWith(
