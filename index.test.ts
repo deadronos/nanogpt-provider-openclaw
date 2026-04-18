@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
-import { restoreEnv, setEnvValue, snapshotEnv } from "./test-env.js";
 
 describe("nanogpt plugin entry", () => {
   function getRegisteredProvider() {
@@ -11,6 +10,17 @@ describe("nanogpt plugin entry", () => {
     plugin.register(
       {
         pluginConfig: {},
+        runtime: {
+          logging: {
+            shouldLogVerbose() {
+              return false;
+            },
+          },
+        },
+        logger: {
+          warn: vi.fn(),
+          info: vi.fn(),
+        },
         registerProvider(provider: unknown) {
           providers.push(provider);
         },
@@ -75,6 +85,7 @@ describe("nanogpt plugin entry", () => {
       }) => unknown;
       resolveDynamicModel?: (ctx: {
         agentDir?: string;
+        env?: Record<string, string | undefined>;
         provider: string;
         modelId: string;
         modelRegistry: unknown;
@@ -94,6 +105,17 @@ describe("nanogpt plugin entry", () => {
     plugin.register(
       {
         pluginConfig: {},
+        runtime: {
+          logging: {
+            shouldLogVerbose() {
+              return false;
+            },
+          },
+        },
+        logger: {
+          warn: vi.fn(),
+          info: vi.fn(),
+        },
         registerProvider(provider: unknown) {
           providers.push(provider);
         },
@@ -246,9 +268,17 @@ describe("nanogpt plugin entry", () => {
     expect(kimiStreamFn).not.toBe(baseStreamFn);
   });
 
-  it("keeps GLM thinking models on the malformed-tool-call guard path", async () => {
+  it("buffers Kimi thinking models when tools are present and keeps GLM thinking models on the guard path", async () => {
     const provider = getRegisteredProvider();
     expect(provider.wrapStreamFn).toEqual(expect.any(Function));
+
+    const tools = [
+      {
+        name: "get_weather",
+        description: "Weather lookup",
+        parameters: { type: "object" },
+      },
+    ];
 
     const createStream = () => ({
       async result() {
@@ -281,7 +311,7 @@ describe("nanogpt plugin entry", () => {
     }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
     const kimiResultStream = await kimiWrappedFn?.(
       { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
-      { messages: [], tools: [] } as any,
+      { messages: [], tools } as any,
       {} as any,
     );
     expect(kimiResultStream).not.toBe(kimiOriginalStream);
@@ -295,13 +325,13 @@ describe("nanogpt plugin entry", () => {
     }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
     const glmResultStream = await glmWrappedFn?.(
       { id: "zai-org/glm-5:thinking", api: "openai-completions" } as any,
-      { messages: [], tools: [] } as any,
+      { messages: [], tools } as any,
       {} as any,
     );
     expect(glmResultStream).toBe(glmOriginalStream);
   });
 
-  it("leaves web_fetch untouched for all models since aliasing is disabled", () => {
+  it("keeps web_fetch untouched on Kimi models because aliasing is disabled", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -325,6 +355,41 @@ describe("nanogpt plugin entry", () => {
     }) as Array<{ name: string }> | null;
 
     expect(normalized).toBeNull();
+  });
+
+  it("adds GLM schema hints without renaming web_fetch", () => {
+    const provider = getRegisteredProvider();
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+
+    const fetchTool = {
+      name: "web_fetch",
+      description: "Fetch and extract readable content from a URL",
+      parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "zai-org/glm-5:thinking",
+      model: {
+        id: "zai-org/glm-5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ name: string; description?: string }> | null;
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized?.[0]).toMatchObject({
+      name: "web_fetch",
+      description: expect.stringContaining("NanoGPT GLM tip:"),
+    });
+    expect(normalized?.[0]?.name).not.toBe("fetch_web_page");
+    expect(normalized?.[0]?.description).toContain(
+      "include required ref/selector/fields arguments explicitly when the tool needs them.",
+    );
+    expect(fetchTool.description).toBe("Fetch and extract readable content from a URL");
   });
 
   it("surfaces discovered NanoGPT models from models.json into catalog augmentation", () => {
@@ -567,32 +632,26 @@ describe("nanogpt plugin entry", () => {
       ),
     );
 
-    const envSnapshot = snapshotEnv(["OPENCLAW_AGENT_DIR"]);
-    setEnvValue("OPENCLAW_AGENT_DIR", agentDir);
-
-    try {
-      expect(
-        provider.resolveDynamicModel?.({
-          provider: "nanogpt",
-          modelId: "openai/gpt-5.4-mini",
-          modelRegistry: {},
-          providerConfig: {
-            api: "openai-completions",
-            baseUrl: "https://nano-gpt.com/api/v1",
-            models: [],
-          },
-        }),
-      ).toMatchObject({
-        id: "openai/gpt-5.4-mini",
-        name: "GPT-5.4 Mini",
-        reasoning: true,
-        input: ["text", "image"],
-        contextWindow: 400000,
-        maxTokens: 128000,
-      });
-    } finally {
-      restoreEnv(envSnapshot);
-    }
+    expect(
+      provider.resolveDynamicModel?.({
+        provider: "nanogpt",
+        modelId: "openai/gpt-5.4-mini",
+        modelRegistry: {},
+        env: { OPENCLAW_AGENT_DIR: agentDir },
+        providerConfig: {
+          api: "openai-completions",
+          baseUrl: "https://nano-gpt.com/api/v1",
+          models: [],
+        },
+      }),
+    ).toMatchObject({
+      id: "openai/gpt-5.4-mini",
+      name: "GPT-5.4 Mini",
+      reasoning: true,
+      input: ["text", "image"],
+      contextWindow: 400000,
+      maxTokens: 128000,
+    });
   });
 
   it("resolves unknown NanoGPT model ids dynamically without rewriting them", () => {

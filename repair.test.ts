@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  resolveNanoGptRepairProfile,
   shouldRepairNanoGptToolCallArguments,
   wrapStreamWithMalformedToolCallGuard,
   wrapStreamWithToolCallRepair,
@@ -29,6 +30,76 @@ function createAssistantMessage(overrides: Partial<Record<string, unknown>> = {}
   } as any;
 }
 
+function createReplayableStream(
+  events: AssistantMessageEvent[],
+  finalMessage: unknown = createAssistantMessage(),
+) {
+  return {
+    async result() {
+      return finalMessage;
+    },
+    [Symbol.asyncIterator]() {
+      let index = 0;
+      return {
+        async next() {
+          if (index >= events.length) {
+            return { done: true as const, value: undefined };
+          }
+          const value = events[index];
+          index += 1;
+          return { done: false as const, value };
+        },
+        async return(value?: unknown) {
+          return { done: true as const, value };
+        },
+        async throw(error?: unknown) {
+          throw error;
+        },
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+    },
+  };
+}
+
+describe("resolveNanoGptRepairProfile", () => {
+  it.each([
+    [
+      "moonshotai/kimi-k2.5:thinking",
+      {
+        family: "kimi",
+        useBufferedRepair: true,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
+      },
+    ],
+    [
+      "zai-org/glm-5:thinking",
+      {
+        family: "glm",
+        useBufferedRepair: false,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: true,
+        useToolSchemaHints: true,
+      },
+    ],
+    [
+      "mistralai/mistral-large-3-675b-instruct-2512",
+      {
+        family: "other",
+        useBufferedRepair: false,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
+      },
+    ],
+  ] as const)("resolves the expected profile for %s", (modelId, expected) => {
+    expect(resolveNanoGptRepairProfile(modelId)).toEqual(expected);
+  });
+});
+
 describe("shouldRepairNanoGptToolCallArguments", () => {
   it("only enables repair for Kimi-style NanoGPT model ids", () => {
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);
@@ -42,6 +113,76 @@ describe("shouldRepairNanoGptToolCallArguments", () => {
 });
 
 describe("wrapStreamWithToolCallRepair", () => {
+  it("uses the live guard path for Kimi models when no tools are enabled", async () => {
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"location":"Mad',
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+        }),
+      },
+      {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_guard",
+          name: "get_weather",
+          arguments: {},
+        },
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+        }),
+      },
+      {
+        type: "done",
+        reason: "toolUse",
+        message: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+          stopReason: "toolUse",
+        }),
+      },
+    ];
+
+    const originalStream = createReplayableStream(
+      mockEvents,
+      createAssistantMessage({
+        content: [{ type: "toolCall", id: "call_guard", name: "get_weather", arguments: {} }],
+        stopReason: "toolUse",
+      }),
+    );
+
+    const mockStreamFn = vi.fn().mockResolvedValue(originalStream);
+    const logger = {
+      warn: vi.fn(),
+      info: vi.fn(),
+    };
+
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools: [] } as any,
+      {} as any,
+    );
+
+    expect(resultStream).toBe(originalStream);
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream as AsyncIterable<AssistantMessageEvent>) {
+      receivedEvents.push(event);
+    }
+
+    const toolEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(toolEndEvent.toolCall.arguments).toEqual({});
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Observed malformed tool call arguments from model moonshotai/kimi-k2.5:thinking",
+      ),
+    );
+  });
+
   it("should repair malformed tool call arguments", async () => {
     const mockEvents: AssistantMessageEvent[] = [
       {
@@ -114,9 +255,20 @@ describe("wrapStreamWithToolCallRepair", () => {
       warn: vi.fn(),
       info: vi.fn(),
     };
+    const tools = [
+      {
+        name: "get_weather",
+        description: "Weather lookup",
+        parameters: { type: "object" },
+      },
+    ];
 
     const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
-    const resultStream = await wrapped({ id: "test-model" } as any, {} as any, {} as any);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools } as any,
+      {} as any,
+    );
 
     const receivedEvents: AssistantMessageEvent[] = [];
     for await (const event of resultStream) {
@@ -162,8 +314,19 @@ describe("wrapStreamWithToolCallRepair", () => {
     })());
 
     const logger = { warn: vi.fn(), info: vi.fn() };
+    const tools = [
+      {
+        name: "get_weather",
+        description: "Weather lookup",
+        parameters: { type: "object" },
+      },
+    ];
     const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
-    const resultStream = await wrapped({ id: "test-model" } as any, {} as any, {} as any);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools } as any,
+      {} as any,
+    );
 
     const receivedEvents: AssistantMessageEvent[] = [];
     for await (const event of resultStream) {
@@ -257,9 +420,20 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const mockStreamFn = vi.fn().mockResolvedValue(originalStream);
     const logger = { warn: vi.fn(), info: vi.fn() };
+    const tools = [
+      {
+        name: "get_weather",
+        description: "Weather lookup",
+        parameters: { type: "object" },
+      },
+    ];
 
     const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
-    const wrappedStream = await wrapped({ id: "test-model" } as any, {} as any, {} as any);
+    const wrappedStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
+      { messages: [], tools } as any,
+      {} as any,
+    );
 
     expect(typeof (wrappedStream as any).result).toBe("function");
     expect(typeof (wrappedStream as any)[Symbol.asyncIterator]).toBe("function");
@@ -639,9 +813,16 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const logger = { warn: vi.fn(), info: vi.fn() };
     const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger, { debug: true });
+    const tools = [
+      {
+        name: "get_weather",
+        description: "Weather lookup",
+        parameters: { type: "object" },
+      },
+    ];
     const resultStream = await wrapped(
       { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
-      { messages: [], tools: [] } as any,
+      { messages: [], tools } as any,
       {} as any,
     );
 
@@ -654,6 +835,102 @@ describe("wrapStreamWithToolCallRepair", () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('"repairStage":"toolcall_end"'),
+    );
+  });
+
+  it("keeps GLM models on the live guard path and logs semantic diagnostics for missing fields", async () => {
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"selector":"#search"}',
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_glm", name: "browser", arguments: {} }],
+        }),
+      },
+      {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_glm",
+          name: "browser",
+          arguments: {},
+        },
+        partial: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_glm", name: "browser", arguments: {} }],
+        }),
+      },
+      {
+        type: "done",
+        reason: "toolUse",
+        message: createAssistantMessage({
+          content: [{ type: "toolCall", id: "call_glm", name: "browser", arguments: {} }],
+          stopReason: "toolUse",
+        }),
+      },
+    ];
+
+    const originalStream = createReplayableStream(
+      mockEvents,
+      createAssistantMessage({
+        content: [{ type: "toolCall", id: "call_glm", name: "browser", arguments: {} }],
+        stopReason: "toolUse",
+      }),
+    );
+
+    const mockStreamFn = vi.fn().mockResolvedValue(originalStream);
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "zai-org/glm-5:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "browser",
+            description: "Browser navigation tool",
+            parameters: {
+              type: "object",
+              required: ["ref"],
+              properties: {
+                ref: { type: "string" },
+                selector: { type: "string" },
+                fields: { type: "array" },
+              },
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    expect(resultStream).toBe(originalStream);
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream as AsyncIterable<AssistantMessageEvent>) {
+      receivedEvents.push(event);
+    }
+
+    const toolEndEvent = receivedEvents.find((event) => event.type === "toolcall_end") as any;
+    expect(toolEndEvent.toolCall.arguments).toEqual({});
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('GLM semantic tool issue for tool "browser"'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("missing required field(s): ref"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("likely missing ref/selector/fields-style argument(s): ref, fields"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"glm_semantic_tool_issue"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"missingRequiredFields":["ref"]'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"missingHighlightedFields":["ref","fields"]'),
     );
   });
 });
