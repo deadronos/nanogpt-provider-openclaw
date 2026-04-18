@@ -31,6 +31,16 @@ type RepairAttempt = {
   sawVisibleText: boolean;
 };
 
+export type NanoGptRepairFamily = "kimi" | "glm" | "other";
+
+export type NanoGptRepairProfile = {
+  family: NanoGptRepairFamily;
+  useBufferedRepair: boolean;
+  useLiveGuard: boolean;
+  useSemanticToolDiagnostics: boolean;
+  useToolSchemaHints: boolean;
+};
+
 const EMPTY_USAGE: AssistantMessage["usage"] = {
   input: 0,
   output: 0,
@@ -72,16 +82,57 @@ function normalizeNanoGptRepairModelId(modelId: string): string {
   return normalized.startsWith("nanogpt/") ? normalized.slice("nanogpt/".length) : normalized;
 }
 
+function resolveNanoGptRepairFamily(modelId?: string): NanoGptRepairFamily {
+  if (!modelId?.trim()) {
+    return "other";
+  }
+
+  const normalized = normalizeNanoGptRepairModelId(modelId);
+  if (normalized.startsWith("moonshotai/kimi")) {
+    return "kimi";
+  }
+  if (normalized.startsWith("zai-org/glm")) {
+    return "glm";
+  }
+  return "other";
+}
+
+export function resolveNanoGptRepairProfile(modelId?: string): NanoGptRepairProfile {
+  const family = resolveNanoGptRepairFamily(modelId);
+  switch (family) {
+    case "kimi":
+      return {
+        family,
+        useBufferedRepair: true,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
+      };
+    case "glm":
+      return {
+        family,
+        useBufferedRepair: false,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: true,
+        useToolSchemaHints: true,
+      };
+    default:
+      return {
+        family,
+        useBufferedRepair: false,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
+      };
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function shouldRepairNanoGptToolCallArguments(modelId?: string): boolean {
-  if (!modelId?.trim()) {
-    return false;
-  }
-  const normalized = normalizeNanoGptRepairModelId(modelId);
-  return normalized.startsWith("moonshotai/kimi");
+  return resolveNanoGptRepairProfile(modelId).useBufferedRepair;
 }
 
 function normalizeAssistantMessage(
@@ -132,12 +183,18 @@ function resolveKnownToolName(name: string, tools: readonly Tool[]): string {
   return match?.name ?? name.trim();
 }
 
+function resolveKnownTool(name: string, tools: readonly Tool[]): Tool | undefined {
+  const normalized = canonicalizeToolName(name);
+  return tools.find((tool) => canonicalizeToolName(tool.name) === normalized);
+}
+
 function logReliabilityArtifact(
   logger: RepairLogger,
   meta: RepairRuntimeMeta,
   artifact: Record<string, unknown>,
+  force = false,
 ): void {
-  if (!meta.debug) {
+  if (!force && !meta.debug) {
     return;
   }
 
@@ -182,6 +239,122 @@ function logObservedMalformedToolCall(params: {
     rawArgumentLength: params.rawArgs.length,
     repairEnabled: false,
   });
+}
+
+function getToolParameterSchema(tool: Tool): Record<string, unknown> | undefined {
+  return isRecord(tool.parameters) ? tool.parameters : undefined;
+}
+
+function getToolSchemaRequiredFields(schema: Record<string, unknown>): string[] {
+  const required = schema.required;
+  if (!Array.isArray(required)) {
+    return [];
+  }
+
+  return required.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+function getToolSchemaPropertyNames(schema: Record<string, unknown>): string[] {
+  const properties = schema.properties;
+  return isRecord(properties) ? Object.keys(properties) : [];
+}
+
+function hasMeaningfulToolArgument(value: unknown): boolean {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (isRecord(value)) {
+    return Object.keys(value).length > 0;
+  }
+
+  return true;
+}
+
+function parseDiagnosticToolArguments(rawArgs: string): Record<string, unknown> | null {
+  try {
+    const parsed = parseJsonCandidate(rawArgs);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function logGlmSemanticToolDiagnostics(params: {
+  contentIndex: number;
+  toolName: string;
+  rawArgs: string;
+  tools: readonly Tool[];
+  logger: RepairLogger;
+  meta: RepairRuntimeMeta;
+  loggedContentIndexes: Set<number>;
+}): void {
+  if (params.loggedContentIndexes.has(params.contentIndex)) {
+    return;
+  }
+
+  const tool = resolveKnownTool(params.toolName, params.tools);
+  if (!tool) {
+    return;
+  }
+
+  const schema = getToolParameterSchema(tool);
+  if (!schema) {
+    return;
+  }
+
+  const argumentsRecord = parseDiagnosticToolArguments(params.rawArgs);
+  if (!argumentsRecord) {
+    return;
+  }
+
+  const requiredFields = getToolSchemaRequiredFields(schema);
+  const schemaFieldNames = getToolSchemaPropertyNames(schema);
+  const highlightedFields = [...new Set([...requiredFields, ...schemaFieldNames])].filter((field) =>
+    ["ref", "selector", "fields", "inputRef", "element"].includes(field),
+  );
+  const missingRequiredFields = requiredFields.filter(
+    (field) => !hasMeaningfulToolArgument(argumentsRecord[field]),
+  );
+  const missingHighlightedFields = highlightedFields.filter(
+    (field) => !hasMeaningfulToolArgument(argumentsRecord[field]),
+  );
+
+  if (missingRequiredFields.length === 0 && missingHighlightedFields.length === 0) {
+    return;
+  }
+
+  params.loggedContentIndexes.add(params.contentIndex);
+  const issueParts: string[] = [];
+  if (missingRequiredFields.length > 0) {
+    issueParts.push(`missing required field(s): ${missingRequiredFields.join(", ")}`);
+  }
+  if (missingHighlightedFields.length > 0) {
+    issueParts.push(
+      `likely missing ref/selector/fields-style argument(s): ${missingHighlightedFields.join(", ")}`,
+    );
+  }
+
+  params.logger.warn(
+    `[nanogpt] GLM semantic tool issue for tool "${tool.name}" from model ${params.meta.modelId} (api=${params.meta.requestApi ?? "unknown"}): ${issueParts.join("; ")}.`,
+  );
+  logReliabilityArtifact(params.logger, params.meta, {
+    event: "glm_semantic_tool_issue",
+    toolName: tool.name,
+    requestedToolName: params.toolName,
+    missingRequiredFields,
+    missingHighlightedFields,
+    schemaFieldNames,
+    rawArgumentLength: params.rawArgs.length,
+  }, true);
 }
 
 function buildRetryContext(context: Parameters<StreamFn>[1]): Parameters<StreamFn>[1] {
@@ -666,6 +839,45 @@ async function collectRepairAttempt(params: {
   };
 }
 
+function inspectToolCallArguments(params: {
+  contentIndex: number;
+  toolName: string;
+  rawArgs?: string;
+  tools: readonly Tool[];
+  logger: RepairLogger;
+  meta: RepairRuntimeMeta;
+  profile: NanoGptRepairProfile;
+  loggedMalformedContentIndexes: Set<number>;
+  loggedSemanticContentIndexes: Set<number>;
+}): void {
+  if (typeof params.rawArgs !== "string") {
+    return;
+  }
+
+  if (params.profile.useSemanticToolDiagnostics) {
+    logGlmSemanticToolDiagnostics({
+      contentIndex: params.contentIndex,
+      toolName: params.toolName,
+      rawArgs: params.rawArgs,
+      tools: params.tools,
+      logger: params.logger,
+      meta: params.meta,
+      loggedContentIndexes: params.loggedSemanticContentIndexes,
+    });
+  }
+
+  if (isMalformedToolCallJson(params.rawArgs)) {
+    logObservedMalformedToolCall({
+      contentIndex: params.contentIndex,
+      toolName: params.toolName,
+      rawArgs: params.rawArgs,
+      logger: params.logger,
+      meta: params.meta,
+      loggedContentIndexes: params.loggedMalformedContentIndexes,
+    });
+  }
+}
+
 /**
  * Wraps an OpenClaw model stream to automatically repair malformed JSON in tool call arguments.
  * This is particularly useful for "thinking" models or models that may truncate output.
@@ -682,6 +894,10 @@ export function wrapStreamWithToolCallRepair(
       attempt: 0,
       debug: options.debug === true,
     };
+    const repairProfile = resolveNanoGptRepairProfile(baseMeta.modelId);
+    if (!repairProfile.useBufferedRepair || !hasToolEnabledContext(args[1])) {
+      return wrapStreamWithMalformedToolCallGuard(streamFn, logger, options)(...args);
+    }
     const firstAttempt = await collectRepairAttempt({
       streamFn,
       args,
@@ -736,8 +952,11 @@ export function wrapStreamWithMalformedToolCallGuard(
       attempt: 0,
       debug: options.debug === true,
     };
+    const repairProfile = resolveNanoGptRepairProfile(meta.modelId);
+    const toolDefinitions = Array.isArray(args[1]?.tools) ? args[1].tools : [];
     const toolCallArgBuffers = new Map<number, string>();
     const loggedContentIndexes = new Set<number>();
+    const loggedSemanticContentIndexes = new Set<number>();
     const wrappedStream = stream as typeof stream & {
       result?: () => Promise<AssistantMessage>;
       [Symbol.asyncIterator]: () => AsyncIterator<AssistantMessageEvent>;
@@ -761,16 +980,17 @@ export function wrapStreamWithMalformedToolCallGuard(
 
           if (event.type === "toolcall_end") {
             const rawArgs = toolCallArgBuffers.get(event.contentIndex);
-            if (typeof rawArgs === "string" && isMalformedToolCallJson(rawArgs)) {
-              logObservedMalformedToolCall({
-                contentIndex: event.contentIndex,
-                toolName: event.toolCall.name,
-                rawArgs,
-                logger,
-                meta,
-                loggedContentIndexes,
-              });
-            }
+            inspectToolCallArguments({
+              contentIndex: event.contentIndex,
+              toolName: event.toolCall.name,
+              rawArgs,
+              tools: toolDefinitions,
+              logger,
+              meta,
+              profile: repairProfile,
+              loggedMalformedContentIndexes: loggedContentIndexes,
+              loggedSemanticContentIndexes,
+            });
           }
 
           return {
@@ -800,16 +1020,17 @@ export function wrapStreamWithMalformedToolCallGuard(
           }
 
           const rawArgs = toolCallArgBuffers.get(index);
-          if (typeof rawArgs === "string" && isMalformedToolCallJson(rawArgs)) {
-            logObservedMalformedToolCall({
-              contentIndex: index,
-              toolName: block.name,
-              rawArgs,
-              logger,
-              meta,
-              loggedContentIndexes,
-            });
-          }
+          inspectToolCallArguments({
+            contentIndex: index,
+            toolName: block.name,
+            rawArgs,
+            tools: toolDefinitions,
+            logger,
+            meta,
+            profile: repairProfile,
+            loggedMalformedContentIndexes: loggedContentIndexes,
+            loggedSemanticContentIndexes,
+          });
         });
         return message;
       };
