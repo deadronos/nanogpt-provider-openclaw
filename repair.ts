@@ -4,7 +4,9 @@ import type {
   AssistantMessageEvent,
   Tool,
 } from "@mariozechner/pi-ai";
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
+
+type StreamFn = NonNullable<ProviderWrapStreamFnContext["streamFn"]>;
 
 export type RepairLogger = {
   warn: (message: string) => void;
