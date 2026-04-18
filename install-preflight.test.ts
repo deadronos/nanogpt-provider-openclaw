@@ -1,7 +1,11 @@
+import fs from "node:fs";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import os from "node:os";
+import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+// @ts-expect-error Test imports a plain .mjs build script under a TS-only repo config.
+import { stagePackageDir } from "./scripts/stage-package-dir.mjs";
 
 type PackageManifest = {
   name?: string;
@@ -35,6 +39,23 @@ type ScanPackageInstallSourceRuntime = (params: {
 }) => Promise<InstallSecurityScanResult | undefined>;
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
+const tempPaths: string[] = [];
+
+afterEach(() => {
+  while (tempPaths.length > 0) {
+    const tempPath = tempPaths.pop();
+    if (!tempPath) {
+      continue;
+    }
+    fs.rmSync(tempPath, { recursive: true, force: true });
+  }
+});
+
+function makeTempDir() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-install-preflight-"));
+  tempPaths.push(tempDir);
+  return tempDir;
+}
 
 async function loadScanPackageInstallSourceRuntime(): Promise<ScanPackageInstallSourceRuntime> {
   const runtimeModulePath = "./node_modules/openclaw/dist/install-security-scan.runtime.js";
@@ -61,11 +82,14 @@ function resolveExtensionEntries(manifest: PackageManifest): string[] {
 }
 
 describe("plugin install preflight", () => {
-  it("does not trigger OpenClaw install warnings when scanning the repository checkout", async () => {
+  it("does not trigger OpenClaw install warnings when scanning the staged package surface", async () => {
     const manifest = readPackageManifest();
     const extensions = resolveExtensionEntries(manifest);
     const warnings: string[] = [];
     const scanPackageInstallSourceRuntime = await loadScanPackageInstallSourceRuntime();
+    const stagedPackageDir = path.join(makeTempDir(), "package");
+
+    stagePackageDir({ outputDir: stagedPackageDir });
 
     expect(extensions.length).toBeGreaterThan(0);
 
@@ -76,11 +100,11 @@ describe("plugin install preflight", () => {
       },
       manifestId: "nanogpt",
       mode: "install",
-      packageDir: repoRoot,
+      packageDir: stagedPackageDir,
       packageName: manifest.name,
       pluginId: "nanogpt",
       requestKind: "plugin-dir",
-      requestedSpecifier: repoRoot,
+      requestedSpecifier: stagedPackageDir,
       version: manifest.version,
     });
 

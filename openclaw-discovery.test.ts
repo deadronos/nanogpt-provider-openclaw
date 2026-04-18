@@ -1,4 +1,9 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+// @ts-expect-error Test imports a plain .mjs build script under a TS-only repo config.
+import { stagePackageDir } from "./scripts/stage-package-dir.mjs";
 import { resolvePluginDiscoveryProvidersRuntime } from "./node_modules/openclaw/dist/plugins/provider-discovery.runtime.js";
 import { mergeProcessEnv } from "./test-env.js";
 
@@ -35,9 +40,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   nanoGptCatalogProviderPromise = undefined;
+  while (tempPaths.length > 0) {
+    const tempPath = tempPaths.pop();
+    if (!tempPath) {
+      continue;
+    }
+    fs.rmSync(tempPath, { recursive: true, force: true });
+  }
 });
 
 let nanoGptCatalogProviderPromise: Promise<ProviderPlugin | undefined> | undefined;
+const tempPaths: string[] = [];
+
+function makeTempWorkspace() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-discovery-workspace-"));
+  tempPaths.push(tempDir);
+  return tempDir;
+}
+
+function stageNanoGptWorkspace() {
+  const workspaceDir = makeTempWorkspace();
+  const packageDir = path.join(workspaceDir, ".openclaw", "extensions", "nanogpt");
+  stagePackageDir({ outputDir: packageDir });
+  return { workspaceDir, packageDir };
+}
 
 function resolveProviderCatalogHook(provider: ProviderPlugin): ProviderCatalogHook | undefined {
   return provider.catalog ?? provider.discovery;
@@ -123,7 +149,7 @@ function runProviderCatalog(params: {
   });
 }
 
-async function loadNanoGptCatalogProvider(): Promise<ProviderPlugin | undefined> {
+async function loadNanoGptCatalogProvider(workspaceDir: string): Promise<ProviderPlugin | undefined> {
   nanoGptCatalogProviderPromise ??= resolvePluginDiscoveryProviders({
     config: {
       plugins: {
@@ -139,7 +165,7 @@ async function loadNanoGptCatalogProvider(): Promise<ProviderPlugin | undefined>
         },
       },
     },
-    workspaceDir: process.cwd(),
+    workspaceDir,
     env: mergeProcessEnv({
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
       VITEST: "1",
@@ -151,7 +177,10 @@ async function loadNanoGptCatalogProvider(): Promise<ProviderPlugin | undefined>
   return nanoGptCatalogProviderPromise;
 }
 
-async function loadNanoGptCatalogProviderWithPluginConfig(pluginConfig: Record<string, unknown>): Promise<ProviderPlugin | undefined> {
+async function loadNanoGptCatalogProviderWithPluginConfig(
+  workspaceDir: string,
+  pluginConfig: Record<string, unknown>,
+): Promise<ProviderPlugin | undefined> {
   const providers = await resolvePluginDiscoveryProviders({
     config: {
       plugins: {
@@ -164,7 +193,7 @@ async function loadNanoGptCatalogProviderWithPluginConfig(pluginConfig: Record<s
         },
       },
     },
-    workspaceDir: process.cwd(),
+    workspaceDir,
     env: mergeProcessEnv({
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
       VITEST: "1",
@@ -180,6 +209,7 @@ describe("NanoGPT OpenClaw discovery integration", () => {
   it(
     "returns discovered NanoGPT models through the OpenClaw provider catalog hook",
     async () => {
+      const { workspaceDir, packageDir } = stageNanoGptWorkspace();
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce({
@@ -212,7 +242,7 @@ describe("NanoGPT OpenClaw discovery integration", () => {
         });
       vi.stubGlobal("fetch", fetchMock);
 
-      const provider = await loadNanoGptCatalogProvider();
+      const provider = await loadNanoGptCatalogProvider(workspaceDir);
       expect(provider).toBeDefined();
 
       const result = await runProviderCatalog({
@@ -231,8 +261,8 @@ describe("NanoGPT OpenClaw discovery integration", () => {
             },
           },
         },
-        agentDir: process.cwd(),
-        workspaceDir: process.cwd(),
+        agentDir: packageDir,
+        workspaceDir,
         env: mergeProcessEnv({
           OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
           VITEST: "1",
@@ -285,6 +315,7 @@ describe("NanoGPT OpenClaw discovery integration", () => {
   );
 
   it("does not serialize a placeholder Authorization header through the discovery hook result", async () => {
+    const { workspaceDir, packageDir } = stageNanoGptWorkspace();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -330,7 +361,7 @@ describe("NanoGPT OpenClaw discovery integration", () => {
       });
     vi.stubGlobal("fetch", fetchMock);
 
-    const provider = await loadNanoGptCatalogProviderWithPluginConfig({
+    const provider = await loadNanoGptCatalogProviderWithPluginConfig(workspaceDir, {
       routingMode: "subscription",
       catalogSource: "subscription",
       provider: "openrouter",
@@ -354,13 +385,13 @@ describe("NanoGPT OpenClaw discovery integration", () => {
           },
         },
       },
-      agentDir: process.cwd(),
-      workspaceDir: process.cwd(),
-        env: mergeProcessEnv({
+      agentDir: packageDir,
+      workspaceDir,
+      env: mergeProcessEnv({
         OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
         VITEST: "1",
         NODE_ENV: "test",
-        }),
+      }),
       resolveProviderApiKey: () => ({ apiKey: "NANOGPT_API_KEY" }),
       resolveProviderAuth: () => ({
         apiKey: "NANOGPT_API_KEY",
