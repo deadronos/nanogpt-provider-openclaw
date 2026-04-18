@@ -172,6 +172,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
 
         const response = await fetch(NANOGPT_WEB_SEARCH_URL, {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers: {
             Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
             "Content-Type": "application/json",

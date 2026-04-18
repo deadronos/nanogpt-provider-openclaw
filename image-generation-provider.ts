@@ -136,6 +136,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
 
       const response = await fetch(`${NANOGPT_IMAGE_BASE_URL}/v1/images/generations`, {
         method: "POST",
+        signal: AbortSignal.timeout(60_000),
         headers: {
           Authorization: `Bearer ${sanitizeApiKey(auth.apiKey)}`,
           "Content-Type": "application/json",
