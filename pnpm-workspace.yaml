@@ -1,0 +1,6 @@
+allowBuilds:
+  '@discordjs/opus': true
+  '@whiskeysockets/baileys': true
+  koffi: true
+  openclaw: true
+  protobufjs: true
