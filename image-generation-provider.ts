@@ -1,5 +1,5 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-import { sanitizeApiKey } from "./runtime.js";
+import { NANOGPT_IMAGE_GENERATION_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 
@@ -141,6 +141,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(NANOGPT_IMAGE_GENERATION_TIMEOUT_MS),
       });
 
       if (!response.ok) {
