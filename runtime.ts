@@ -37,6 +37,11 @@ export function sanitizeApiKey(apiKey: string): string {
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 const PROVIDER_PRICING_CACHE_TTL_MS = 300_000;
+export const NANOGPT_SUBSCRIPTION_PROBE_TIMEOUT_MS = 10_000;
+export const NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS = 30_000;
+export const NANOGPT_PROVIDER_PRICING_TIMEOUT_MS = 10_000;
+export const NANOGPT_WEB_SEARCH_TIMEOUT_MS = 30_000;
+export const NANOGPT_IMAGE_GENERATION_TIMEOUT_MS = 60_000;
 const NANOGPT_USAGE_PROVIDER_ID = "nanogpt" as const;
 const NANOGPT_USAGE_DISPLAY_NAME = "NanoGPT";
 const NANOGPT_USAGE_URL = `${NANOGPT_SUBSCRIPTION_BASE_URL}/usage`;
@@ -378,7 +383,7 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
         Accept: "application/json",
         Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(NANOGPT_SUBSCRIPTION_PROBE_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -467,7 +472,7 @@ export async function discoverNanoGptModels(params: {
         Accept: "application/json",
         Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
       },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS),
     });
     if (!response.ok) {
       return NANOGPT_FALLBACK_MODELS;
@@ -536,7 +541,7 @@ export async function fetchNanoGptSelectedProviderPricing(params: {
           Accept: "application/json",
           Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
         },
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(NANOGPT_PROVIDER_PRICING_TIMEOUT_MS),
       });
       if (!response.ok) {
         // Short cache for failures to avoid immediate retry loops

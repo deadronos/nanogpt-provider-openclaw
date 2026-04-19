@@ -1,4 +1,4 @@
-import { sanitizeApiKey } from "./runtime.js";
+import { NANOGPT_WEB_SEARCH_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
 import {
   enablePluginInConfig,
   readNumberParam,
@@ -185,7 +185,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
             ...(includeDomains && includeDomains.length > 0 ? { includeDomains } : {}),
             ...(excludeDomains && excludeDomains.length > 0 ? { excludeDomains } : {}),
           }),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(NANOGPT_WEB_SEARCH_TIMEOUT_MS),
         });
 
         if (!response.ok) {
