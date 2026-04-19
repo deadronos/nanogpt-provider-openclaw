@@ -185,6 +185,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
             ...(includeDomains && includeDomains.length > 0 ? { includeDomains } : {}),
             ...(excludeDomains && excludeDomains.length > 0 ? { excludeDomains } : {}),
           }),
+          signal: AbortSignal.timeout(30_000),
         });
 
         if (!response.ok) {

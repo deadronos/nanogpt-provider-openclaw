@@ -141,6 +141,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60_000),
       });
 
       if (!response.ok) {

@@ -378,6 +378,7 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
         Accept: "application/json",
         Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -466,6 +467,7 @@ export async function discoverNanoGptModels(params: {
         Accept: "application/json",
         Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
       },
+      signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
       return NANOGPT_FALLBACK_MODELS;
@@ -534,6 +536,7 @@ export async function fetchNanoGptSelectedProviderPricing(params: {
           Accept: "application/json",
           Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
         },
+        signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) {
         // Short cache for failures to avoid immediate retry loops

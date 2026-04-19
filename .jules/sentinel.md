@@ -1,4 +1,4 @@
-## 2025-04-15 - Prevent XSS in Web Search Results
-**Vulnerability:** The web search provider (`normalizeNanoGptWebSearchResult` in `web-search.ts`) was normalizing and returning URLs without verifying their protocol. This allowed `javascript:` or `data:` URLs to be passed downstream as valid results.
-**Learning:** Even when consuming data from a trusted third-party API (like NanoGPT web search), any URLs intended to be rendered or clicked must be explicitly sanitized to ensure they use safe protocols.
-**Prevention:** Use the `URL` constructor to parse incoming URLs and explicitly check that `parsedUrl.protocol` is either `http:` or `https:`. Return `null` for any URL that fails to parse or uses an unsafe scheme.
+## 2024-05-18 - [Denial of Service mitigation]
+**Vulnerability:** External API calls via `fetch` did not have timeouts configured.
+**Learning:** This exposes the application to resource exhaustion if the remote endpoint hangs or is very slow, which is a Denial of Service risk.
+**Prevention:** Always use `AbortSignal.timeout(ms)` to enforce limits on external HTTP requests.
