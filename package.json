@@ -52,7 +52,18 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "hono": "4.12.12"
+    "axios": "1.15.0",
+    "hono": "4.12.14",
+    "protobufjs": "7.5.5",
+    "tar": "7.5.13"
+  },
+  "pnpm": {
+    "overrides": {
+      "axios": "1.15.0",
+      "hono": "4.12.14",
+      "protobufjs": "7.5.5",
+      "tar": "7.5.13"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -74,7 +85,6 @@
     }
   },
   "dependencies": {
-    "grammer": "^0.0.3",
     "grammy": "^1.42.0",
     "jsonrepair": "^3.13.3"
   }
