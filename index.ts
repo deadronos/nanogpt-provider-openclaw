@@ -145,7 +145,7 @@ function applyNanoGptNativeStreamingUsageCompat(
 
   let changed = false;
   const models = providerConfig.models.map((model) => {
-    if (model.compat?.supportsUsageInStreaming === true) {
+    if (model.compat?.supportsUsageInStreaming !== undefined) {
       return model;
     }
     changed = true;

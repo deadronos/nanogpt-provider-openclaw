@@ -185,8 +185,9 @@ For example:
 - `requestApi: "responses"` uses OpenAI Responses transport (experimental, requires models compatible with Responses API).
 - `requestApi: "completions"` keeps OpenAI Chat Completions transport.
 - `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
-- Completions-mode models are still marked with streaming usage compatibility so
-  OpenClaw requests `stream_options.include_usage` automatically.
+- Completions-mode models with no explicit streaming-usage compat flag are
+  marked with streaming usage compatibility so OpenClaw requests
+  `stream_options.include_usage` automatically.
 - `moonshotai/kimi*` models keep tool support enabled and get extra reliability
   handling in the stream wrapper:
   - malformed tool-call argument JSON repair

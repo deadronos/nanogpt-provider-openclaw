@@ -188,7 +188,7 @@ describe("nanogpt plugin entry", () => {
     );
   });
 
-  it("opts NanoGPT completions models into streaming usage compatibility", () => {
+  it("fills missing streaming usage compat without clobbering explicit false", () => {
     const provider = getRegisteredProvider();
     const applyCompat = provider.applyNativeStreamingUsageCompat;
     expect(applyCompat).toEqual(expect.any(Function));
@@ -204,6 +204,7 @@ describe("nanogpt plugin entry", () => {
           },
           {
             id: "gpt-5.4-mini",
+            compat: { supportsUsageInStreaming: false },
           },
         ],
       },
@@ -216,7 +217,32 @@ describe("nanogpt plugin entry", () => {
       supportsDeveloperRole: false,
       supportsUsageInStreaming: true,
     });
-    expect(result?.models[1]?.compat?.supportsUsageInStreaming).toBe(true);
+    expect(result?.models[1]?.compat?.supportsUsageInStreaming).toBe(false);
+  });
+
+  it("returns no compat patch when completions models already declare streaming usage support", () => {
+    const provider = getRegisteredProvider();
+    const applyCompat = provider.applyNativeStreamingUsageCompat;
+    expect(applyCompat).toEqual(expect.any(Function));
+
+    const result = applyCompat?.({
+      providerConfig: {
+        api: "openai-completions",
+        baseUrl: "https://nano-gpt.com/api/subscription/v1",
+        models: [
+          {
+            id: "moonshotai/kimi-k2.5:thinking",
+            compat: { supportsUsageInStreaming: true },
+          },
+          {
+            id: "gpt-5.4-mini",
+            compat: { supportsUsageInStreaming: false },
+          },
+        ],
+      },
+    });
+
+    expect(result).toBeNull();
   });
 
   it("opts in any completions config and skips non-completions APIs", () => {
