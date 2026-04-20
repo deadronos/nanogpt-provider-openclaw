@@ -8,16 +8,17 @@ import {
 } from './test-env.js';
 
 describe('test-env', () => {
-  let originalEnv: NodeJS.ProcessEnv;
+  let originalEnv: Record<string, string | undefined> = {};
 
   beforeEach(() => {
-    // Save original process.env
-    originalEnv = { ...process.env };
+    // Save the current environment without replacing process.env itself.
+    originalEnv = snapshotEnv(Object.keys(process.env));
   });
 
   afterEach(() => {
-    // Restore process.env exactly as it was
-    process.env = { ...originalEnv };
+    // Restore in place so any references to process.env stay valid.
+    clearEnvKeys(Object.keys(process.env));
+    restoreEnv(originalEnv);
   });
 
   describe('snapshotEnv', () => {
