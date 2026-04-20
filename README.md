@@ -113,8 +113,12 @@ The same key is used for:
 - NanoGPT web search
 - NanoGPT image generation
 
-The plugin reads `NANOGPT_API_KEY` by default. Web search can also use a
-dedicated config credential path described below.
+When you onboard NanoGPT auth with `openclaw onboard --nanogpt-api-key ...`
+or the interactive NanoGPT provider setup, the plugin also provisions the
+NanoGPT web-search credential path so the same auth works for text,
+`web_search`, and image generation. The plugin reads `NANOGPT_API_KEY` by
+default, and you can still override web search explicitly with the dedicated
+credential path described below.
 
 ## Text provider configuration
 
@@ -247,6 +251,8 @@ direct `POST /api/web` endpoint.
 Web search resolves credentials in this order:
 
 - `plugins.entries.nanogpt.config.webSearch.apiKey`
+  - normal NanoGPT auth/onboarding now provisions this path automatically
+  - you can still set it manually if you want a dedicated web-search override
 - `NANOGPT_API_KEY`
 
 `plugins.entries.nanogpt.config.webSearch.apiKey` is the web-search provider's
