@@ -127,9 +127,9 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
       nanogpt: {
         enabled: true,
         config: {
-          routingMode: "auto",
-          catalogSource: "auto",
-          requestApi: "responses",
+          routingMode: "paygo",
+          catalogSource: "canonical",
+          requestApi: "completions",
           provider: "openrouter"
         }
       }
@@ -172,7 +172,7 @@ For example:
 - `routingMode`: `auto`, `subscription`, `paygo`
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `responses`, `completions`
-- `provider`: optional NanoGPT upstream provider id
+- `provider`: optional NanoGPT upstream provider id for paygo provider selection
 
 ### Behavior notes
 
@@ -202,9 +202,10 @@ For example:
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
-- `provider` adds NanoGPT's `X-Provider` override header for text requests.
-- if `provider` is set while the request would otherwise use subscription
-  routing, the plugin also sets `X-Billing-Mode: paygo`
+- `provider` adds NanoGPT's `X-Provider` override header only for paygo-routed
+  text requests.
+- subscription-routed text requests ignore `provider` so the plugin does not
+  push subscription calls onto a separate paygo billing path.
 - `requestApi: "responses"` on subscription routing uses NanoGPT's base API
   endpoint (`/api/v1`) rather than the subscription completions endpoint, so
   treat it as a separate compatibility/billing path from standard subscription
@@ -214,9 +215,10 @@ For example:
 
 By default, the plugin exposes pricing from NanoGPT's detailed model catalog.
 
-When `provider` is set, the plugin also tries to align exposed `models[].cost`
-with NanoGPT's provider-selection pricing endpoint so the model cost shown to
-OpenClaw better reflects the billed price for the selected upstream provider.
+When `provider` is set and text routing resolves to paygo, the plugin also
+tries to align exposed `models[].cost` with NanoGPT's provider-selection
+pricing endpoint so the model cost shown to OpenClaw better reflects the billed
+price for the selected upstream provider.
 
 If NanoGPT does not expose provider-selection pricing for a model, the plugin
 falls back to the default catalog pricing instead of failing model discovery.

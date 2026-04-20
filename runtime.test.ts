@@ -226,16 +226,15 @@ describe("resolveRequestBaseUrl", () => {
 });
 
 describe("buildNanoGptRequestHeaders", () => {
-  it("adds provider override and billing override for subscription routing", () => {
+  it("adds provider override headers for paygo routing", () => {
     expect(
       buildNanoGptRequestHeaders({
         apiKey: "test-key",
         config: { provider: "openrouter" },
-        routingMode: "subscription",
+        routingMode: "paygo",
       }),
     ).toEqual({
       Authorization: "Bearer test-key",
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
   });
@@ -245,16 +244,27 @@ describe("buildNanoGptRequestHeaders", () => {
       buildNanoGptRequestHeaders({
         apiKey: "test-key\r\nInjected: true",
         config: { provider: "openrouter\r\nInjected: true" },
-        routingMode: "subscription",
+        routingMode: "paygo",
       }),
     ).toEqual({
       Authorization: "Bearer test-keyInjected: true",
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
     });
   });
 
-  it("does not set a paygo billing override when no provider override is configured", () => {
+  it("ignores provider override during subscription routing", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key",
+        config: { provider: "openrouter" },
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-key",
+    });
+  });
+
+  it("does not add extra headers when no provider override is configured", () => {
     expect(
       buildNanoGptRequestHeaders({
         apiKey: "test-key",

@@ -218,7 +218,7 @@ describe("buildNanoGptProvider", () => {
     expect(secondProvider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
   });
 
-  it("adds provider override headers and paygo billing override for subscription routing", async () => {
+  it("adds provider override headers for paygo routing", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -230,14 +230,13 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "test-key",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter",
       },
     });
 
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
   });
@@ -254,16 +253,36 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "test-key",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter\r\nInjected: true",
       },
     });
 
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
     });
+  });
+
+  it("ignores provider overrides on subscription routing to avoid paygo billing errors", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+        provider: "openrouter",
+      },
+    });
+
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+    expect(provider.headers).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("omits Authorization from provider config so runtime auth can inject the real key", async () => {
@@ -298,8 +317,8 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "NANOGPT_API_KEY",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter",
       },
     });
@@ -308,7 +327,6 @@ describe("buildNanoGptProvider", () => {
 
     expect(provider.apiKey).toBe("NANOGPT_API_KEY");
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
     expect(serializedProvider).not.toContain("Authorization");
