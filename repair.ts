@@ -175,18 +175,32 @@ function hasToolEnabledContext(context: Parameters<StreamFn>[1]): boolean {
   return Array.isArray(context?.tools) && context.tools.length > 0;
 }
 
-function canonicalizeToolName(name: string): string {
+export function canonicalizeToolName(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function resolveKnownToolName(name: string, tools: readonly Tool[]): string {
+function createToolMap(tools: readonly Tool[]): Map<string, Tool> {
+  const map = new Map<string, Tool>();
+  for (const tool of tools) {
+    map.set(canonicalizeToolName(tool.name), tool);
+  }
+  return map;
+}
+
+export function resolveKnownToolName(name: string, tools: readonly Tool[], toolMap?: Map<string, Tool>): string {
   const normalized = canonicalizeToolName(name);
+  if (toolMap) {
+    return toolMap.get(normalized)?.name ?? name.trim();
+  }
   const match = tools.find((tool) => canonicalizeToolName(tool.name) === normalized);
   return match?.name ?? name.trim();
 }
 
-function resolveKnownTool(name: string, tools: readonly Tool[]): Tool | undefined {
+export function resolveKnownTool(name: string, tools: readonly Tool[], toolMap?: Map<string, Tool>): Tool | undefined {
   const normalized = canonicalizeToolName(name);
+  if (toolMap) {
+    return toolMap.get(normalized);
+  }
   return tools.find((tool) => canonicalizeToolName(tool.name) === normalized);
 }
 
@@ -295,6 +309,7 @@ function logGlmSemanticToolDiagnostics(params: {
   toolName: string;
   rawArgs: string;
   tools: readonly Tool[];
+  toolMap?: Map<string, Tool>;
   logger: RepairLogger;
   meta: RepairRuntimeMeta;
   loggedContentIndexes: Set<number>;
@@ -303,7 +318,7 @@ function logGlmSemanticToolDiagnostics(params: {
     return;
   }
 
-  const tool = resolveKnownTool(params.toolName, params.tools);
+  const tool = resolveKnownTool(params.toolName, params.tools, params.toolMap);
   if (!tool) {
     return;
   }
@@ -564,6 +579,7 @@ function normalizeSalvagedToolCall(
   value: unknown,
   tools: readonly Tool[],
   index: number,
+  toolMap?: Map<string, Tool>,
 ): Extract<AssistantMessage["content"][number], { type: "toolCall" }> | null {
   if (!isRecord(value)) {
     return null;
@@ -578,7 +594,7 @@ function normalizeSalvagedToolCall(
     return null;
   }
 
-  const normalizedName = resolveKnownToolName(rawName, tools);
+  const normalizedName = resolveKnownToolName(rawName, tools, toolMap);
   const rawArguments =
     firstDefinedProperty(value, TOOL_ARGUMENT_KEYS) ??
     (nestedFunction ? firstDefinedProperty(nestedFunction, TOOL_ARGUMENT_KEYS) : undefined);
@@ -596,13 +612,14 @@ function normalizeSalvagedToolCall(
 function normalizeStructuredToolTurn(
   value: unknown,
   tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
 ): {
   messageText?: string;
   toolCalls: Array<Extract<AssistantMessage["content"][number], { type: "toolCall" }>>;
 } | null {
   if (Array.isArray(value)) {
     const toolCalls = value
-      .map((entry, index) => normalizeSalvagedToolCall(entry, tools, index))
+      .map((entry, index) => normalizeSalvagedToolCall(entry, tools, index, toolMap))
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
     return toolCalls.length > 0 ? { toolCalls } : null;
   }
@@ -618,12 +635,12 @@ function normalizeStructuredToolTurn(
   if (rawCalls !== undefined) {
     const callEntries = Array.isArray(rawCalls) ? rawCalls : [rawCalls];
     const toolCalls = callEntries
-      .map((entry, index) => normalizeSalvagedToolCall(entry, tools, index))
+      .map((entry, index) => normalizeSalvagedToolCall(entry, tools, index, toolMap))
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
     return toolCalls.length > 0 ? { messageText, toolCalls } : null;
   }
 
-  const toolCall = normalizeSalvagedToolCall(value, tools, 0);
+  const toolCall = normalizeSalvagedToolCall(value, tools, 0, toolMap);
   return toolCall ? { messageText, toolCalls: [toolCall] } : null;
 }
 
@@ -692,9 +709,10 @@ function salvageStructuredToolTurn(
     return null;
   }
 
+  const toolMap = createToolMap(tools);
   for (const candidate of extractToolPayloadCandidates(textPayload)) {
     try {
-      const normalized = normalizeStructuredToolTurn(parseJsonCandidate(candidate), tools);
+      const normalized = normalizeStructuredToolTurn(parseJsonCandidate(candidate), tools, toolMap);
       if (!normalized || normalized.toolCalls.length === 0) {
         continue;
       }
@@ -846,6 +864,7 @@ function inspectToolCallArguments(params: {
   toolName: string;
   rawArgs?: string;
   tools: readonly Tool[];
+  toolMap?: Map<string, Tool>;
   logger: RepairLogger;
   meta: RepairRuntimeMeta;
   profile: NanoGptRepairProfile;
@@ -862,6 +881,7 @@ function inspectToolCallArguments(params: {
       toolName: params.toolName,
       rawArgs: params.rawArgs,
       tools: params.tools,
+      toolMap: params.toolMap,
       logger: params.logger,
       meta: params.meta,
       loggedContentIndexes: params.loggedSemanticContentIndexes,
@@ -956,6 +976,7 @@ export function wrapStreamWithMalformedToolCallGuard(
     };
     const repairProfile = resolveNanoGptRepairProfile(meta.modelId);
     const toolDefinitions = Array.isArray(args[1]?.tools) ? args[1].tools : [];
+    const toolMap = createToolMap(toolDefinitions);
     const toolCallArgBuffers = new Map<number, string>();
     const loggedContentIndexes = new Set<number>();
     const loggedSemanticContentIndexes = new Set<number>();
@@ -987,6 +1008,7 @@ export function wrapStreamWithMalformedToolCallGuard(
               toolName: event.toolCall.name,
               rawArgs,
               tools: toolDefinitions,
+              toolMap,
               logger,
               meta,
               profile: repairProfile,
@@ -1027,6 +1049,7 @@ export function wrapStreamWithMalformedToolCallGuard(
             toolName: block.name,
             rawArgs,
             tools: toolDefinitions,
+            toolMap,
             logger,
             meta,
             profile: repairProfile,
