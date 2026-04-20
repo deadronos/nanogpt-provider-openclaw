@@ -100,6 +100,51 @@ describe("resolveNanoGptRepairProfile", () => {
   });
 });
 
+  describe("regex vulnerabilities", () => {
+    it("does not exhibit ReDoS when extracting fenced blocks with unclosed backticks", () => {
+      // The original `fencedBlockPattern` was `/```(?:json)?\s*([\s\S]*?)```/gi;`
+      // The `\s*` combined with `[\s\S]*?` creates a catastrophic backtracking scenario
+      // if the string ends without a closing ```
+      const text = "```json\n" + " ".repeat(100000);
+
+      const start = Date.now();
+
+      // We will test by using a known function that invokes extractToolPayloadCandidates
+      // which internally uses the vulnerable regex.
+      // Easiest is to directly trigger wrapStreamWithToolCallRepair which parses tools.
+
+      // To test without wiring up all the stream mock, we can just invoke it as:
+      const meta = {
+        modelId: "test-model",
+        requestApi: "openai-completions",
+        attempt: 0,
+        debug: false,
+      };
+
+      const logger = { warn: vi.fn(), info: vi.fn() };
+      const streamFn = async () => (async function* () {
+        yield { type: "text_start", contentIndex: 0, partial: { role: "assistant", content: [], model: "test-model", provider: "nanogpt", stopReason: "stop", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, totalTokens: 0 }, api: "openai-completions", timestamp: 0 } as any };
+        yield { type: "text_delta", contentIndex: 0, delta: text, partial: {} as any };
+        yield { type: "text_end", contentIndex: 0, content: text, partial: {} as any };
+        yield { type: "done", reason: "stop", message: { role: "assistant", content: [{ type: "text", text }], model: "test-model", provider: "nanogpt", stopReason: "stop", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, totalTokens: 0 }, api: "openai-completions", timestamp: 0 } as any };
+      })();
+
+      const wrapped = wrapStreamWithToolCallRepair(streamFn as any, logger);
+
+      return new Promise<void>((resolve, reject) => {
+        const streamPromise = wrapped({ id: "nanogpt/moonshotai/kimi-chat" } as any, { tools: [{ type: "function", name: "test", description: "test", parameters: {} }] } as any);
+        Promise.resolve(streamPromise)
+          .then(async (stream) => {
+            for await (const _ of stream) {}
+            const duration = Date.now() - start;
+            expect(duration).toBeLessThan(1000); // Should be very fast (< 1s), not hanging for seconds
+            resolve();
+          })
+          .catch(reject);
+      });
+    });
+  });
+
 describe("shouldRepairNanoGptToolCallArguments", () => {
   it("only enables repair for Kimi-style NanoGPT model ids", () => {
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);

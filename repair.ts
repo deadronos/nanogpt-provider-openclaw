@@ -433,7 +433,7 @@ function extractRawToolPayloadCandidates(text: string): string[] {
     candidates.add(trimmed);
   }
 
-  const fencedBlockPattern = /```(?:json)?\s*([\s\S]*?)```/gi;
+  const fencedBlockPattern = /```(?:json)?(?:[ \t]*\r?\n)?([\s\S]*?)```/gi;
   for (const match of trimmed.matchAll(fencedBlockPattern)) {
     const candidate = match[1]?.trim();
     if (candidate) {
