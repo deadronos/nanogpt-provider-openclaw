@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildNanoGptProvider } from "./provider-catalog.js";
+import { NANOGPT_FALLBACK_MODELS } from "./models.js";
 import { resetNanoGptRuntimeState } from "./runtime.js";
 
 afterEach(() => {
@@ -371,33 +372,27 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]?.cost.cacheWrite).toBe(0);
   });
 
-  it("provides helpful error when responses API has no models but completions does", async () => {
+  it("keeps fallback discovery soft when responses catalog lookup fails", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    // First call (responses discovery): fail → returns fallback models
     fetchMock.mockResolvedValueOnce({
       ok: false,
       json: async () => ({}),
     });
 
-    // Second call (completions validation check): succeed → returns real models
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }],
-      }),
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "paygo",
+        catalogSource: "canonical",
+        requestApi: "responses",
+      },
     });
 
-    await expect(
-      buildNanoGptProvider({
-        apiKey: "test-key",
-        pluginConfig: {
-          routingMode: "paygo",
-          catalogSource: "canonical",
-          requestApi: "responses",
-        },
-      }),
-    ).rejects.toThrow(/Responses API endpoint.*Chat Completions API/);
+    expect(provider.api).toBe("openai-responses");
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
+    expect(provider.models.map((model) => model.id)).toEqual(NANOGPT_FALLBACK_MODELS.map((model) => model.id));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
