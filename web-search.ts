@@ -1,22 +1,25 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-import { NANOGPT_WEB_SEARCH_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
+import { sanitizeApiKey } from "./runtime.js";
 import {
-  enablePluginInConfig,
   mergeScopedSearchConfig,
+  postTrustedWebToolsJson,
   readNumberParam,
-  readConfiguredSecretString,
   readProviderEnvValue,
   readStringArrayParam,
   readStringParam,
   resolveProviderWebSearchPluginConfig,
   resolveSearchCount,
+  resolveSearchTimeoutSeconds,
   resolveSiteName,
-  setProviderWebSearchPluginConfigValue,
+  resolveWebSearchProviderCredential,
   wrapWebContent,
   type WebSearchProviderPlugin,
 } from "openclaw/plugin-sdk/provider-web-search";
+import { createWebSearchProviderContractFields } from "openclaw/plugin-sdk/provider-web-search-contract";
 
 const NANOGPT_WEB_SEARCH_URL = "https://nano-gpt.com/api/web";
+const NANOGPT_WEB_SEARCH_CREDENTIAL_PATH = "plugins.entries.nanogpt.config.webSearch.apiKey";
+const NANOGPT_ENV_REF_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)\}$/;
 const NANOGPT_WEB_SEARCH_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -69,8 +72,6 @@ type NanoGptWebSearchResponse = {
   };
 };
 
-const NANOGPT_ENV_REF_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)\}$/;
-
 function resolveNanoGptWebSearchConfig(ctx: {
   config?: Record<string, unknown>;
   searchConfig?: Record<string, unknown>;
@@ -87,16 +88,20 @@ function resolveNanoGptWebSearchConfig(ctx: {
 }
 
 function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): string | undefined {
+  // Keep compatibility with the ${ENV_VAR} string form provisioned by NanoGPT
+  // onboarding/auth setup. The generic helper handles direct strings and
+  // structured secret refs, but this legacy env-template form still needs to
+  // be collapsed before handing off to the normal provider credential path.
   const inlineEnvRef =
     typeof searchConfig?.apiKey === "string"
       ? NANOGPT_ENV_REF_PATTERN.exec(searchConfig.apiKey.trim())?.[1]
       : undefined;
 
-  return (
-    (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ??
-    readConfiguredSecretString(searchConfig?.apiKey, "tools.web.search.apiKey") ??
-    readProviderEnvValue(["NANOGPT_API_KEY"])
-  );
+  return resolveWebSearchProviderCredential({
+    credentialValue: (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ?? searchConfig?.apiKey,
+    path: "tools.web.search.apiKey",
+    envVars: ["NANOGPT_API_KEY"],
+  });
 }
 
 function normalizeNanoGptWebSearchResult(
@@ -141,7 +146,7 @@ function missingNanoGptKeyPayload() {
   return {
     error: "missing_nanogpt_api_key",
     message:
-      "web_search (nanogpt) needs NANOGPT_API_KEY. Set it in the environment or store it under plugins.entries.nanogpt.config.webSearch.apiKey.",
+      "web_search (nanogpt) needs a NanoGPT API key. Set tools.web.search.apiKey, set NANOGPT_API_KEY in the environment, or store it under plugins.entries.nanogpt.config.webSearch.apiKey.",
     docs: "https://docs.nano-gpt.com/api-reference/endpoint/web-search",
   };
 }
@@ -158,19 +163,17 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
     signupUrl: "https://nano-gpt.com/api",
     docsUrl: "https://docs.nano-gpt.com/api-reference/endpoint/web-search",
     autoDetectOrder: 60,
-    credentialPath: "plugins.entries.nanogpt.config.webSearch.apiKey",
-    inactiveSecretPaths: ["plugins.entries.nanogpt.config.webSearch.apiKey"],
-    getCredentialValue: (searchConfig: unknown) => {
-      const cfg = searchConfig as Record<string, unknown> | undefined;
-      return cfg?.apiKey;
-    },
-    setCredentialValue: () => {},
-    getConfiguredCredentialValue: (config) =>
-      resolveProviderWebSearchPluginConfig(config, "nanogpt")?.apiKey,
-    setConfiguredCredentialValue: (configTarget, value) => {
-      setProviderWebSearchPluginConfigValue(configTarget, "nanogpt", "apiKey", value);
-    },
-    applySelectionConfig: (config) => enablePluginInConfig(config, "nanogpt").config,
+    credentialPath: NANOGPT_WEB_SEARCH_CREDENTIAL_PATH,
+    ...createWebSearchProviderContractFields({
+      credentialPath: NANOGPT_WEB_SEARCH_CREDENTIAL_PATH,
+      searchCredential: {
+        type: "top-level",
+      },
+      configuredCredential: {
+        pluginId: NANOGPT_PROVIDER_ID,
+      },
+      selectionPluginId: NANOGPT_PROVIDER_ID,
+    }),
     createTool: (ctx) => ({
       description:
         "Search the web using NanoGPT's direct web search API. Returns titles, URLs, and snippets.",
@@ -194,50 +197,43 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         const includeDomains = readStringArrayParam(args, "includeDomains")?.filter(Boolean);
         const excludeDomains = readStringArrayParam(args, "excludeDomains")?.filter(Boolean);
 
-        const response = await fetch(NANOGPT_WEB_SEARCH_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${sanitizeApiKey(apiKey)}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
+        return await postTrustedWebToolsJson(
+          {
+            url: NANOGPT_WEB_SEARCH_URL,
+            apiKey: sanitizeApiKey(apiKey),
+            timeoutSeconds: resolveSearchTimeoutSeconds(searchConfig),
+            errorLabel: "NanoGPT web search",
+            body: {
+              query,
+              provider: "linkup",
+              depth: "standard",
+              outputType: "searchResults",
+              ...(includeDomains && includeDomains.length > 0 ? { includeDomains } : {}),
+              ...(excludeDomains && excludeDomains.length > 0 ? { excludeDomains } : {}),
+            },
           },
-          body: JSON.stringify({
-            query,
-            provider: "linkup",
-            depth: "standard",
-            outputType: "searchResults",
-            ...(includeDomains && includeDomains.length > 0 ? { includeDomains } : {}),
-            ...(excludeDomains && excludeDomains.length > 0 ? { excludeDomains } : {}),
-          }),
-          signal: AbortSignal.timeout(NANOGPT_WEB_SEARCH_TIMEOUT_MS),
-        });
+          async (response) => {
+            const payload = (await response.json()) as NanoGptWebSearchResponse;
+            const results = (Array.isArray(payload.data) ? payload.data : [])
+              .map(normalizeNanoGptWebSearchResult)
+              .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+              .slice(0, count);
 
-        if (!response.ok) {
-          const detail = await response.text();
-          throw new Error(
-            `NanoGPT web search failed (${response.status}): ${detail || response.statusText}`,
-          );
-        }
-
-        const payload = (await response.json()) as NanoGptWebSearchResponse;
-        const results = (Array.isArray(payload.data) ? payload.data : [])
-          .map(normalizeNanoGptWebSearchResult)
-          .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-          .slice(0, count);
-
-        return {
-          query,
-          provider: "nanogpt",
-          count: results.length,
-          externalContent: {
-            untrusted: true,
-            source: "web_search",
-            provider: "nanogpt",
-            wrapped: true,
+            return {
+              query,
+              provider: "nanogpt",
+              count: results.length,
+              externalContent: {
+                untrusted: true,
+                source: "web_search",
+                provider: "nanogpt",
+                wrapped: true,
+              },
+              results,
+              metadata: payload.metadata ?? {},
+            };
           },
-          results,
-          metadata: payload.metadata ?? {},
-        };
+        );
       },
     }),
   };
