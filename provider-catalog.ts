@@ -14,6 +14,7 @@ import {
   resolveCatalogSource,
   resolveNanoGptRequestApi,
   resolveNanoGptRoutingMode,
+  resolveNanoGptSelectedProvider,
   resolveRequestBaseUrl,
 } from "./runtime.js";
 
@@ -235,10 +236,14 @@ export async function buildNanoGptProvider(params: {
     config,
     routingMode,
   });
+  const selectedProvider = resolveNanoGptSelectedProvider({
+    config,
+    routingMode,
+  });
   const models = await discoverNanoGptModels({
     apiKey: params.apiKey,
     source: catalogSource,
-    provider: config.provider,
+    provider: selectedProvider,
   });
 
   const resolvedHeaders = buildNanoGptRequestHeaders({

@@ -412,19 +412,13 @@ describe("NanoGPT OpenClaw discovery integration", () => {
       api: "openai-completions",
       apiKey: "NANOGPT_API_KEY",
       baseUrl: "https://nano-gpt.com/api/subscription/v1",
-      headers: {
-        "X-Billing-Mode": "paygo",
-        "X-Provider": "openrouter",
-      },
     });
+    expect(nanogptProvider?.headers).toBeUndefined();
     expect(serializedProvider).not.toContain("Authorization");
     expect(serializedProvider).not.toContain("Bearer NANOGPT_API_KEY");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       "https://nano-gpt.com/api/subscription/v1/models?detailed=true",
-    );
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
-      "https://nano-gpt.com/api/models/moonshotai%2Fkimi-k2.5%3Athinking/providers",
     );
   });
 });

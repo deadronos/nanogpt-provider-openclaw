@@ -458,6 +458,13 @@ export function resolveRequestBaseUrl(params: {
   return params.routingMode === "subscription" ? NANOGPT_SUBSCRIPTION_BASE_URL : NANOGPT_BASE_URL;
 }
 
+export function resolveNanoGptSelectedProvider(params: {
+  config: NanoGptPluginConfig;
+  routingMode: Exclude<NanoGptRoutingMode, "auto">;
+}): string | undefined {
+  return params.routingMode === "paygo" ? params.config.provider : undefined;
+}
+
 export async function discoverNanoGptModels(params: {
   apiKey: string;
   source: Exclude<NanoGptCatalogSource, "auto">;
@@ -622,11 +629,9 @@ export function buildNanoGptRequestHeaders(params: {
     Authorization: `Bearer ${sanitizeApiKey(params.apiKey)}`,
   };
 
-  if (params.config.provider) {
-    headers["X-Provider"] = sanitizeHeaderValue(params.config.provider);
-    if (params.routingMode === "subscription") {
-      headers["X-Billing-Mode"] = "paygo";
-    }
+  const provider = resolveNanoGptSelectedProvider(params);
+  if (provider) {
+    headers["X-Provider"] = sanitizeHeaderValue(provider);
   }
 
   return headers;
