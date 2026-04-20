@@ -622,6 +622,62 @@ describe("wrapStreamWithToolCallRepair", () => {
     );
   });
 
+  it("preserves the first matching tool when canonical names collide", async () => {
+    const toolPayload = JSON.stringify({
+      tool_calls: [
+        {
+          name: "browser",
+          arguments: {
+            url: "https://example.com/first",
+          },
+        },
+      ],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "moonshotai/kimi-k2.5", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "Browser",
+            description: "First colliding tool",
+            parameters: { type: "object" },
+          },
+          {
+            name: "browser!",
+            description: "Second colliding tool",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content[0]).toEqual({
+      type: "toolCall",
+      id: "call_salvaged_1",
+      name: "Browser",
+      arguments: {
+        url: "https://example.com/first",
+      },
+    });
+  });
+
   it("salvages flattened tool arguments from assistant text", async () => {
     const toolPayload = JSON.stringify({
       tool_calls: [
