@@ -1,3 +1,9 @@
+import {
+  NANOGPT_BASE_URL,
+  NANOGPT_SUBSCRIPTION_BASE_URL,
+  NANOGPT_PAID_BASE_URL,
+  NANOGPT_PERSONALIZED_BASE_URL,
+} from "./models.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   sanitizeApiKey,
@@ -10,6 +16,7 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
   resolveRequestBaseUrl,
+  resolveCatalogBaseUrl,
   probeNanoGptSubscription,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
@@ -897,5 +904,27 @@ describe("fetchNanoGptSelectedProviderPricing", () => {
       unit: "per_1k_tokens",
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveCatalogBaseUrl", () => {
+  it("maps subscription source to the subscription base URL", () => {
+    expect(resolveCatalogBaseUrl("subscription")).toBe(NANOGPT_SUBSCRIPTION_BASE_URL);
+  });
+
+  it("maps paid source to the paid base URL", () => {
+    expect(resolveCatalogBaseUrl("paid")).toBe(NANOGPT_PAID_BASE_URL);
+  });
+
+  it("maps personalized source to the personalized base URL", () => {
+    expect(resolveCatalogBaseUrl("personalized")).toBe(NANOGPT_PERSONALIZED_BASE_URL);
+  });
+
+  it("maps canonical source to the standard base URL", () => {
+    expect(resolveCatalogBaseUrl("canonical")).toBe(NANOGPT_BASE_URL);
+  });
+
+  it("maps an unknown/default source to the standard base URL", () => {
+    expect(resolveCatalogBaseUrl("unknown" as any)).toBe(NANOGPT_BASE_URL);
   });
 });
