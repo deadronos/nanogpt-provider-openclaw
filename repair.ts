@@ -182,7 +182,10 @@ export function canonicalizeToolName(name: string): string {
 function createToolMap(tools: readonly Tool[]): Map<string, Tool> {
   const map = new Map<string, Tool>();
   for (const tool of tools) {
-    map.set(canonicalizeToolName(tool.name), tool);
+    const canonicalName = canonicalizeToolName(tool.name);
+    if (!map.has(canonicalName)) {
+      map.set(canonicalName, tool);
+    }
   }
   return map;
 }
