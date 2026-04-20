@@ -161,6 +161,97 @@ describe("nanogpt web search provider", () => {
       ],
     });
   });
+
+  it("prefers the dedicated NanoGPT web_search credential over NANOGPT_API_KEY", async () => {
+    process.env.NANOGPT_API_KEY = "env-key";
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [], metadata: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "config-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    await tool.execute({ query: "nanogpt docs" });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      headers: {
+        Authorization: "Bearer config-key",
+      },
+    });
+  });
+
+  it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
+    process.env.NANOGPT_API_KEY = "env-ref-key";
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [],
+          metadata: {
+            query: "nanogpt docs",
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "${NANOGPT_API_KEY}",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    await tool.execute({ query: "nanogpt docs" });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      headers: {
+        Authorization: "Bearer env-ref-key",
+      },
+    });
+  });
+
   it("filters out results with unsafe or invalid URLs", () => {
     expect(
       __testing.normalizeNanoGptWebSearchResult({

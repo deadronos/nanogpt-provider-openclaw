@@ -741,6 +741,100 @@ describe("nanogpt plugin entry", () => {
     expect((result as { agents?: { defaults?: { model?: unknown } } })?.agents?.defaults?.model).toBeUndefined();
   });
 
+  it("mirrors interactive NanoGPT auth into the web search credential path", async () => {
+    const provider = getRegisteredProviderWithAuth();
+    const authMethod = provider.auth?.[0] as
+      | {
+          run?: (ctx: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        }
+      | undefined;
+
+    expect(authMethod?.run).toEqual(expect.any(Function));
+
+    const result = await authMethod?.run?.({
+      opts: {
+        nanogptApiKey: "ngpt_interactive_key",
+      },
+      config: {},
+      env: {},
+      agentDir: "/tmp/nanogpt-agent",
+      runtime: {},
+      prompter: {
+        note: vi.fn(),
+        select: vi.fn(),
+        input: vi.fn(),
+        secret: vi.fn(),
+        confirm: vi.fn(),
+      },
+      secretInputMode: "plaintext",
+      allowSecretRefPrompt: false,
+      isRemote: false,
+      openUrl: async () => {},
+      oauth: {
+        createVpsAwareHandlers: vi.fn(),
+      },
+    });
+
+    expect(result).toMatchObject({
+      configPatch: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              enabled: true,
+              config: {
+                webSearch: {
+                  apiKey: "ngpt_interactive_key",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("mirrors non-interactive NanoGPT auth into the web search credential path", async () => {
+    const provider = getRegisteredProviderWithAuth();
+    const authMethod = provider.auth?.[0];
+
+    expect(authMethod?.runNonInteractive).toEqual(expect.any(Function));
+
+    const result = await authMethod?.runNonInteractive?.({
+      authChoice: "nanogpt-api-key",
+      opts: {
+        nanogptApiKey: "ngpt_live_key",
+      },
+      config: {},
+      baseConfig: {},
+      runtime: {} as never,
+      agentDir: "/tmp/nanogpt-agent",
+      resolveApiKey: async () => ({
+        key: "ngpt_live_key",
+        source: "flag",
+      }),
+      toApiKeyCredential: ({ resolved }: { resolved: { key: string } }) => ({
+        type: "api_key",
+        provider: "nanogpt",
+        key: resolved.key,
+      }),
+    } as never);
+
+    expect(result).toMatchObject({
+      plugins: {
+        entries: {
+          nanogpt: {
+            enabled: true,
+            config: {
+              webSearch: {
+                apiKey: "ngpt_live_key",
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
 
 
 

@@ -1,7 +1,10 @@
+import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { NANOGPT_WEB_SEARCH_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
 import {
   enablePluginInConfig,
+  mergeScopedSearchConfig,
   readNumberParam,
+  readConfiguredSecretString,
   readProviderEnvValue,
   readStringArrayParam,
   readStringParam,
@@ -66,17 +69,34 @@ type NanoGptWebSearchResponse = {
   };
 };
 
-function resolveNanoGptWebSearchApiKey(config?: Record<string, unknown>): string | undefined {
-  const pluginConfig = resolveProviderWebSearchPluginConfig(
-    config as Parameters<typeof resolveProviderWebSearchPluginConfig>[0],
-    "nanogpt",
-  );
-  const apiKey = typeof pluginConfig?.apiKey === "string" ? pluginConfig.apiKey.trim() : "";
-  if (apiKey) {
-    return apiKey;
-  }
+const NANOGPT_ENV_REF_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)\}$/;
 
-  return readProviderEnvValue(["NANOGPT_API_KEY"]);
+function resolveNanoGptWebSearchConfig(ctx: {
+  config?: Record<string, unknown>;
+  searchConfig?: Record<string, unknown>;
+}): Record<string, unknown> | undefined {
+  return mergeScopedSearchConfig(
+    ctx.searchConfig,
+    NANOGPT_PROVIDER_ID,
+    resolveProviderWebSearchPluginConfig(
+      ctx.config as Parameters<typeof resolveProviderWebSearchPluginConfig>[0],
+      NANOGPT_PROVIDER_ID,
+    ),
+    { mirrorApiKeyToTopLevel: true },
+  );
+}
+
+function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): string | undefined {
+  const inlineEnvRef =
+    typeof searchConfig?.apiKey === "string"
+      ? NANOGPT_ENV_REF_PATTERN.exec(searchConfig.apiKey.trim())?.[1]
+      : undefined;
+
+  return (
+    (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ??
+    readConfiguredSecretString(searchConfig?.apiKey, "tools.web.search.apiKey") ??
+    readProviderEnvValue(["NANOGPT_API_KEY"])
+  );
 }
 
 function normalizeNanoGptWebSearchResult(
@@ -142,7 +162,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
     inactiveSecretPaths: ["plugins.entries.nanogpt.config.webSearch.apiKey"],
     getCredentialValue: (searchConfig: unknown) => {
       const cfg = searchConfig as Record<string, unknown> | undefined;
-      return typeof cfg?.apiKey === "string" ? cfg.apiKey : undefined;
+      return cfg?.apiKey;
     },
     setCredentialValue: () => {},
     getConfiguredCredentialValue: (config) =>
@@ -156,7 +176,11 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         "Search the web using NanoGPT's direct web search API. Returns titles, URLs, and snippets.",
       parameters: NANOGPT_WEB_SEARCH_SCHEMA,
       execute: async (args) => {
-        const apiKey = resolveNanoGptWebSearchApiKey(ctx.config as Record<string, unknown>);
+        const searchConfig = resolveNanoGptWebSearchConfig({
+          config: ctx.config as Record<string, unknown> | undefined,
+          searchConfig: ctx.searchConfig as Record<string, unknown> | undefined,
+        });
+        const apiKey = resolveNanoGptWebSearchApiKey(searchConfig);
         if (!apiKey) {
           return missingNanoGptKeyPayload();
         }
