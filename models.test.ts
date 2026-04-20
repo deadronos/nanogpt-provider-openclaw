@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import path from "node:path";
 import os from "node:os";
-import { snapshotEnv, restoreEnv } from "./test-env.js";
+import { snapshotEnv, restoreEnv, setEnvValue } from "./test-env.js";
 import {
   NANOGPT_DEFAULT_MODEL_REF,
   NANOGPT_FALLBACK_MODELS,
@@ -184,7 +184,7 @@ describe("resolveNanoGptAgentDir", () => {
   });
 
   it("uses process.env by default if env is not provided", () => {
-    process.env.OPENCLAW_AGENT_DIR = "/global/agent/dir";
+    setEnvValue("OPENCLAW_AGENT_DIR", "/global/agent/dir");
     expect(resolveNanoGptAgentDir()).toBe("/global/agent/dir");
   });
 });
