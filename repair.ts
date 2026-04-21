@@ -67,7 +67,7 @@ const TOOL_CALL_CONTAINER_KEYS = ["tool_calls", "toolCalls", "tools", "calls", "
 const TOOL_ARGUMENT_KEYS = ["arguments", "args", "parameters", "input"] as const;
 const MODEL_SPECIAL_TOKEN_RE = /<[|｜][^|｜]*[|｜]>/g;
 const THINKING_PLACEHOLDER_RE = /^thinking(?:\.\.\.)?$/i;
-const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall"]);
+const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall", "find", "glob", "read", "write", "exec", "bash", "run"]);
 const PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN = /\bname\s*=\s*(?:"([^"]+)"|'([^']+)')/i;
 const TOOL_CALL_RESERVED_KEYS = new Set<string>([
   "id",
@@ -1016,9 +1016,22 @@ function findBalancedDelimitedClose(
   return -1;
 }
 
+function extractAllTagAttributes(attributes: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const attrPattern = /([a-zA-Z_][\w-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+  for (const match of attributes.matchAll(attrPattern)) {
+    const key = match[1]?.trim();
+    const value = match[2] ?? match[3] ?? match[4];
+    if (key && value !== undefined) {
+      result[key] = value.trim();
+    }
+  }
+  return result;
+}
+
 function extractPseudoToolWrapperName(attributes: string): string | undefined {
-  const match = attributes.match(PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN);
-  const value = match?.[1] ?? match?.[2];
+  const match = attributes.match(/\bname\s*=\s*(?:"([^"]*)"|'([^']+)'|([^\s>]+))/i);
+  const value = match?.[1] ?? match?.[2] ?? match?.[3];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
@@ -1281,7 +1294,13 @@ function extractFunctionStyleToolCallCandidates(
       continue;
     }
 
-    if (trimmed.slice(0, match.index ?? 0).trim() || trimmed.slice(closeIndex + 1).trim()) {
+    const prefixContent = trimmed.slice(0, match.index ?? 0);
+    const suffixContent = trimmed.slice(closeIndex + 1);
+    const lastPrefixChar = prefixContent[prefixContent.length - 1];
+    const firstSuffixChar = suffixContent[0];
+    const prefixOk = /[\s:="'`\\<>\n\r]/.test(lastPrefixChar) || prefixContent.length === 0;
+    const suffixOk = /[\s:;)\]}"'>`\n\r$]/.test(firstSuffixChar) || suffixContent.length === 0;
+    if (!prefixOk || !suffixOk) {
       continue;
     }
 
@@ -1341,18 +1360,73 @@ function extractToolPayloadCandidates(
       continue;
     }
 
-    const toolName = extractPseudoToolWrapperName(match[2] ?? "");
-    const body = match[3]?.trim();
-    if (!toolName || !body) {
+    const attributes = match[2] ?? "";
+    const body = match[3]?.trim() ?? "";
+
+    const toolNameFromAttr = extractPseudoToolWrapperName(attributes);
+    const resolvedToolName = toolNameFromAttr ?? tagName;
+    const tool = resolveKnownTool(resolvedToolName, tools, toolMap);
+    if (!tool) {
       continue;
     }
 
-    for (const innerCandidate of extractRawToolPayloadCandidates(body)) {
+    const toolName = toolNameFromAttr ? resolvedToolName : tool.name;
+    const allAttrs = extractAllTagAttributes(attributes);
+    delete allAttrs.name;
+    delete allAttrs.tool;
+    delete allAttrs.toolName;
+    delete allAttrs.type;
+
+    const rawBody = body.trim();
+
+    for (const innerCandidate of extractRawToolPayloadCandidates(rawBody)) {
       if (!isStructuredJsonCandidate(innerCandidate)) {
         continue;
       }
 
-      candidates.add(JSON.stringify({ name: toolName, arguments: innerCandidate }));
+      const parsedInner = parseJsonCandidate(innerCandidate);
+      if (isRecord(parsedInner)) {
+        const mergedArgs = { ...allAttrs, ...parsedInner };
+        candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
+      } else {
+        candidates.add(JSON.stringify({ name: toolName, arguments: parsedInner }));
+      }
+    }
+
+    if (candidates.size === 0) {
+      if (isStructuredJsonCandidate(rawBody)) {
+        const parsed = parseJsonCandidate(rawBody);
+        if (isRecord(parsed)) {
+          const mergedArgs = { ...allAttrs, ...parsed };
+          candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
+        } else {
+          candidates.add(JSON.stringify({ name: toolName, arguments: parsed }));
+        }
+      } else if (/^[\w-]+\s*=/.test(rawBody)) {
+        const argMatch = rawBody.match(/^([\w-]+)\s*=\s*("[^"]*"|'[^']*'|\S+)/);
+        if (argMatch) {
+          const mergedArgs = { ...allAttrs, [argMatch[1]]: argMatch[2].replace(/^["']|["']$/g, "") };
+          candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
+        }
+      } else {
+        const primaryArg = resolvePrimaryToolArgumentName(tool);
+        if (primaryArg) {
+          const bodyArgs: Record<string, unknown> = {};
+          const isKeyValueFormat = /^[\w-]+\s*=/.test(rawBody);
+          if (isKeyValueFormat) {
+            const argMatch = rawBody.match(/^([\w-]+)\s*=\s*("[^"]*"|'[^']*'|\S+)/);
+            if (argMatch) {
+              bodyArgs[argMatch[1]] = argMatch[2].replace(/^["']|["']$/g, "");
+            }
+          } else if (rawBody.length > 0) {
+            bodyArgs[primaryArg] = rawBody;
+          }
+          const mergedArgs = { ...allAttrs, ...bodyArgs };
+          if (Object.keys(mergedArgs).length > 0) {
+            candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
+          }
+        }
+      }
     }
   }
 

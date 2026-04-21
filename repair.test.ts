@@ -1755,6 +1755,94 @@ describe("wrapStreamWithToolCallRepair", () => {
     );
   });
 
+  it("salvages <find> pseudo-tool wrapper when tag name matches a known tool", async () => {
+    const toolPayload = '<find name="find" pattern="**/*.ts" glob="**/nanogpt**/*.md"></find>';
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "find",
+            description: "Find files",
+            parameters: {
+              type: "object",
+              properties: {
+                pattern: { type: "string" },
+                glob: { type: "string" },
+              },
+              required: ["pattern"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content[0].name).toBe("find");
+    expect(doneMessage.content[0].arguments).toEqual({ pattern: "**/*.ts", glob: "**/nanogpt**/*.md" });
+  });
+
+  it("salvages function-style tool call embedded in surrounding prose", async () => {
+    const toolPayload = 'Let me search for that.\nfind({"pattern":"*.ts"})\nThis should work.';
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "find",
+            description: "Find files",
+            parameters: {
+              type: "object",
+              properties: {
+                pattern: { type: "string" },
+              },
+              required: ["pattern"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content).toContainEqual(
+      expect.objectContaining({ type: "toolCall", name: "find" }),
+    );
+  });
+
   it("keeps GLM models on the live guard path and logs semantic diagnostics for missing fields", async () => {
     const mockEvents: AssistantMessageEvent[] = [
       {
