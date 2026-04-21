@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildNanoGptProvider } from "./provider-catalog.js";
+import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { NANOGPT_FALLBACK_MODELS } from "./models.js";
 import { resetNanoGptRuntimeState } from "./runtime.js";
 

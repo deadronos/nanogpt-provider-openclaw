@@ -8,7 +8,11 @@ import {
 } from "./nanogpt-errors.js";
 import { applyNanoGptProviderAuthConfig, applyNanoGptProviderConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
-import { buildNanoGptProvider, readNanoGptModelsJsonSnapshot } from "./provider-catalog.js";
+import {
+  readNanoGptModelsJsonSnapshot,
+  resolveNanoGptPluginConfigFromProviderCatalogContext,
+} from "./provider-catalog.js";
+import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { isRecord } from "./shared/guards.js";
 import { getNanoGptConfig } from "./runtime/config.js";
 import { resolveNanoGptDynamicModel } from "./runtime/dynamic-models.js";
@@ -512,7 +516,7 @@ export default definePluginEntry({
           return {
             provider: await buildNanoGptProvider({
               apiKey,
-              pluginConfig,
+              pluginConfig: resolveNanoGptPluginConfigFromProviderCatalogContext(ctx),
             }),
           };
         },

@@ -38,6 +38,8 @@ describe("package manifest files", () => {
         "runtime/provider-pricing.ts",
         "runtime/routing.ts",
         "runtime/usage.ts",
+        "catalog/models-json-snapshot.ts",
+        "catalog/build-provider.ts",
         "provider-catalog.ts",
         "provider-discovery.ts",
         "image-generation-provider.ts",
