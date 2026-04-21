@@ -19,6 +19,17 @@ It adds:
 - NanoGPT-backed image generation and image editing
 - daily/monthly NanoGPT subscription quota snapshots exposed to OpenClaw
 
+## Code Layout
+
+The implementation is split into small modules:
+
+- `shared/` for reusable guards, parsing, and HTTP helpers
+- `runtime/` for config, routing, discovery, pricing, dynamic-model, and usage logic
+- `catalog/` for model snapshot parsing and provider assembly
+- `provider/` for auth, catalog hooks, tool-schema hooks, error hooks, and stream hooks
+- `web-search/` and `image/` for surface-specific helpers
+- `index.ts`, `runtime.ts`, and `provider-catalog.ts` remain the thin entry and compatibility facades
+
 ## Current limitations
 
 - no exhaustive official NanoGPT image-model discovery yet

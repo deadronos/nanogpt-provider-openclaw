@@ -1,6 +1,6 @@
 # NanoGPT Module Refactor Implementation Checklist
 
-> Status note: planning only. This checklist is intended to be filled out during implementation on the refactor branch.
+> Status note: planning only. The source tree now has the split module layout; keep the remaining unchecked items focused on cleanup, verification, and any follow-up gaps.
 
 > Goal: split the current NanoGPT plugin into smaller, more cohesive modules while preserving the public behavior, package entrypoints, and install surface.
 
@@ -14,12 +14,12 @@
 
 ## Current Findings To Address
 
-- [ ] `index.ts` currently combines auth wiring, provider registration, catalog augmentation, model normalization, tool-schema hooks, streaming-usage compat, and error-hook logging.
-- [ ] `runtime.ts` currently combines config parsing, routing, dynamic-model logic, model discovery HTTP, provider-pricing caching, header construction, and usage parsing.
-- [ ] `provider-catalog.ts` currently combines `models.json` snapshot parsing/caching with provider-config assembly.
-- [ ] `provider-discovery.ts` and `index.ts` duplicate catalog-runner behavior.
-- [ ] Shared helpers such as `isRecord`, number parsing, and sanitized auth header construction are duplicated or conceptually scattered.
-- [ ] Repo docs still refer to `repair.ts` even though `wrapStreamFn` is currently a pass-through.
+- [ ] `index.ts` now mainly composes auth wiring, provider registration, catalog augmentation, model normalization, tool-schema hooks, streaming-usage compat, and error-hook logging through `provider/*`.
+- [ ] `runtime.ts` now mainly delegates config parsing, routing, dynamic-model logic, model discovery HTTP, provider-pricing caching, header construction, and usage parsing into `runtime/*`.
+- [ ] `provider-catalog.ts` now mainly delegates `models.json` snapshot parsing/caching and provider-config assembly into `catalog/*`.
+- [ ] Confirm whether `provider-discovery.ts` and `index.ts` still need a shared catalog-runner helper or whether the current split has already removed the duplication.
+- [ ] Shared helpers such as `isRecord`, number parsing, and sanitized auth header construction should remain centralized under `shared/*`.
+- [ ] Historical repair-layer references should stay out of active docs; the current stream hook is a pass-through in `provider/stream-hooks.ts`.
 
 ## Proposed Target Layout
 
@@ -39,14 +39,14 @@
 - [ ] `provider/tool-schema-hooks.ts`
 - [ ] `provider/error-hooks.ts`
 - [ ] `provider/stream-hooks.ts`
-- [ ] Optional later split: `web-search/credentials.ts`, `web-search/results.ts`
-- [ ] Optional later split: `image/request.ts`, `image/response.ts`
+- [x] `web-search/credentials.ts` and `web-search/results.ts` are already split out.
+- [x] `image/request.ts` and `image/response.ts` are already split out.
 
 ## Phase 0: Guardrails And Cleanup
 
 - [ ] Confirm the intended compatibility goal for this refactor: no user-visible behavior changes except structural cleanup.
 - [ ] Decide whether `enableRepair` remains in `NanoGptPluginConfig` for backward compatibility or should be formally deprecated.
-- [ ] Remove or update stale references to `repair.ts` in `AGENTS.md`.
+- [ ] Remove or update stale references to the old flat module layout in `AGENTS.md`.
 - [ ] Review `README.md` for outdated repair-path language and either update it now or mark the exact sections for follow-up.
 - [ ] Remove the unused `jsonrepair` dependency if the repair layer is truly gone, or explicitly keep it with a comment explaining why.
 - [ ] Capture a pre-refactor verification baseline by running `npm test` and `npm run typecheck`.
@@ -95,18 +95,14 @@
 - [ ] Create `provider/tool-schema-hooks.ts` for model-family detection plus GLM/Qwen schema normalization and diagnostics.
 - [ ] Keep all tool-schema hint strings and family-specific heuristics together in one module.
 - [ ] Create `provider/error-hooks.ts` for warn-once logic, error classification logging, `matchesContextOverflowError`, and `classifyFailoverReason`.
-- [ ] Create `provider/stream-hooks.ts` for the current `wrapStreamFn` pass-through so a future repair layer has a dedicated home.
+- [ ] Keep `provider/stream-hooks.ts` as the current `wrapStreamFn` home so any future repair layer has a dedicated module.
 - [ ] Extract `applyNanoGptNativeStreamingUsageCompat` into either `provider/catalog-hooks.ts` or a dedicated compat module.
 - [ ] Shrink `index.ts` down to plugin registration and composition of prebuilt hook helpers.
 
 ## Phase 5: Rationalize Surface-Specific Modules
 
-- [ ] Review `web-search.ts` and decide whether it benefits from a light internal split into credentials/config vs result normalization.
-- [ ] If split, create `web-search/credentials.ts` for config merging and API-key resolution.
-- [ ] If split, create `web-search/results.ts` for response normalization and result validation.
-- [ ] Review `image-generation-provider.ts` and decide whether request-body construction and response parsing should move to dedicated helpers.
-- [ ] If split, create `image/request.ts` for model normalization, size validation, and image-data URL generation.
-- [ ] If split, create `image/response.ts` for response parsing and unsupported-model error shaping.
+- [ ] Review `web-search.ts` and decide whether any additional internal split is still needed beyond the existing `web-search/*` helpers.
+- [ ] Review `image-generation-provider.ts` and decide whether any additional request-body or response work still belongs in new helpers beyond the existing `image/*` modules.
 - [ ] Review `onboard.ts` and decide whether credential normalization and config mutation should live in separate helper modules or remain together.
 - [ ] Defer these splits if the earlier phases already deliver most of the maintainability gain.
 

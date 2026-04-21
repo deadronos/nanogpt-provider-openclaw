@@ -11,19 +11,21 @@
 
 ## File ownership
 
-- `index.ts` — main plugin entrypoint; registers the NanoGPT provider plus web search and image generation surfaces.
-- `provider-catalog.ts` — builds the `ModelProviderConfig` from NanoGPT discovery, routing, and request API selection.
+- `index.ts` — main plugin entrypoint; composes provider registration, web search, and image generation surfaces.
+- `shared/*` — reusable guards, parsing, and HTTP helpers shared by the provider surfaces.
+- `runtime.ts` — thin runtime facade; keep compatibility imports here and delegate implementation details to `runtime/*`.
+- `runtime/*` — NanoGPT config, routing, discovery, provider-pricing, dynamic-model, and usage helpers.
+- `catalog/*` — NanoGPT model snapshot parsing and provider assembly helpers.
+- `provider-catalog.ts` — provider catalog facade around `catalog/*` and the exported `ModelProviderConfig` surface.
 - `provider-discovery.ts` — lightweight provider discovery entry referenced by plugin metadata.
-- `runtime.ts` — NanoGPT HTTP/runtime logic: routing mode, base URLs, provider pricing, usage snapshots, request headers, and dynamic model resolution helpers.
-- `index.ts` — provider registration plus tool-schema hooks, error classification, and the current pass-through `wrapStreamFn`.
-- `web-search.ts` — NanoGPT-backed `web_search` provider; follow its existing credential-resolution pattern.
-- `web-search/credentials.ts` — NanoGPT web-search config merge and API-key resolution helpers.
-- `web-search/results.ts` — NanoGPT web-search result normalization and validation helpers.
-- `image-generation-provider.ts` — NanoGPT image generation and image edit provider.
-- `image/request.ts` — NanoGPT image request-body helpers for model normalization, size validation, and data URLs.
-- `image/response.ts` — NanoGPT image response parsing and output naming helpers.
+- `provider/*` — auth, catalog hooks, tool-schema hooks, error hooks, and stream hooks.
+- `web-search.ts` — NanoGPT-backed `web_search` provider surface; keep credential/result logic in `web-search/*`.
+- `web-search/*` — NanoGPT web-search config merge, API-key resolution, normalization, and validation helpers.
+- `image-generation-provider.ts` — NanoGPT image generation and image edit provider surface.
+- `image/*` — NanoGPT image request-body and response parsing helpers.
 - `onboard.ts` — config onboarding/apply helpers.
 - `models.ts` — provider constants, model metadata, routing defaults, curated mappings, and compat decisions.
+- `nanogpt-errors.ts` — shared NanoGPT error-shaping helpers.
 - `openclaw.plugin.json` and `package.json` — plugin metadata, auth/config schema, compatibility metadata, and shipped package surface.
 
 ## Repo-specific conventions
@@ -32,7 +34,7 @@
 - Prefer OpenClaw SDK helpers for config and credential resolution instead of ad hoc env parsing in provider surfaces.
 - When changing user-visible config, auth, install, or capability behavior, keep `README.md` and `openclaw.plugin.json` aligned with the code.
 - When changing what ships, update `package.json`'s `files` list. Packaging tests expect `dist/package` to contain only the declared package surface.
-- For tool-call or stream-response bugs, inspect `index.ts` and `index.test.ts` around `wrapStreamFn`, `normalizeToolSchemas`, and `inspectToolSchemas` before changing unrelated provider registration code.
+- For tool-call or stream-response bugs, inspect `provider/stream-hooks.ts`, `provider/tool-schema-hooks.ts`, `provider/error-hooks.ts`, and `index.test.ts` before changing unrelated provider registration code.
 
 ## Testing and packaging
 
