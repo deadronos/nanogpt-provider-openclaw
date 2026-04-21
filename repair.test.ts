@@ -793,7 +793,7 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(mockStreamFn).toHaveBeenCalledTimes(2);
     expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Retrying empty tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+      expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
     );
   });
 
@@ -843,7 +843,57 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(mockStreamFn).toHaveBeenCalledTimes(2);
     expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Retrying empty tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+      expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+    );
+  });
+
+  it("retries Qwen turns that mix visible text with a broken trailing tool placeholder", async () => {
+    const firstAttemptMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "Let me check that.\n\nexec" }],
+    });
+    const secondAttemptMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "workspace files use 42 MB" }],
+    });
+
+    const mockStreamFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [{ type: "done", reason: "stop", message: firstAttemptMessage } as AssistantMessageEvent],
+          firstAttemptMessage,
+        ),
+      )
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [{ type: "done", reason: "stop", message: secondAttemptMessage } as AssistantMessageEvent],
+          secondAttemptMessage,
+        ),
+      );
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const resultMessage = await (resultStream as any).result();
+    expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
     );
   });
 
@@ -881,6 +931,127 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const resultMessage = await (resultStream as any).result();
     expect(resultMessage.content).toEqual([]);
+  });
+
+  it("drops trailing broken tool placeholders when retry is disabled", async () => {
+    const leakedMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "Let me check that.\n\nexec" }],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue(
+      createReplayableStream(
+        [{ type: "done", reason: "stop", message: leakedMessage } as AssistantMessageEvent],
+        leakedMessage,
+      ),
+    );
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger, {
+      retryInvalidEmptyTurns: false,
+    });
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const resultMessage = await (resultStream as any).result();
+    expect(resultMessage.content).toEqual([{ type: "text", text: "Let me check that." }]);
+  });
+
+  it("normalizes stop reasons to toolUse when tool calls are present", async () => {
+    const toolCallMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_exec",
+          name: "exec",
+          arguments: { command: "pwd" },
+        },
+      ],
+      stopReason: "stop",
+    });
+
+    const mockEvents: AssistantMessageEvent[] = [
+      {
+        type: "start",
+        partial: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B:thinking",
+          content: [],
+        }),
+      },
+      {
+        type: "toolcall_start",
+        contentIndex: 0,
+        partial: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B:thinking",
+          content: [{ type: "toolCall", id: "call_exec", name: "exec", arguments: {} }],
+        }),
+      },
+      {
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"command":"pwd"}',
+        partial: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B:thinking",
+          content: [{ type: "toolCall", id: "call_exec", name: "exec", arguments: { command: "pwd" } }],
+        }),
+      },
+      {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall: {
+          type: "toolCall",
+          id: "call_exec",
+          name: "exec",
+          arguments: { command: "pwd" },
+        },
+        partial: toolCallMessage,
+      },
+      {
+        type: "done",
+        reason: "stop",
+        message: toolCallMessage,
+      },
+    ];
+
+    const mockStreamFn = vi.fn().mockResolvedValue(createReplayableStream(mockEvents, toolCallMessage));
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const receivedEvents: AssistantMessageEvent[] = [];
+    for await (const event of resultStream) {
+      receivedEvents.push(event);
+    }
+
+    const doneEvent = receivedEvents.find((event) => event.type === "done") as any;
+    expect(doneEvent.reason).toBe("toolUse");
+    expect(doneEvent.message.stopReason).toBe("toolUse");
   });
 
   it("salvages invoke-wrapper payload text for Qwen models", async () => {
@@ -1198,7 +1369,7 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(doneMessage.stopReason).toBe("toolUse");
     expect(doneMessage.content[0].arguments).toEqual({ location: "Berlin" });
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Retrying empty tool-enabled turn"),
+      expect.stringContaining("Retrying invalid tool-enabled turn"),
     );
   });
 

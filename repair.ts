@@ -31,6 +31,7 @@ type RepairAttempt = {
   toolEnabled: boolean;
   sawToolCall: boolean;
   sawVisibleText: boolean;
+  sawBrokenToolIntent: boolean;
 };
 
 export type NanoGptRepairFamily = "kimi" | "glm" | "qwen" | "other";
@@ -229,6 +230,103 @@ function isBareToolNamePlaceholderText(
   return Boolean(toolMap?.get(normalized) ?? resolveKnownTool(text, tools, toolMap));
 }
 
+function isStructuredToolMarkerLine(line: string): boolean {
+  return /^<\/?(?:function|invoke|parameter|tool_call|toolcall|execution)\b|^<function=/i.test(
+    line.trim(),
+  );
+}
+
+function isToolArgumentFragmentLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  return (
+    /^```/i.test(trimmed) ||
+    isStructuredToolMarkerLine(trimmed) ||
+    /^(?:[{[\]}(),]+|["'][^"']*["']\s*:)/.test(trimmed) ||
+    /^(?:command|arguments?|args|input|path|url|selector|ref|fields|timeout|cwd)\b\s*[:=>]/i.test(trimmed)
+  );
+}
+
+function findBrokenToolIntentStartIndex(
+  lines: string[],
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): number {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? "";
+    if (!line) {
+      continue;
+    }
+
+    const lineWithoutTrailingPunctuation = line.replace(/[():;]+$/g, "").trim();
+    const looksLikeToolStart =
+      isBareToolNamePlaceholderText(line, tools, toolMap) ||
+      isBareToolNamePlaceholderText(lineWithoutTrailingPunctuation, tools, toolMap) ||
+      isStructuredToolMarkerLine(line);
+    if (!looksLikeToolStart) {
+      continue;
+    }
+
+    const tail = lines.slice(index + 1);
+    if (tail.every((entry) => isToolArgumentFragmentLine(entry))) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function stripTrailingBrokenToolIntentText(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): string {
+  if (!text || tools.length === 0) {
+    return text.trim();
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return "";
+  }
+
+  const brokenStartIndex = findBrokenToolIntentStartIndex(lines, tools, toolMap);
+  if (brokenStartIndex === -1) {
+    return text.trim();
+  }
+
+  return lines.slice(0, brokenStartIndex).join("\n").trim();
+}
+
+function looksLikeBrokenToolIntentText(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  const stripped = stripModelSpecialTokens(text).trim();
+  if (!stripped || tools.length === 0) {
+    return false;
+  }
+
+  if (isBareToolNamePlaceholderText(stripped, tools, toolMap)) {
+    return true;
+  }
+
+  if (stripTrailingBrokenToolIntentText(stripped, tools, toolMap) !== stripped) {
+    return true;
+  }
+
+  return /<(?:function=|\/?function\b|\/?invoke\b|\/?parameter\b|\/?tool_call\b|\/?toolcall\b|\/?execution\b)/i.test(
+    stripped,
+  );
+}
+
 function sanitizeAssistantText(
   text: string,
   tools: readonly Tool[] = [],
@@ -243,11 +341,12 @@ function sanitizeAssistantText(
     return "";
   }
 
-  if (isBareToolNamePlaceholderText(stripped, tools, toolMap)) {
+  const withoutBrokenToolTail = stripTrailingBrokenToolIntentText(stripped, tools, toolMap);
+  if (!withoutBrokenToolTail && looksLikeBrokenToolIntentText(stripped, tools, toolMap)) {
     return "";
   }
 
-  return stripped;
+  return withoutBrokenToolTail;
 }
 
 function sanitizeAssistantMessage(
@@ -303,6 +402,19 @@ function hasVisibleText(
       block.type === "text" &&
       typeof block.text === "string" &&
       sanitizeAssistantText(block.text, tools, toolMap).length > 0,
+  );
+}
+
+function hasBrokenToolIntent(
+  message: AssistantMessage,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  return message.content.some(
+    (block) =>
+      block.type === "text" &&
+      typeof block.text === "string" &&
+      looksLikeBrokenToolIntentText(block.text, tools, toolMap),
   );
 }
 
@@ -1175,13 +1287,8 @@ async function collectRepairAttempt(params: {
       : terminalEvent?.type === "error"
         ? terminalEvent.error
         : normalizeAssistantMessage(lastAssistantMessage, params.meta);
-  let selectedEvents = events;
-  const sanitizedMessage = sanitizeAssistantMessage(finalMessage, toolDefinitions, toolMap);
-  if (sanitizedMessage.changed) {
-    finalMessage = sanitizedMessage.message;
-    selectedEvents = buildSyntheticAssistantEvents(finalMessage);
-  }
   const toolEnabled = hasToolEnabledContext(params.args[1]);
+  const sawBrokenToolIntent = hasBrokenToolIntent(finalMessage, toolDefinitions, toolMap);
 
   if (toolEnabled && !sawToolCall && countToolCalls(finalMessage) === 0) {
     const salvaged = salvageStructuredToolTurn(
@@ -1198,13 +1305,28 @@ async function collectRepairAttempt(params: {
         toolEnabled,
         sawToolCall: true,
         sawVisibleText: hasVisibleText(finalMessage, toolDefinitions, toolMap),
+        sawBrokenToolIntent: false,
       };
     }
+  }
+
+  let selectedEvents = events;
+  const sanitizedMessage = sanitizeAssistantMessage(finalMessage, toolDefinitions, toolMap);
+  if (sanitizedMessage.changed) {
+    finalMessage = sanitizedMessage.message;
+    selectedEvents = buildSyntheticAssistantEvents(finalMessage);
   }
 
   const finalToolCallCount = countToolCalls(finalMessage);
   if (finalToolCallCount > 0) {
     sawToolCall = true;
+    if (finalMessage.stopReason !== "toolUse") {
+      finalMessage = {
+        ...finalMessage,
+        stopReason: "toolUse",
+      };
+      selectedEvents = buildSyntheticAssistantEvents(finalMessage);
+    }
   }
 
   return {
@@ -1213,6 +1335,7 @@ async function collectRepairAttempt(params: {
     toolEnabled,
     sawToolCall,
     sawVisibleText: hasVisibleText(finalMessage, toolDefinitions, toolMap),
+    sawBrokenToolIntent,
   };
 }
 
@@ -1289,13 +1412,15 @@ export function wrapStreamWithToolCallRepair(
       options.retryInvalidEmptyTurns !== false &&
       firstAttempt.toolEnabled &&
       !firstAttempt.sawToolCall &&
-      !firstAttempt.sawVisibleText
+      (!firstAttempt.sawVisibleText || firstAttempt.sawBrokenToolIntent)
     ) {
       logger.warn(
-        `[nanogpt] Retrying empty tool-enabled turn from model ${baseMeta.modelId} after no visible content or tool call was produced`,
+        `[nanogpt] Retrying invalid tool-enabled turn from model ${baseMeta.modelId} after no usable tool call was produced`,
       );
       logReliabilityArtifact(logger, baseMeta, {
-        event: "retry_invalid_empty_turn",
+        event: "retry_invalid_tool_turn",
+        sawVisibleText: firstAttempt.sawVisibleText,
+        sawBrokenToolIntent: firstAttempt.sawBrokenToolIntent,
       });
 
       selectedAttempt = await collectRepairAttempt({
@@ -1311,6 +1436,7 @@ export function wrapStreamWithToolCallRepair(
         event: "retry_result",
         recoveredToolCalls: countToolCalls(selectedAttempt.finalMessage),
         sawVisibleText: selectedAttempt.sawVisibleText,
+        sawBrokenToolIntent: selectedAttempt.sawBrokenToolIntent,
       });
     }
 

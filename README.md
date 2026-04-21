@@ -201,12 +201,13 @@ For example:
   - turns without tool definitions use the lighter live guard path instead of
     the full buffered collect/replay wrapper
 - `qwen/*` models use the same buffered repair path as Kimi for
-  malformed tool-call argument JSON, one-shot empty-turn retries, and
+  malformed tool-call argument JSON, one-shot invalid-turn retries, and
   best-effort salvage of structured tool payloads wrapped as assistant text,
   including XML-ish `<function=...><parameter=...>` payloads, `<invoke ...>`
   wrapper payloads, leaked `<|mask_start|>...<|mask_end|>` control-token
-  placeholders, and bare leaked tool names like `exec` surfaced as plain
-  assistant text.
+  placeholders, bare leaked tool names like `exec`, mixed prose plus broken
+  trailing tool placeholders, and wrong `stop` reasons on successful tool-use
+  turns surfaced through plain assistant text or malformed finish metadata.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required
