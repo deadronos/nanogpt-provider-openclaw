@@ -17,7 +17,11 @@
 - `runtime.ts` — NanoGPT HTTP/runtime logic: routing mode, base URLs, provider pricing, usage snapshots, request headers, and dynamic model resolution helpers.
 - `index.ts` — provider registration plus tool-schema hooks, error classification, and the current pass-through `wrapStreamFn`.
 - `web-search.ts` — NanoGPT-backed `web_search` provider; follow its existing credential-resolution pattern.
+- `web-search/credentials.ts` — NanoGPT web-search config merge and API-key resolution helpers.
+- `web-search/results.ts` — NanoGPT web-search result normalization and validation helpers.
 - `image-generation-provider.ts` — NanoGPT image generation and image edit provider.
+- `image/request.ts` — NanoGPT image request-body helpers for model normalization, size validation, and data URLs.
+- `image/response.ts` — NanoGPT image response parsing and output naming helpers.
 - `onboard.ts` — config onboarding/apply helpers.
 - `models.ts` — provider constants, model metadata, routing defaults, curated mappings, and compat decisions.
 - `openclaw.plugin.json` and `package.json` — plugin metadata, auth/config schema, compatibility metadata, and shipped package surface.

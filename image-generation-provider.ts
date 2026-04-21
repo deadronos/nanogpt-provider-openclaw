@@ -1,6 +1,18 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { NANOGPT_IMAGE_GENERATION_TIMEOUT_MS } from "./runtime.js";
 import { sanitizeApiKey } from "./shared/http.js";
+import {
+  NANOGPT_DEFAULT_IMAGE_MODEL,
+  NANOGPT_IMAGE_MODELS,
+  NANOGPT_IMAGE_SIZES,
+  normalizeImageModelName,
+  toDataUrl,
+  validateNanoGptImageSize,
+} from "./image/request.js";
+import {
+  buildUnsupportedModelGuidance,
+  parseNanoGptImageResponse,
+} from "./image/response.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import {
   resolveProviderHttpRequestConfig,
@@ -11,70 +23,6 @@ import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runt
 import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
 
 const NANOGPT_IMAGE_BASE_URL = "https://nano-gpt.com";
-const NANOGPT_DEFAULT_IMAGE_MODEL = "hidream";
-const NANOGPT_DEFAULT_OUTPUT_MIME = "image/png";
-const NANOGPT_IMAGE_MODELS = [
-  "hidream",
-  "chroma",
-  "z-image-turbo",
-  "qwen-image-2512",
-] as const;
-const NANOGPT_IMAGE_SIZES = ["256x256", "512x512", "1024x1024"] as const;
-const NANOGPT_IMAGE_MODEL_ALIASES = new Map<string, (typeof NANOGPT_IMAGE_MODELS)[number]>([
-  ["hidream", "hidream"],
-  ["hi dream", "hidream"],
-  ["chroma", "chroma"],
-  ["z-image-turbo", "z-image-turbo"],
-  ["z image turbo", "z-image-turbo"],
-  ["zimage turbo", "z-image-turbo"],
-  ["qwen-image-2512", "qwen-image-2512"],
-  ["qwen image 2512", "qwen-image-2512"],
-  ["qwen-image", "qwen-image-2512"],
-  ["qwen image", "qwen-image-2512"],
-]);
-
-type NanoGptImageApiResponse = {
-  data?: Array<{
-    b64_json?: string;
-    url?: string;
-  }>;
-};
-
-function inferFileExtensionFromMimeType(mimeType: string): string {
-  if (mimeType.includes("jpeg")) {
-    return "jpg";
-  }
-  if (mimeType.includes("webp")) {
-    return "webp";
-  }
-  return "png";
-}
-
-function toDataUrl(buffer: Uint8Array, mimeType: string): string {
-  if (typeof Buffer !== "undefined") {
-    return `data:${mimeType};base64,${Buffer.from(buffer).toString("base64")}`;
-  }
-  let binary = "";
-  for (let i = 0; i < buffer.byteLength; i++) {
-    binary += String.fromCharCode(buffer[i]);
-  }
-  return `data:${mimeType};base64,${btoa(binary)}`;
-}
-
-function normalizeImageModelName(model: string): string {
-  const trimmed = model.trim();
-  const withoutProviderPrefix = trimmed.replace(new RegExp(`^${NANOGPT_PROVIDER_ID}/`, "i"), "");
-  const normalizedKey = withoutProviderPrefix.toLowerCase().replace(/[_\s]+/g, " ");
-  return NANOGPT_IMAGE_MODEL_ALIASES.get(normalizedKey) ?? withoutProviderPrefix;
-}
-
-function buildUnsupportedModelGuidance(model: string): string {
-  return [
-    `NanoGPT image generation failed for model "${model}".`,
-    `Try one of: ${NANOGPT_IMAGE_MODELS.join(", ")}.`,
-    `Accepted aliases include: "HIDREAM", "CHROMA", "Z IMAGE TURBO", and "QWEN IMAGE".`,
-  ].join(" ");
-}
 
 export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
   return {
@@ -120,8 +68,8 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       const model = normalizeImageModelName(requestedModel);
       const count = req.count ?? 1;
       const size = req.size ?? "1024x1024";
-      if (size && !NANOGPT_IMAGE_SIZES.includes(size as any)) {
-        throw new Error(`Invalid image size "${size}". Expected one of: ${NANOGPT_IMAGE_SIZES.join(", ")}`);
+      if (size) {
+        validateNanoGptImageSize(size);
       }
       const inputImages = req.inputImages ?? [];
       const body: Record<string, unknown> = {
@@ -168,7 +116,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         dispatcherPolicy,
       });
 
-      let payload: NanoGptImageApiResponse;
+      let parsedPayload: ReturnType<typeof parseNanoGptImageResponse> | undefined;
       try {
         if (!response.ok) {
           const detail = (await response.clone().text()).trim();
@@ -183,28 +131,13 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         }
 
         await assertOkOrThrowHttpError(response, "NanoGPT image generation failed");
-        payload = (await response.json()) as NanoGptImageApiResponse;
+        parsedPayload = parseNanoGptImageResponse((await response.json()) as never);
       } finally {
         await release();
       }
 
-      const images = (payload.data ?? [])
-        .map((entry, index) => {
-          if (!entry.b64_json) {
-            return null;
-          }
-          return {
-            buffer: Buffer.from(entry.b64_json, "base64"),
-            mimeType: NANOGPT_DEFAULT_OUTPUT_MIME,
-            fileName: `image-${index + 1}.${inferFileExtensionFromMimeType(
-              NANOGPT_DEFAULT_OUTPUT_MIME,
-            )}`,
-          };
-        })
-        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
       return {
-        images,
+        images: parsedPayload!.images,
         model,
       };
     },
