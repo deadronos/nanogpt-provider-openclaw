@@ -200,6 +200,9 @@ For example:
   - best-effort salvage of structured tool payloads wrapped as assistant text
   - turns without tool definitions use the lighter live guard path instead of
     the full buffered collect/replay wrapper
+- `qwen/*thinking` models use the same buffered repair path as Kimi for
+  malformed tool-call argument JSON, one-shot empty-turn retries, and
+  best-effort salvage of structured tool payloads wrapped as assistant text.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required
