@@ -752,7 +752,13 @@ function hasValidSalvagedToolArguments(
   }
 
   const required = getToolSchemaRequiredFields(schema);
-  if (required.some((field) => !hasMeaningfulToolArgument(argumentsRecord[field]))) {
+  const hasAnyArgument = Object.values(argumentsRecord).some((v) => hasMeaningfulToolArgument(v));
+
+  // Allow partial arguments for salvaged tool calls - if we extracted at least one
+  // meaningful argument from a pseudo-tool wrapper or malformed call, allow the
+  // salvage to proceed even if some required fields are missing. This prevents
+  // stripping valid tool wrapper text when we have partial but useful arguments.
+  if (required.length > 0 && !hasAnyArgument) {
     return false;
   }
 
@@ -1230,6 +1236,16 @@ function inferToolArgumentsFromWrapperBody(
   const parsedArguments = normalizeToolArguments(body);
   if (parsedArguments) {
     return coerceToolArgumentsToSchema(tool, parsedArguments);
+  }
+
+  // Handle key=value body format (e.g., 'glob="**/nanogpt*/**"')
+  if (/^[\w-]+\s*=/.test(body)) {
+    const argMatch = body.match(/^([\w-]+)\s*=\s*("[^"]*"|'[^']*'|\S+)/);
+    if (argMatch) {
+      const bodyArgs: Record<string, unknown> = {};
+      bodyArgs[argMatch[1]] = argMatch[2].replace(/^["']|["']$/g, "");
+      return { ...bodyArgs };
+    }
   }
 
   const primaryArgument = resolvePrimaryToolArgumentName(tool);

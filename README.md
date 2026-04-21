@@ -226,10 +226,12 @@ For example:
   `normalizeToolSchemas`, plus `inspectToolSchemas` warnings when a tool has no
   description, no named object properties, or another schema shape that makes
   leaked plain-text tool wrappers hard to revalidate safely.
-- salvaged tool payloads are only replayed when the tool name still matches the
-  active inventory and the recovered arguments satisfy the tool's required
-  schema fields; otherwise the wrapper falls back to retry/sanitization instead
-  of synthesizing a risky tool call.
+- salvaged tool payloads are replayed when the tool name still matches the
+  active inventory and at least one recovered argument has a meaningful value;
+  the wrapper allows partial arguments (missing non-required fields) to avoid
+  discarding valid salvaged tool wrapper text; if no meaningful arguments are
+  recovered, it falls back to retry/sanitization instead of synthesizing a
+  risky tool call.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required
