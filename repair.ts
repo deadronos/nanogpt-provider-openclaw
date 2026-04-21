@@ -134,7 +134,7 @@ export function resolveNanoGptRepairProfile(modelId?: string): NanoGptRepairProf
         useBufferedRepair: true,
         useLiveGuard: true,
         useSemanticToolDiagnostics: false,
-        useToolSchemaHints: false,
+        useToolSchemaHints: true,
       };
     default:
       return {
@@ -230,13 +230,41 @@ function isBareToolNamePlaceholderText(
   return Boolean(toolMap?.get(normalized) ?? resolveKnownTool(text, tools, toolMap));
 }
 
-function isStructuredToolMarkerLine(line: string): boolean {
-  return /^<\/?(?:function|invoke|parameter|tool_call|toolcall|execution)\b|^<function=/i.test(
-    line.trim(),
+function isKnownToolWrapperLine(
+  line: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  const match = line.trim().match(/^<\/?([a-zA-Z][\w-]*)\b[^>]*>/);
+  if (!match?.[1]) {
+    return false;
+  }
+
+  const tagName = match[1].trim();
+  if (["function", "invoke", "parameter", "tool_call", "toolcall", "execution"].includes(tagName.toLowerCase())) {
+    return false;
+  }
+
+  return Boolean(resolveKnownTool(tagName, tools, toolMap));
+}
+
+function isStructuredToolMarkerLine(
+  line: string,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  return (
+    /^<\/?(?:function|invoke|parameter|tool_call|toolcall|execution)\b|^<function=/i.test(
+      line.trim(),
+    ) || isKnownToolWrapperLine(line, tools, toolMap)
   );
 }
 
-function isToolArgumentFragmentLine(line: string): boolean {
+function isToolArgumentFragmentLine(
+  line: string,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): boolean {
   const trimmed = line.trim();
   if (!trimmed) {
     return true;
@@ -244,7 +272,7 @@ function isToolArgumentFragmentLine(line: string): boolean {
 
   return (
     /^```/i.test(trimmed) ||
-    isStructuredToolMarkerLine(trimmed) ||
+    isStructuredToolMarkerLine(trimmed, tools, toolMap) ||
     /^(?:[{[\]}(),]+|["'][^"']*["']\s*:)/.test(trimmed) ||
     /^(?:command|arguments?|args|input|path|url|selector|ref|fields|timeout|cwd)\b\s*[:=>]/i.test(trimmed)
   );
@@ -265,18 +293,79 @@ function findBrokenToolIntentStartIndex(
     const looksLikeToolStart =
       isBareToolNamePlaceholderText(line, tools, toolMap) ||
       isBareToolNamePlaceholderText(lineWithoutTrailingPunctuation, tools, toolMap) ||
-      isStructuredToolMarkerLine(line);
+      isStructuredToolMarkerLine(line, tools, toolMap);
     if (!looksLikeToolStart) {
       continue;
     }
 
     const tail = lines.slice(index + 1);
-    if (tail.every((entry) => isToolArgumentFragmentLine(entry))) {
+    if (tail.every((entry) => isToolArgumentFragmentLine(entry, tools, toolMap))) {
       return index;
     }
   }
 
   return -1;
+}
+
+function findKnownToolWrapperMatches(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): Array<{ tool: Tool; body: string; start: number; end: number }> {
+  const matches: Array<{ tool: Tool; body: string; start: number; end: number }> = [];
+  const wrapperPattern = /<([a-zA-Z][\w-]*)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+
+  for (const match of text.matchAll(wrapperPattern)) {
+    const rawTagName = match[1]?.trim();
+    if (!rawTagName) {
+      continue;
+    }
+
+    const tool = resolveKnownTool(rawTagName, tools, toolMap);
+    if (!tool) {
+      continue;
+    }
+
+    const start = match.index ?? 0;
+    matches.push({
+      tool,
+      body: match[2] ?? "",
+      start,
+      end: start + match[0].length,
+    });
+  }
+
+  return matches;
+}
+
+function stripTrailingKnownToolWrapperText(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): string {
+  const trimmed = text.trim();
+  if (!trimmed || tools.length === 0) {
+    return trimmed;
+  }
+
+  for (const match of findKnownToolWrapperMatches(trimmed, tools, toolMap)) {
+    const trailingText = trimmed.slice(match.end).trim();
+    if (trailingText.length > 0) {
+      continue;
+    }
+
+    return trimmed.slice(0, match.start).trim();
+  }
+
+  return trimmed;
+}
+
+function containsKnownToolWrapperText(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  return findKnownToolWrapperMatches(text.trim(), tools, toolMap).length > 0;
 }
 
 function stripTrailingBrokenToolIntentText(
@@ -298,7 +387,7 @@ function stripTrailingBrokenToolIntentText(
 
   const brokenStartIndex = findBrokenToolIntentStartIndex(lines, tools, toolMap);
   if (brokenStartIndex === -1) {
-    return text.trim();
+    return stripTrailingKnownToolWrapperText(text, tools, toolMap);
   }
 
   return lines.slice(0, brokenStartIndex).join("\n").trim();
@@ -322,8 +411,12 @@ function looksLikeBrokenToolIntentText(
     return true;
   }
 
-  return /<(?:function=|\/?function\b|\/?invoke\b|\/?parameter\b|\/?tool_call\b|\/?toolcall\b|\/?execution\b)/i.test(
-    stripped,
+  return (
+    /<(?:function=|\/?function\b|\/?invoke\b|\/?parameter\b|\/?tool_call\b|\/?toolcall\b|\/?execution\b)/i.test(
+      stripped,
+    ) ||
+    containsKnownToolWrapperText(stripped, tools, toolMap) ||
+    containsInvalidStructuredToolPayload(stripped, tools, toolMap)
   );
 }
 
@@ -338,6 +431,10 @@ function sanitizeAssistantText(
   }
 
   if (stripped !== text.trim() && THINKING_PLACEHOLDER_RE.test(stripped)) {
+    return "";
+  }
+
+  if (containsInvalidStructuredToolPayload(stripped, tools, toolMap)) {
     return "";
   }
 
@@ -541,6 +638,25 @@ function getToolSchemaPropertyNames(schema: Record<string, unknown>): string[] {
   return isRecord(properties) ? Object.keys(properties) : [];
 }
 
+function resolvePrimaryToolArgumentName(tool: Tool): string | undefined {
+  const schema = getToolParameterSchema(tool);
+  if (!schema) {
+    return undefined;
+  }
+
+  const required = getToolSchemaRequiredFields(schema);
+  if (required.length === 1) {
+    return required[0];
+  }
+
+  const properties = getToolSchemaPropertyNames(schema);
+  if (properties.length === 1) {
+    return properties[0];
+  }
+
+  return undefined;
+}
+
 function hasMeaningfulToolArgument(value: unknown): boolean {
   if (value === undefined || value === null) {
     return false;
@@ -556,6 +672,47 @@ function hasMeaningfulToolArgument(value: unknown): boolean {
 
   if (isRecord(value)) {
     return Object.keys(value).length > 0;
+  }
+
+  return true;
+}
+
+function coerceToolArgumentsToSchema(
+  tool: Tool,
+  argumentsRecord: Record<string, unknown>,
+): Record<string, unknown> {
+  const primaryArgument = resolvePrimaryToolArgumentName(tool);
+  if (
+    primaryArgument &&
+    "value" in argumentsRecord &&
+    hasMeaningfulToolArgument(argumentsRecord.value) &&
+    Object.keys(argumentsRecord).length === 1
+  ) {
+    return {
+      [primaryArgument]: argumentsRecord.value,
+    };
+  }
+
+  return argumentsRecord;
+}
+
+function hasValidSalvagedToolArguments(
+  tool: Tool,
+  argumentsRecord: Record<string, unknown>,
+): boolean {
+  const schema = getToolParameterSchema(tool);
+  if (!schema) {
+    return true;
+  }
+
+  const required = getToolSchemaRequiredFields(schema);
+  if (required.some((field) => !hasMeaningfulToolArgument(argumentsRecord[field]))) {
+    return false;
+  }
+
+  const properties = getToolSchemaPropertyNames(schema);
+  if (Object.keys(argumentsRecord).length === 0 && properties.length > 0) {
+    return false;
   }
 
   return true;
@@ -916,14 +1073,84 @@ function extractXmlStyleFunctionCallCandidates(text: string): string[] {
   return [...candidates];
 }
 
-function extractToolPayloadCandidates(text: string): string[] {
-  const candidates = new Set<string>(extractRawToolPayloadCandidates(text));
+function inferToolArgumentsFromWrapperBody(
+  tool: Tool,
+  rawBody: string,
+): Record<string, unknown> | null {
+  const body = rawBody.trim();
+  const schema = getToolParameterSchema(tool);
+  const required = schema ? getToolSchemaRequiredFields(schema) : [];
+  const properties = schema ? getToolSchemaPropertyNames(schema) : [];
+  if (!body) {
+    return required.length === 0 && properties.length === 0 ? {} : null;
+  }
+
+  const parameterBlocks = parseXmlStyleParameterBlocks(body);
+  if (parameterBlocks.length > 0) {
+    return Object.fromEntries(parameterBlocks.map((block) => [block.name, block.value]));
+  }
+
+  const parsedArguments = normalizeToolArguments(body);
+  if (parsedArguments) {
+    return coerceToolArgumentsToSchema(tool, parsedArguments);
+  }
+
+  const primaryArgument = resolvePrimaryToolArgumentName(tool);
+  if (primaryArgument) {
+    return {
+      [primaryArgument]: body,
+    };
+  }
+
+  return null;
+}
+
+function extractKnownToolWrapperCandidates(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): string[] {
+  const candidates = new Set<string>();
+  for (const match of findKnownToolWrapperMatches(text.trim(), tools, toolMap)) {
+    const argumentsRecord = inferToolArgumentsFromWrapperBody(match.tool, match.body);
+    if (!argumentsRecord || !hasValidSalvagedToolArguments(match.tool, argumentsRecord)) {
+      continue;
+    }
+
+    candidates.add(
+      JSON.stringify({
+        name: match.tool.name,
+        arguments: argumentsRecord,
+      }),
+    );
+  }
+
+  return [...candidates];
+}
+
+function extractToolPayloadCandidates(
+  text: string,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): string[] {
+  const candidates = new Set<string>();
   const trimmed = text.trim();
   if (!trimmed) {
     return [...candidates];
   }
 
+  for (const candidate of extractRawToolPayloadCandidates(text)) {
+    const trimmedCandidate = candidate.trim();
+    if (/^[\[{]/.test(trimmedCandidate) && isStructuredJsonCandidate(trimmedCandidate)) {
+      candidates.add(trimmedCandidate);
+    }
+  }
+
   for (const candidate of extractXmlStyleFunctionCallCandidates(trimmed)) {
+    candidates.add(candidate);
+  }
+
+  for (const candidate of extractKnownToolWrapperCandidates(trimmed, tools, toolMap)) {
     candidates.add(candidate);
   }
 
@@ -1053,15 +1280,23 @@ function normalizeSalvagedToolCall(
       ? firstDefinedProperty(normalizedWrapperArguments, ["arguments", ...TOOL_ARGUMENT_KEYS])
       : undefined;
   const resolvedName = invokeWrapperName ?? rawName;
-  const normalizedName = resolveKnownToolName(resolvedName, tools, toolMap);
+  const resolvedTool = resolveKnownTool(resolvedName, tools, toolMap);
+  if (!resolvedTool) {
+    return null;
+  }
   const rawArguments = invokeWrapperArguments ?? wrapperArguments;
-  const normalizedArguments =
-    normalizeToolArguments(rawArguments) ?? buildFlattenedToolArguments(value, nestedFunction);
+  const normalizedArguments = coerceToolArgumentsToSchema(
+    resolvedTool,
+    normalizeToolArguments(rawArguments) ?? buildFlattenedToolArguments(value, nestedFunction),
+  );
+  if (!hasValidSalvagedToolArguments(resolvedTool, normalizedArguments)) {
+    return null;
+  }
 
   return {
     type: "toolCall",
     id: typeof value.id === "string" && value.id.trim() ? value.id : `call_salvaged_${index + 1}`,
-    name: normalizedName,
+    name: resolvedTool.name,
     arguments: normalizedArguments,
   };
 }
@@ -1099,6 +1334,31 @@ function normalizeStructuredToolTurn(
 
   const toolCall = normalizeSalvagedToolCall(value, tools, 0, toolMap);
   return toolCall ? { messageText, toolCalls: [toolCall] } : null;
+}
+
+function containsInvalidStructuredToolPayload(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  if (!text.trim() || tools.length === 0) {
+    return false;
+  }
+
+  let sawStructuredPayload = false;
+  for (const candidate of extractToolPayloadCandidates(text, tools, toolMap)) {
+    sawStructuredPayload = true;
+    try {
+      const normalized = normalizeStructuredToolTurn(parseJsonCandidate(candidate), tools, toolMap);
+      if (normalized?.toolCalls.length) {
+        return false;
+      }
+    } catch {
+      return true;
+    }
+  }
+
+  return sawStructuredPayload;
 }
 
 function buildSyntheticAssistantEvents(message: AssistantMessage): AssistantMessageEvent[] {
@@ -1171,7 +1431,7 @@ function salvageStructuredToolTurn(
   }
 
   const toolMap = createToolMap(tools);
-  for (const candidate of extractToolPayloadCandidates(textPayload)) {
+  for (const candidate of extractToolPayloadCandidates(textPayload, tools, toolMap)) {
     try {
       const normalized = normalizeStructuredToolTurn(parseJsonCandidate(candidate), tools, toolMap);
       if (!normalized || normalized.toolCalls.length === 0) {

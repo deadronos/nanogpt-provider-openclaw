@@ -92,7 +92,7 @@ describe("resolveNanoGptRepairProfile", () => {
         useBufferedRepair: true,
         useLiveGuard: true,
         useSemanticToolDiagnostics: false,
-        useToolSchemaHints: false,
+        useToolSchemaHints: true,
       },
     ],
     [
@@ -102,7 +102,7 @@ describe("resolveNanoGptRepairProfile", () => {
         useBufferedRepair: true,
         useLiveGuard: true,
         useSemanticToolDiagnostics: false,
-        useToolSchemaHints: false,
+        useToolSchemaHints: true,
       },
     ],
     [
@@ -1151,6 +1151,192 @@ describe("wrapStreamWithToolCallRepair", () => {
         },
       },
     ]);
+  });
+
+  it("salvages generic known-tool wrappers for Qwen models", async () => {
+    const toolPayload =
+      "<exec>du -sh /Users/openclaw/.openclaw/workspace-teleclaw /Users/openclaw/.openclaw/workspace-shared</exec>";
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: {
+              type: "object",
+              properties: {
+                command: { type: "string" },
+              },
+              required: ["command"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "exec",
+        arguments: {
+          command:
+            "du -sh /Users/openclaw/.openclaw/workspace-teleclaw /Users/openclaw/.openclaw/workspace-shared",
+        },
+      },
+    ]);
+  });
+
+  it("rejects salvaged tool payloads whose tool names are not in the active inventory", async () => {
+    const toolPayload = JSON.stringify({
+      tool_calls: [
+        {
+          name: "not_a_real_tool",
+          arguments: {
+            command: "pwd",
+          },
+        },
+      ],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger, {
+      retryInvalidEmptyTurns: false,
+    });
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: {
+              type: "object",
+              properties: {
+                command: { type: "string" },
+              },
+              required: ["command"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("stop");
+    expect(doneMessage.content).toEqual([]);
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+  });
+
+  it("rejects salvaged tool payloads that do not satisfy required schema fields", async () => {
+    const toolPayload = JSON.stringify({
+      tool_calls: [
+        {
+          name: "exec",
+          arguments: {},
+        },
+      ],
+    });
+
+    const mockStreamFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [
+            {
+              type: "done",
+              reason: "stop",
+              message: createAssistantMessage({
+                model: "qwen/Qwen3.6-35B-A3B",
+                content: [{ type: "text", text: toolPayload }],
+              }),
+            } as AssistantMessageEvent,
+          ],
+          createAssistantMessage({
+            model: "qwen/Qwen3.6-35B-A3B",
+            content: [{ type: "text", text: toolPayload }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [
+            {
+              type: "done",
+              reason: "stop",
+              message: createAssistantMessage({
+                model: "qwen/Qwen3.6-35B-A3B",
+                content: [{ type: "text", text: "workspace files use 42 MB" }],
+              }),
+            } as AssistantMessageEvent,
+          ],
+          createAssistantMessage({
+            model: "qwen/Qwen3.6-35B-A3B",
+            content: [{ type: "text", text: "workspace files use 42 MB" }],
+          }),
+        ),
+      );
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: {
+              type: "object",
+              properties: {
+                command: { type: "string" },
+              },
+              required: ["command"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(doneMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
   });
 
   it("preserves the first matching tool when canonical names collide", async () => {

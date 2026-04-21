@@ -204,10 +204,19 @@ For example:
   malformed tool-call argument JSON, one-shot invalid-turn retries, and
   best-effort salvage of structured tool payloads wrapped as assistant text,
   including XML-ish `<function=...><parameter=...>` payloads, `<invoke ...>`
-  wrapper payloads, leaked `<|mask_start|>...<|mask_end|>` control-token
-  placeholders, bare leaked tool names like `exec`, mixed prose plus broken
-  trailing tool placeholders, and wrong `stop` reasons on successful tool-use
-  turns surfaced through plain assistant text or malformed finish metadata.
+  wrapper payloads, generic known-tool wrappers like `<exec>...</exec>`,
+  leaked `<|mask_start|>...<|mask_end|>` control-token placeholders, bare
+  leaked tool names like `exec`, mixed prose plus broken trailing tool
+  placeholders, and wrong `stop` reasons on successful tool-use turns surfaced
+  through plain assistant text or malformed finish metadata.
+- `qwen/*` tools also get request-time schema hints in
+  `normalizeToolSchemas`, plus `inspectToolSchemas` warnings when a tool has no
+  description, no named object properties, or another schema shape that makes
+  leaked plain-text tool wrappers hard to revalidate safely.
+- salvaged tool payloads are only replayed when the tool name still matches the
+  active inventory and the recovered arguments satisfy the tool's required
+  schema fields; otherwise the wrapper falls back to retry/sanitization instead
+  of synthesizing a risky tool call.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required
