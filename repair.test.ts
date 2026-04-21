@@ -251,6 +251,15 @@ describe("wrapStreamWithToolCallRepair", () => {
         "Observed malformed tool call arguments from model moonshotai/kimi-k2.5:thinking",
       ),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"kimi"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_kimi_malformed_tool_call_observed"'),
+    );
   });
 
   it("should repair malformed tool call arguments", async () => {
@@ -623,6 +632,15 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Salvaged structured tool payload"),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"kimi"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_kimi_salvage_success"'),
+    );
   });
 
   it("salvages pseudo-tool wrapper payloads from assistant text", async () => {
@@ -745,6 +763,78 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Salvaged structured tool payload"),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"qwen"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_salvage_success"'),
+    );
+  });
+
+  it("salvages function-style tool payload text for Qwen models", async () => {
+    const toolPayload = 'exec({"command":"pwd"})';
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: {
+              type: "object",
+              properties: {
+                command: { type: "string" },
+              },
+              required: ["command"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "exec",
+        arguments: {
+          command: "pwd",
+        },
+      },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"qwen"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_salvage_success"'),
+    );
   });
 
   it("retries Qwen turns that only leak model special tokens", async () => {
@@ -791,9 +881,22 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const resultMessage = await (resultStream as any).result();
     expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(mockStreamFn.mock.calls[1]?.[2]).toMatchObject({ toolChoice: "required" });
     expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"qwen"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_text_sanitized"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_retry_tool_choice_rewrite"'),
     );
   });
 
@@ -841,9 +944,22 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const resultMessage = await (resultStream as any).result();
     expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(mockStreamFn.mock.calls[1]?.[2]).toMatchObject({ toolChoice: "required" });
     expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"qwen"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_text_sanitized"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_retry_tool_choice_rewrite"'),
     );
   });
 
@@ -891,6 +1007,7 @@ describe("wrapStreamWithToolCallRepair", () => {
 
     const resultMessage = await (resultStream as any).result();
     expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(mockStreamFn.mock.calls[1]?.[2]).toMatchObject({ toolChoice: "required" });
     expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Retrying invalid tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
@@ -1052,6 +1169,15 @@ describe("wrapStreamWithToolCallRepair", () => {
     const doneEvent = receivedEvents.find((event) => event.type === "done") as any;
     expect(doneEvent.reason).toBe("toolUse");
     expect(doneEvent.message.stopReason).toBe("toolUse");
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"qwen"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_qwen_stop_reason_rewrite"'),
+    );
   });
 
   it("salvages invoke-wrapper payload text for Qwen models", async () => {
@@ -1557,6 +1683,18 @@ describe("wrapStreamWithToolCallRepair", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Retrying invalid tool-enabled turn"),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"kimi"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_kimi_retry_invalid_tool_turn"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_kimi_retry_result"'),
+    );
   });
 
   it("emits structured debug artifacts when debug mode is enabled", async () => {
@@ -1604,7 +1742,13 @@ describe("wrapStreamWithToolCallRepair", () => {
     }
 
     expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('"event":"repair_success"'),
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"kimi"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_kimi_repair_success"'),
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('"repairStage":"toolcall_end"'),
@@ -1697,7 +1841,13 @@ describe("wrapStreamWithToolCallRepair", () => {
       expect.stringContaining("likely missing ref/selector/fields-style argument(s): ref, fields"),
     );
     expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('"event":"glm_semantic_tool_issue"'),
+      expect.stringContaining('"plugin":"nanogpt"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"family":"glm"'),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"nanogpt_glm_semantic_tool_issue"'),
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('"missingRequiredFields":["ref"]'),

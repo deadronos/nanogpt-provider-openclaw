@@ -35,6 +35,7 @@ type RepairAttempt = {
 };
 
 export type NanoGptRepairFamily = "kimi" | "glm" | "qwen" | "other";
+type NanoGptRepairLogFamily = Exclude<NanoGptRepairFamily, "other">;
 
 export type NanoGptRepairProfile = {
   family: NanoGptRepairFamily;
@@ -519,6 +520,16 @@ function countToolCalls(message: AssistantMessage): number {
   return message.content.filter((block) => block.type === "toolCall").length;
 }
 
+function countTextCharacters(message: AssistantMessage): number {
+  return message.content.reduce((total, block) => {
+    if (block.type !== "text") {
+      return total;
+    }
+
+    return total + block.text.length;
+  }, 0);
+}
+
 function resolveSyntheticDoneReason(
   message: AssistantMessage,
 ): Extract<AssistantMessageEvent, { type: "done" }>["reason"] {
@@ -577,13 +588,49 @@ function logReliabilityArtifact(
     return;
   }
 
+  const family = resolveNanoGptRepairFamily(meta.modelId);
   logger.info(
     `[nanogpt][tool-reliability] ${JSON.stringify({
+      plugin: "nanogpt",
+      family,
       modelId: meta.modelId,
       requestApi: meta.requestApi ?? "unknown",
       attempt: meta.attempt,
       ...artifact,
     })}`,
+  );
+}
+
+const NANOGPT_REPAIR_EVENT_MAP: Record<NanoGptRepairLogFamily, string> = {
+  kimi: "nanogpt_kimi",
+  glm: "nanogpt_glm",
+  qwen: "nanogpt_qwen",
+};
+
+function resolveNanoGptRepairEventName(modelId: string, eventName: string): string {
+  const family = resolveNanoGptRepairFamily(modelId);
+  if (family === "other") {
+    return eventName;
+  }
+
+  return `${NANOGPT_REPAIR_EVENT_MAP[family]}_${eventName}`;
+}
+
+function logNanoGptRepairArtifact(
+  logger: RepairLogger,
+  meta: RepairRuntimeMeta,
+  eventName: string,
+  artifact: Record<string, unknown>,
+  force = false,
+): void {
+  logReliabilityArtifact(
+    logger,
+    meta,
+    {
+      event: resolveNanoGptRepairEventName(meta.modelId, eventName),
+      ...artifact,
+    },
+    force || resolveNanoGptRepairFamily(meta.modelId) !== "other",
   );
 }
 
@@ -612,8 +659,7 @@ function logObservedMalformedToolCall(params: {
   params.logger.warn(
     `[nanogpt] Observed malformed tool call arguments from model ${params.meta.modelId} (api=${params.meta.requestApi ?? "unknown"}) for tool "${params.toolName}". Automatic repair is not enabled for this model family; investigate whether this model should get targeted reliability handling.`,
   );
-  logReliabilityArtifact(params.logger, params.meta, {
-    event: "malformed_tool_call_observed",
+  logNanoGptRepairArtifact(params.logger, params.meta, "malformed_tool_call_observed", {
     toolName: params.toolName,
     rawArgumentLength: params.rawArgs.length,
     repairEnabled: false,
@@ -786,15 +832,14 @@ function logGlmSemanticToolDiagnostics(params: {
   params.logger.warn(
     `[nanogpt] GLM semantic tool issue for tool "${tool.name}" from model ${params.meta.modelId} (api=${params.meta.requestApi ?? "unknown"}): ${issueParts.join("; ")}.`,
   );
-  logReliabilityArtifact(params.logger, params.meta, {
-    event: "glm_semantic_tool_issue",
+  logNanoGptRepairArtifact(params.logger, params.meta, "semantic_tool_issue", {
     toolName: tool.name,
     requestedToolName: params.toolName,
     missingRequiredFields,
     missingHighlightedFields,
     schemaFieldNames,
     rawArgumentLength: params.rawArgs.length,
-  }, true);
+  });
 }
 
 function buildRetryContext(context: Parameters<StreamFn>[1]): Parameters<StreamFn>[1] {
@@ -804,6 +849,40 @@ function buildRetryContext(context: Parameters<StreamFn>[1]): Parameters<StreamF
       ? `${context.systemPrompt}\n\n${INVALID_EMPTY_TOOL_TURN_RETRY_PROMPT}`
       : INVALID_EMPTY_TOOL_TURN_RETRY_PROMPT,
   };
+}
+
+function resolveRequestedToolChoice(options: Parameters<StreamFn>[2]): unknown {
+  if (!isRecord(options)) {
+    return undefined;
+  }
+
+  if ("toolChoice" in options && options.toolChoice !== undefined) {
+    return options.toolChoice;
+  }
+
+  if ("tool_choice" in options && options.tool_choice !== undefined) {
+    return options.tool_choice;
+  }
+
+  return undefined;
+}
+
+function buildRetryOptions(
+  options: Parameters<StreamFn>[2],
+  profile: NanoGptRepairProfile,
+): Parameters<StreamFn>[2] {
+  if (profile.family !== "qwen") {
+    return options;
+  }
+
+  const requestedToolChoice = resolveRequestedToolChoice(options);
+  if (requestedToolChoice !== undefined && requestedToolChoice !== "auto") {
+    return options;
+  }
+
+  return isRecord(options)
+    ? ({ ...options, toolChoice: "required" } as Parameters<StreamFn>[2])
+    : ({ toolChoice: "required" } as Parameters<StreamFn>[2]);
 }
 
 function parseJsonCandidate(candidate: string): unknown {
@@ -890,6 +969,51 @@ function extractRawToolPayloadCandidates(text: string): string[] {
   }
 
   return [...candidates];
+}
+
+function findBalancedDelimitedClose(
+  text: string,
+  openIndex: number,
+  opener: string,
+  closer: string,
+): number {
+  let depth = 0;
+  let quoteChar: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (let index = openIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quoteChar) {
+      if (char === quoteChar) {
+        quoteChar = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quoteChar = char;
+      continue;
+    }
+    if (char === opener) {
+      depth += 1;
+      continue;
+    }
+    if (char === closer) {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
 }
 
 function extractPseudoToolWrapperName(attributes: string): string | undefined {
@@ -1128,6 +1252,58 @@ function extractKnownToolWrapperCandidates(
   return [...candidates];
 }
 
+function extractFunctionStyleToolCallCandidates(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): string[] {
+  const candidates = new Set<string>();
+  const trimmed = text.trim();
+  if (!trimmed || tools.length === 0) {
+    return [];
+  }
+
+  const functionPattern = /\b([a-zA-Z_][\w-]*)\s*\(/g;
+  for (const match of trimmed.matchAll(functionPattern)) {
+    const rawName = match[1]?.trim();
+    if (!rawName) {
+      continue;
+    }
+
+    const tool = resolveKnownTool(rawName, tools, toolMap);
+    if (!tool) {
+      continue;
+    }
+
+    const openIndex = (match.index ?? 0) + match[0].lastIndexOf("(");
+    const closeIndex = findBalancedDelimitedClose(trimmed, openIndex, "(", ")");
+    if (closeIndex === -1) {
+      continue;
+    }
+
+    if (trimmed.slice(0, match.index ?? 0).trim() || trimmed.slice(closeIndex + 1).trim()) {
+      continue;
+    }
+
+    const argumentsRecord = inferToolArgumentsFromWrapperBody(
+      tool,
+      trimmed.slice(openIndex + 1, closeIndex),
+    );
+    if (!argumentsRecord || !hasValidSalvagedToolArguments(tool, argumentsRecord)) {
+      continue;
+    }
+
+    candidates.add(
+      JSON.stringify({
+        name: tool.name,
+        arguments: argumentsRecord,
+      }),
+    );
+  }
+
+  return [...candidates];
+}
+
 function extractToolPayloadCandidates(
   text: string,
   tools: readonly Tool[] = [],
@@ -1151,6 +1327,10 @@ function extractToolPayloadCandidates(
   }
 
   for (const candidate of extractKnownToolWrapperCandidates(trimmed, tools, toolMap)) {
+    candidates.add(candidate);
+  }
+
+  for (const candidate of extractFunctionStyleToolCallCandidates(trimmed, tools, toolMap)) {
     candidates.add(candidate);
   }
 
@@ -1449,8 +1629,7 @@ function salvageStructuredToolTurn(
       logger.warn(
         `[nanogpt] Salvaged structured tool payload from assistant text for model ${meta.modelId}`,
       );
-      logReliabilityArtifact(logger, meta, {
-        event: "salvage_success",
+      logNanoGptRepairArtifact(logger, meta, "salvage_success", {
         toolCallCount: normalized.toolCalls.length,
         payloadLength: textPayload.length,
       });
@@ -1573,6 +1752,11 @@ async function collectRepairAttempt(params: {
   let selectedEvents = events;
   const sanitizedMessage = sanitizeAssistantMessage(finalMessage, toolDefinitions, toolMap);
   if (sanitizedMessage.changed) {
+    logNanoGptRepairArtifact(params.logger, params.meta, "text_sanitized", {
+      removedTextCharacters: Math.max(0, countTextCharacters(finalMessage) - countTextCharacters(sanitizedMessage.message)),
+      remainingTextCharacters: countTextCharacters(sanitizedMessage.message),
+      contentBlockCount: sanitizedMessage.message.content.length,
+    });
     finalMessage = sanitizedMessage.message;
     selectedEvents = buildSyntheticAssistantEvents(finalMessage);
   }
@@ -1581,6 +1765,10 @@ async function collectRepairAttempt(params: {
   if (finalToolCallCount > 0) {
     sawToolCall = true;
     if (finalMessage.stopReason !== "toolUse") {
+      logNanoGptRepairArtifact(params.logger, params.meta, "stop_reason_rewrite", {
+        originalStopReason: finalMessage.stopReason,
+        toolCallCount: finalToolCallCount,
+      });
       finalMessage = {
         ...finalMessage,
         stopReason: "toolUse",
@@ -1674,26 +1862,33 @@ export function wrapStreamWithToolCallRepair(
       !firstAttempt.sawToolCall &&
       (!firstAttempt.sawVisibleText || firstAttempt.sawBrokenToolIntent)
     ) {
+      const requestedToolChoice = resolveRequestedToolChoice(args[2]);
       logger.warn(
         `[nanogpt] Retrying invalid tool-enabled turn from model ${baseMeta.modelId} after no usable tool call was produced`,
       );
-      logReliabilityArtifact(logger, baseMeta, {
-        event: "retry_invalid_tool_turn",
+      logNanoGptRepairArtifact(logger, baseMeta, "retry_invalid_tool_turn", {
         sawVisibleText: firstAttempt.sawVisibleText,
         sawBrokenToolIntent: firstAttempt.sawBrokenToolIntent,
+        requestedToolChoice,
       });
 
+      const retryOptions = buildRetryOptions(args[2], repairProfile);
+      if (repairProfile.family === "qwen" && (requestedToolChoice === undefined || requestedToolChoice === "auto")) {
+        logNanoGptRepairArtifact(logger, baseMeta, "retry_tool_choice_rewrite", {
+          requestedToolChoice: requestedToolChoice ?? "auto",
+          forcedToolChoice: resolveRequestedToolChoice(retryOptions),
+        });
+      }
       selectedAttempt = await collectRepairAttempt({
         streamFn,
-        args: [args[0], buildRetryContext(args[1]), args[2]],
+        args: [args[0], buildRetryContext(args[1]), retryOptions],
         logger,
         meta: {
           ...baseMeta,
           attempt: 1,
         },
       });
-      logReliabilityArtifact(logger, { ...baseMeta, attempt: 1 }, {
-        event: "retry_result",
+      logNanoGptRepairArtifact(logger, { ...baseMeta, attempt: 1 }, "retry_result", {
         recoveredToolCalls: countToolCalls(selectedAttempt.finalMessage),
         sawVisibleText: selectedAttempt.sawVisibleText,
         sawBrokenToolIntent: selectedAttempt.sawBrokenToolIntent,
@@ -1860,8 +2055,7 @@ function repairToolCallEndEvent(
       logger.warn(
         `[nanogpt] Repaired malformed tool call arguments from model ${meta.modelId} for tool "${event.toolCall.name}"`,
       );
-      logReliabilityArtifact(logger, meta, {
-        event: "repair_success",
+      logNanoGptRepairArtifact(logger, meta, "repair_success", {
         repairStage: "toolcall_end",
         toolName: event.toolCall.name,
         rawArgumentLength: rawArgs.length,
@@ -1875,9 +2069,8 @@ function repairToolCallEndEvent(
         },
         partial: repairAssistantMessage(event.partial, new Map([[event.contentIndex, rawArgs]]), meta, logger, true),
       };
-    } catch {
-      logReliabilityArtifact(logger, meta, {
-        event: "repair_failed",
+        } catch {
+      logNanoGptRepairArtifact(logger, meta, "repair_failed", {
         repairStage: "toolcall_end",
         toolName: event.toolCall.name,
         rawArgumentLength: rawArgs.length,
@@ -1914,8 +2107,7 @@ function repairAssistantMessage(
             logger.warn(
               `[nanogpt] Repaired malformed tool call arguments in final message from model ${meta.modelId} for tool "${block.name}"`,
             );
-            logReliabilityArtifact(logger, meta, {
-              event: "repair_success",
+            logNanoGptRepairArtifact(logger, meta, "repair_success", {
               repairStage: "final_message",
               toolName: block.name,
               rawArgumentLength: rawArgs.length,
@@ -1925,8 +2117,7 @@ function repairAssistantMessage(
           return { ...block, arguments: parsed };
         } catch {
           if (!silent) {
-            logReliabilityArtifact(logger, meta, {
-              event: "repair_failed",
+            logNanoGptRepairArtifact(logger, meta, "repair_failed", {
               repairStage: "final_message",
               toolName: block.name,
               rawArgumentLength: rawArgs.length,
