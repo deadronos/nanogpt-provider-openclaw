@@ -4,32 +4,15 @@ import type {
   ProviderToolSchemaDiagnostic,
 } from "openclaw/plugin-sdk/plugin-entry";
 import { isRecord } from "../shared/guards.js";
+import {
+  detectNanoGptModelFamily,
+  resolveNanoGptModelId,
+} from "./anomaly-types.js";
 
 const NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER = "NanoGPT GLM tip:";
 const NANOGPT_GLM_TOOL_SCHEMA_HINT =
   "NanoGPT GLM tip: include required ref/selector/fields arguments explicitly when the tool needs them.";
 const NANOGPT_QWEN_TOOL_SCHEMA_HINT_MARKER = "NanoGPT Qwen tip:";
-
-function resolveNanoGptToolSchemaModelId(ctx: ProviderNormalizeToolSchemasContext): string {
-  if (typeof ctx.model?.id === "string" && ctx.model.id.trim()) {
-    return ctx.model.id;
-  }
-  return typeof ctx.modelId === "string" ? ctx.modelId : "";
-}
-
-export function detectNanoGptModelFamily(modelId: string): "kimi" | "glm" | "qwen" | "other" {
-  const normalized = modelId.trim().toLowerCase();
-  if (normalized.startsWith("moonshotai/kimi")) {
-    return "kimi";
-  }
-  if (normalized.startsWith("zai-org/glm") || normalized.includes("/glm")) {
-    return "glm";
-  }
-  if (normalized.includes("qwen")) {
-    return "qwen";
-  }
-  return "other";
-}
 
 function getNanoGptToolSchemaSummary(tool: AnyAgentTool): {
   parameters?: Record<string, unknown>;
@@ -150,7 +133,7 @@ function inspectNanoGptQwenToolSchema(
 export function normalizeNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): AnyAgentTool[] | null {
-  const family = detectNanoGptModelFamily(resolveNanoGptToolSchemaModelId(ctx));
+  const family = detectNanoGptModelFamily(resolveNanoGptModelId(ctx));
   if (family !== "glm" && family !== "qwen") {
     return null;
   }
@@ -180,7 +163,7 @@ export function normalizeNanoGptToolSchemas(
 export function inspectNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): ProviderToolSchemaDiagnostic[] | null {
-  const family = detectNanoGptModelFamily(resolveNanoGptToolSchemaModelId(ctx));
+  const family = detectNanoGptModelFamily(resolveNanoGptModelId(ctx));
   if (family !== "qwen") {
     return null;
   }
@@ -193,3 +176,5 @@ export function inspectNanoGptToolSchemas(
 
   return diagnostics.length > 0 ? diagnostics : null;
 }
+
+export { detectNanoGptModelFamily } from "./anomaly-types.js";

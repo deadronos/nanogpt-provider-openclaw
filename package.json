@@ -34,6 +34,7 @@
     "catalog/build-provider.ts",
     "provider/auth.ts",
     "provider/catalog-hooks.ts",
+    "provider/anomaly-types.ts",
     "provider/tool-schema-hooks.ts",
     "provider/error-hooks.ts",
     "provider/stream-hooks.ts",
