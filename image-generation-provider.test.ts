@@ -4,6 +4,39 @@ const { resolveApiKeyForProviderMock } = vi.hoisted(() => ({
   resolveApiKeyForProviderMock: vi.fn(),
 }));
 
+const { postJsonRequestMock, assertOkOrThrowHttpErrorMock } = vi.hoisted(() => ({
+  postJsonRequestMock: vi.fn(),
+  assertOkOrThrowHttpErrorMock: vi.fn(),
+}));
+
+const { isProviderApiKeyConfiguredMock } = vi.hoisted(() => ({
+  isProviderApiKeyConfiguredMock: vi.fn(),
+}));
+
+vi.mock("openclaw/plugin-sdk/provider-auth", async () => {
+  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/provider-auth")>(
+    "openclaw/plugin-sdk/provider-auth",
+  );
+
+  return {
+    ...actual,
+    isProviderApiKeyConfigured: isProviderApiKeyConfiguredMock,
+    resolveApiKeyForProvider: resolveApiKeyForProviderMock,
+  };
+});
+
+vi.mock("openclaw/plugin-sdk/provider-http", async () => {
+  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/provider-http")>(
+    "openclaw/plugin-sdk/provider-http",
+  );
+
+  return {
+    ...actual,
+    postJsonRequest: postJsonRequestMock,
+    assertOkOrThrowHttpError: assertOkOrThrowHttpErrorMock,
+  };
+});
+
 vi.mock("openclaw/plugin-sdk/provider-auth-runtime", async () => {
   const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/provider-auth-runtime")>(
     "openclaw/plugin-sdk/provider-auth-runtime",
@@ -20,6 +53,9 @@ import plugin from "./index.js";
 
 afterEach(() => {
   resolveApiKeyForProviderMock.mockReset();
+  postJsonRequestMock.mockReset();
+  assertOkOrThrowHttpErrorMock.mockReset();
+  isProviderApiKeyConfiguredMock.mockReset();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -55,23 +91,23 @@ describe("nanogpt image-generation provider", () => {
 
   it("generates image buffers from NanoGPT's OpenAI-compatible endpoint", async () => {
     mockNanoGptApiKey();
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          created: 123,
-          data: [
-            {
-              b64_json: Buffer.from("png-data").toString("base64"),
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
-    vi.stubGlobal("fetch", fetchSpy);
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        created: 123,
+        data: [{ b64_json: Buffer.from("png-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
 
     const provider = buildNanoGptImageGenerationProvider();
     const result = await provider.generateImage({
@@ -83,23 +119,18 @@ describe("nanogpt image-generation provider", () => {
       size: "1024x1024",
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "https://nano-gpt.com/v1/images/generations",
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        method: "POST",
-        headers: {
-          Authorization: "Bearer test-key",
-          "Content-Type": "application/json",
+        url: "https://nano-gpt.com/v1/images/generations",
+        body: {
+          model: "hidream",
+          prompt: "draw a cat",
+          n: 2,
+          response_format: "b64_json",
+          size: "1024x1024",
         },
       }),
     );
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toEqual({
-      model: "hidream",
-      prompt: "draw a cat",
-      n: 2,
-      response_format: "b64_json",
-      size: "1024x1024",
-    });
     expect(result).toEqual({
       images: [
         {
@@ -114,23 +145,22 @@ describe("nanogpt image-generation provider", () => {
 
   it("maps input images to NanoGPT imageDataUrl for edit flows", async () => {
     mockNanoGptApiKey();
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          created: 123,
-          data: [
-            {
-              b64_json: Buffer.from("edited-data").toString("base64"),
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
-    vi.stubGlobal("fetch", fetchSpy);
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        data: [{ b64_json: Buffer.from("edited-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
 
     const provider = buildNanoGptImageGenerationProvider();
     await provider.generateImage({
@@ -147,33 +177,37 @@ describe("nanogpt image-generation provider", () => {
       ],
     });
 
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
-      model: "hidream",
-      prompt: "turn this into a watercolor poster",
-      n: 1,
-      response_format: "b64_json",
-      imageDataUrl: `data:image/jpeg;base64,${Buffer.from("source-image").toString("base64")}`,
-    });
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          model: "hidream",
+          prompt: "turn this into a watercolor poster",
+          n: 1,
+          response_format: "b64_json",
+          imageDataUrl: `data:image/jpeg;base64,${Buffer.from("source-image").toString("base64")}`,
+        }),
+      }),
+    );
   });
 
   it("normalizes friendly subscription model aliases to curated NanoGPT ids", async () => {
     mockNanoGptApiKey();
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: [
-            {
-              b64_json: Buffer.from("alias-data").toString("base64"),
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
-    vi.stubGlobal("fetch", fetchSpy);
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        data: [{ b64_json: Buffer.from("alias-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
 
     const provider = buildNanoGptImageGenerationProvider();
     const result = await provider.generateImage({
@@ -183,31 +217,35 @@ describe("nanogpt image-generation provider", () => {
       cfg: {},
     });
 
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
-      model: "qwen-image-2512",
-      prompt: "cinematic skyline",
-    });
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          model: "qwen-image-2512",
+          prompt: "cinematic skyline",
+        }),
+      }),
+    );
     expect(result.model).toBe("qwen-image-2512");
   });
 
   it("accepts provider-prefixed model overrides like nanogpt/chroma", async () => {
     mockNanoGptApiKey();
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: [
-            {
-              b64_json: Buffer.from("chroma-data").toString("base64"),
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
-    vi.stubGlobal("fetch", fetchSpy);
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        data: [{ b64_json: Buffer.from("chroma-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
 
     const provider = buildNanoGptImageGenerationProvider();
     const result = await provider.generateImage({
@@ -217,24 +255,33 @@ describe("nanogpt image-generation provider", () => {
       cfg: {},
     });
 
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
-      model: "chroma",
-      prompt: "debugging in neon rain",
-    });
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          model: "chroma",
+          prompt: "debugging in neon rain",
+        }),
+      }),
+    );
     expect(result.model).toBe("chroma");
   });
 
   it("surfaces curated model guidance when NanoGPT rejects an image model id", async () => {
     mockNanoGptApiKey();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response("Unknown model", {
-          status: 400,
-          headers: { "Content-Type": "text/plain" },
-        }),
-      ),
-    );
+
+    const mockResponse = {
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue("Unknown model"),
+      json: vi.fn().mockRejectedValue(new Error("not json")),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
 
     const provider = buildNanoGptImageGenerationProvider();
 
@@ -264,5 +311,91 @@ describe("nanogpt image-generation provider", () => {
         size: "9999x9999" as any,
       }),
     ).rejects.toThrow(/Invalid image size "9999x9999"/);
+  });
+
+  it("reports configured when API key is available", async () => {
+    isProviderApiKeyConfiguredMock.mockResolvedValue(true);
+    mockNanoGptApiKey();
+    const provider = buildNanoGptImageGenerationProvider();
+    expect(typeof provider.isConfigured).toBe("function");
+    const result = await provider.isConfigured!({ agentDir: "/test/agent" } as any);
+    expect(result).toBe(true);
+  });
+
+  it("reports not configured when API key is unavailable", async () => {
+    isProviderApiKeyConfiguredMock.mockResolvedValue(false);
+    resolveApiKeyForProviderMock.mockResolvedValue({ apiKey: undefined });
+    const provider = buildNanoGptImageGenerationProvider();
+    const result = await provider.isConfigured!({ agentDir: "/test/agent" } as any);
+    expect(result).toBe(false);
+  });
+
+  it("honors req.timeoutMs when set", async () => {
+    mockNanoGptApiKey();
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        data: [{ b64_json: Buffer.from("png-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
+
+    const provider = buildNanoGptImageGenerationProvider();
+    await provider.generateImage({
+      provider: "nanogpt",
+      model: "hidream",
+      prompt: "draw a cat",
+      cfg: {},
+      timeoutMs: 5000,
+    } as any);
+
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeoutMs: 5000,
+      }),
+    );
+  });
+
+  it("falls back to default timeout when req.timeoutMs is not set", async () => {
+    mockNanoGptApiKey();
+
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      clone: vi.fn().mockReturnThis(),
+      text: vi.fn().mockResolvedValue(""),
+      json: vi.fn().mockResolvedValue({
+        data: [{ b64_json: Buffer.from("png-data").toString("base64") }],
+      }),
+    } as unknown as Response;
+
+    postJsonRequestMock.mockResolvedValue({
+      response: mockResponse,
+      release: vi.fn(),
+    });
+
+    const provider = buildNanoGptImageGenerationProvider();
+    await provider.generateImage({
+      provider: "nanogpt",
+      model: "hidream",
+      prompt: "draw a cat",
+      cfg: {},
+    } as any);
+
+    expect(postJsonRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeoutMs: 60_000,
+      }),
+    );
   });
 });
