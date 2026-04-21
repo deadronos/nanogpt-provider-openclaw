@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/provider-catalog-shared";
 import nanoGptProviderDiscovery from "./provider-discovery.js";
-import { buildNanoGptProvider } from "./provider-catalog.js";
+import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { NANOGPT_PROVIDER_ID } from "./models.js";
 
-vi.mock("./provider-catalog.js", () => ({
+vi.mock("./catalog/build-provider.js", () => ({
   buildNanoGptProvider: vi.fn(),
 }));
 

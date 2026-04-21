@@ -1,25 +1,23 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-import { sanitizeApiKey } from "./runtime.js";
+import { sanitizeApiKey } from "./shared/http.js";
 import {
-  mergeScopedSearchConfig,
+  NANOGPT_WEB_SEARCH_CREDENTIAL_PATH,
+  resolveNanoGptWebSearchApiKey,
+  resolveNanoGptWebSearchConfig,
+} from "./web-search/credentials.js";
+import { normalizeNanoGptWebSearchResult } from "./web-search/results.js";
+import {
   postTrustedWebToolsJson,
   readNumberParam,
-  readProviderEnvValue,
   readStringArrayParam,
   readStringParam,
-  resolveProviderWebSearchPluginConfig,
   resolveSearchCount,
   resolveSearchTimeoutSeconds,
-  resolveSiteName,
-  resolveWebSearchProviderCredential,
-  wrapWebContent,
   type WebSearchProviderPlugin,
 } from "openclaw/plugin-sdk/provider-web-search";
 import { createWebSearchProviderContractFields } from "openclaw/plugin-sdk/provider-web-search-contract";
 
 const NANOGPT_WEB_SEARCH_URL = "https://nano-gpt.com/api/web";
-const NANOGPT_WEB_SEARCH_CREDENTIAL_PATH = "plugins.entries.nanogpt.config.webSearch.apiKey";
-const NANOGPT_ENV_REF_PATTERN = /^\$\{(NANOGPT_API_KEY)\}$/;
 const NANOGPT_WEB_SEARCH_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -54,15 +52,13 @@ const NANOGPT_WEB_SEARCH_SCHEMA = {
   required: ["query"],
 } as const;
 
-type NanoGptWebSearchResult = {
-  title?: string;
-  url?: string;
-  snippet?: string;
-  description?: string;
-};
-
 type NanoGptWebSearchResponse = {
-  data?: NanoGptWebSearchResult[];
+  data?: Array<{
+    title?: string;
+    url?: string;
+    snippet?: string;
+    description?: string;
+  }>;
   metadata?: {
     query?: string;
     provider?: string;
@@ -71,80 +67,6 @@ type NanoGptWebSearchResponse = {
     cost?: number;
   };
 };
-
-function resolveNanoGptWebSearchConfig(ctx: {
-  config?: Record<string, unknown>;
-  searchConfig?: Record<string, unknown>;
-}): Record<string, unknown> | undefined {
-  return mergeScopedSearchConfig(
-    ctx.searchConfig,
-    NANOGPT_PROVIDER_ID,
-    resolveProviderWebSearchPluginConfig(
-      ctx.config as Parameters<typeof resolveProviderWebSearchPluginConfig>[0],
-      NANOGPT_PROVIDER_ID,
-    ),
-    { mirrorApiKeyToTopLevel: true },
-  );
-}
-
-function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): string | undefined {
-  // Keep compatibility with the ${ENV_VAR} string form provisioned by NanoGPT
-  // onboarding/auth setup. The generic helper handles direct strings and
-  // structured secret refs, but this legacy env-template form still needs to
-  // be collapsed before handing off to the normal provider credential path.
-  const inlineEnvRef =
-    typeof searchConfig?.apiKey === "string"
-      ? NANOGPT_ENV_REF_PATTERN.exec(searchConfig.apiKey.trim())?.[1]
-      : undefined;
-
-  const rawCredentialValue = searchConfig?.apiKey;
-  // If it looks like an environment variable but didn't match the safe pattern, don't pass it through
-  const isUnsafeEnvRef = typeof rawCredentialValue === "string" && /^\$\{([A-Z][A-Z0-9_]*)\}$/.test(rawCredentialValue.trim());
-
-  return resolveWebSearchProviderCredential({
-    credentialValue: (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ?? (isUnsafeEnvRef ? undefined : rawCredentialValue),
-    path: "tools.web.search.apiKey",
-    envVars: ["NANOGPT_API_KEY"],
-  });
-}
-
-function normalizeNanoGptWebSearchResult(
-  entry: NanoGptWebSearchResult,
-): {
-  title: string;
-  url: string;
-  snippet: string;
-  siteName?: string;
-} | null {
-  const url = typeof entry.url === "string" ? entry.url.trim() : "";
-  if (!url) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(url);
-    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  const title = typeof entry.title === "string" ? entry.title.trim() : "";
-  const rawSnippet =
-    typeof entry.snippet === "string"
-      ? entry.snippet.trim()
-      : typeof entry.description === "string"
-        ? entry.description.trim()
-        : "";
-
-  return {
-    title: title ? wrapWebContent(title, "web_search") : "",
-    url,
-    snippet: rawSnippet ? wrapWebContent(rawSnippet, "web_search") : "",
-    siteName: resolveSiteName(url) || undefined,
-  };
-}
 
 function missingNanoGptKeyPayload() {
   return {
@@ -247,5 +169,3 @@ export const __testing = {
   resolveNanoGptWebSearchApiKey,
   normalizeNanoGptWebSearchResult,
 };
-
-export type WebSearchTestingExports = typeof __testing;

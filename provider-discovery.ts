@@ -1,11 +1,7 @@
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/provider-catalog-shared";
-import { buildNanoGptProvider } from "./provider-catalog.js";
+import { buildNanoGptProvider } from "./catalog/build-provider.js";
+import { resolveNanoGptPluginConfigFromProviderCatalogContext } from "./provider-catalog.js";
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-
-function resolveNanoGptPluginConfig(ctx: ProviderCatalogContext): unknown {
-  const entries = (ctx.config.plugins?.entries ?? {}) as Record<string, { config?: unknown }>;
-  return entries[NANOGPT_PROVIDER_ID]?.config;
-}
 
 const nanoGptProviderDiscovery = {
   id: NANOGPT_PROVIDER_ID,
@@ -23,7 +19,7 @@ const nanoGptProviderDiscovery = {
       return {
         provider: await buildNanoGptProvider({
           apiKey,
-          pluginConfig: resolveNanoGptPluginConfig(ctx),
+          pluginConfig: resolveNanoGptPluginConfigFromProviderCatalogContext(ctx),
         }),
       };
     },

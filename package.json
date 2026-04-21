@@ -24,12 +24,32 @@
     "api.ts",
     "models.ts",
     "runtime.ts",
+    "runtime/config.ts",
+    "runtime/dynamic-models.ts",
+    "runtime/discovery.ts",
+    "runtime/provider-pricing.ts",
+    "runtime/routing.ts",
+    "runtime/usage.ts",
+    "catalog/models-json-snapshot.ts",
+    "catalog/build-provider.ts",
+    "provider/auth.ts",
+    "provider/catalog-hooks.ts",
+    "provider/tool-schema-hooks.ts",
+    "provider/error-hooks.ts",
+    "provider/stream-hooks.ts",
     "provider-catalog.ts",
     "provider-discovery.ts",
     "nanogpt-errors.ts",
+    "web-search/credentials.ts",
+    "web-search/results.ts",
+    "image/request.ts",
+    "image/response.ts",
     "image-generation-provider.ts",
     "web-search.ts",
     "onboard.ts",
+    "shared/guards.ts",
+    "shared/parse.ts",
+    "shared/http.ts",
     "openclaw.plugin.json",
     "README.md",
     "LICENSE.md"
@@ -85,7 +105,6 @@
     }
   },
   "dependencies": {
-    "grammy": "^1.42.0",
-    "jsonrepair": "^3.13.3"
+    "grammy": "^1.42.0"
   }
 }
