@@ -26,6 +26,7 @@
     "runtime.ts",
     "provider-catalog.ts",
     "provider-discovery.ts",
+    "nanogpt-errors.ts",
     "image-generation-provider.ts",
     "web-search.ts",
     "onboard.ts",

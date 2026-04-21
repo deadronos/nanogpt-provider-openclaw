@@ -5,8 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
 
 describe("nanogpt plugin entry", () => {
-  function getRegisteredProvider(overrideConfig: Record<string, unknown> = {}) {
+  function getRegisteredProviderHarness(overrideConfig: Record<string, unknown> = {}) {
     const providers: unknown[] = [];
+    const warn = vi.fn();
+    const info = vi.fn();
     plugin.register(
       {
         pluginConfig: { enableRepair: false, ...overrideConfig },
@@ -18,8 +20,8 @@ describe("nanogpt plugin entry", () => {
           },
         },
         logger: {
-          warn: vi.fn(),
-          info: vi.fn(),
+          warn,
+          info,
         },
         registerProvider(provider: unknown) {
           providers.push(provider);
@@ -28,87 +30,106 @@ describe("nanogpt plugin entry", () => {
         registerImageGenerationProvider() {},
       } as never,
     );
-    return providers[0] as {
-      applyNativeStreamingUsageCompat?: (ctx: {
-        providerConfig: {
-          api: string;
-          baseUrl?: string;
-          models?: Array<Record<string, unknown>>;
-        };
-      }) => unknown;
-      wrapStreamFn?: (ctx: {
-        streamFn?: (...args: unknown[]) => unknown;
-        modelId: string;
-        model?: {
-          id?: string;
-        };
-      }) => unknown;
-      normalizeToolSchemas?: (ctx: {
-        provider: string;
-        modelId?: string;
-        model?: {
-          id: string;
-          provider?: string;
-          api?: string;
-          baseUrl?: string;
-        };
-        tools: Array<Record<string, unknown>>;
-      }) => unknown;
-      inspectToolSchemas?: (ctx: {
-        provider: string;
-        modelId?: string;
-        model?: {
-          id: string;
-          provider?: string;
-          api?: string;
-          baseUrl?: string;
-        };
-        tools: Array<Record<string, unknown>>;
-      }) => unknown;
-      augmentModelCatalog?: (ctx: {
-        agentDir?: string;
-        config?: Record<string, unknown>;
-        env?: Record<string, string | undefined>;
-        entries: Array<Record<string, unknown>>;
-      }) => unknown;
-      normalizeResolvedModel?: (ctx: {
-        agentDir?: string;
-        provider: string;
-        modelId: string;
-        model: {
-          id: string;
-          name: string;
-          provider: string;
-          api: string;
-          baseUrl?: string;
-          reasoning: boolean;
-          input: Array<"text" | "image" | "document">;
-          cost: {
-            input: number;
-            output: number;
-            cacheRead: number;
-            cacheWrite: number;
+
+    return {
+      warn,
+      info,
+      provider: providers[0] as {
+        applyNativeStreamingUsageCompat?: (ctx: {
+          providerConfig: {
+            api: string;
+            baseUrl?: string;
+            models?: Array<Record<string, unknown>>;
           };
-          contextWindow: number;
-          maxTokens: number;
-          compat?: Record<string, unknown>;
-        };
-      }) => unknown;
-      resolveDynamicModel?: (ctx: {
-        agentDir?: string;
-        env?: Record<string, string | undefined>;
-        provider: string;
-        modelId: string;
-        modelRegistry: unknown;
-        providerConfig?: {
-          api?: string;
-          baseUrl?: string;
-          models?: Array<Record<string, unknown>>;
-        };
-      }) => unknown;
-      resolveUsageAuth?: unknown;
-      fetchUsageSnapshot?: unknown;
+        }) => unknown;
+        wrapStreamFn?: (ctx: {
+          streamFn?: (...args: unknown[]) => unknown;
+          modelId: string;
+          model?: {
+            id?: string;
+          };
+        }) => unknown;
+        normalizeToolSchemas?: (ctx: {
+          provider: string;
+          modelId?: string;
+          model?: {
+            id: string;
+            provider?: string;
+            api?: string;
+            baseUrl?: string;
+          };
+          tools: Array<Record<string, unknown>>;
+        }) => unknown;
+        inspectToolSchemas?: (ctx: {
+          provider: string;
+          modelId?: string;
+          model?: {
+            id: string;
+            provider?: string;
+            api?: string;
+            baseUrl?: string;
+          };
+          tools: Array<Record<string, unknown>>;
+        }) => unknown;
+        augmentModelCatalog?: (ctx: {
+          agentDir?: string;
+          config?: Record<string, unknown>;
+          env?: Record<string, string | undefined>;
+          entries: Array<Record<string, unknown>>;
+        }) => unknown;
+        normalizeResolvedModel?: (ctx: {
+          agentDir?: string;
+          provider: string;
+          modelId: string;
+          model: {
+            id: string;
+            name: string;
+            provider: string;
+            api: string;
+            baseUrl?: string;
+            reasoning: boolean;
+            input: Array<"text" | "image" | "document">;
+            cost: {
+              input: number;
+              output: number;
+              cacheRead: number;
+              cacheWrite: number;
+            };
+            contextWindow: number;
+            maxTokens: number;
+            compat?: Record<string, unknown>;
+          };
+        }) => unknown;
+        resolveDynamicModel?: (ctx: {
+          agentDir?: string;
+          env?: Record<string, string | undefined>;
+          provider: string;
+          modelId: string;
+          modelRegistry: unknown;
+          providerConfig?: {
+            api?: string;
+            baseUrl?: string;
+            models?: Array<Record<string, unknown>>;
+          };
+        }) => unknown;
+        resolveUsageAuth?: unknown;
+        fetchUsageSnapshot?: unknown;
+        matchesContextOverflowError?: (ctx: {
+          provider?: string;
+          modelId?: string;
+          errorMessage: string;
+        }) => boolean | undefined;
+        classifyFailoverReason?: (ctx: {
+          provider?: string;
+          modelId?: string;
+          errorMessage: string;
+        }) => string | null | undefined;
+      },
     };
+  }
+
+  function getRegisteredProvider(overrideConfig: Record<string, unknown> = {}) {
+    return getRegisteredProviderHarness(overrideConfig).provider;
   }
 
   function getRegisteredProviderWithAuth() {
@@ -196,6 +217,125 @@ describe("nanogpt plugin entry", () => {
     );
     expect((providers[0] as { applyNativeStreamingUsageCompat?: unknown }).applyNativeStreamingUsageCompat).toEqual(
       expect.any(Function),
+    );
+  });
+
+  it("classifies structured NanoGPT rate limits and logs the mapped reason once", () => {
+    const { provider, warn } = getRegisteredProviderHarness();
+    expect(provider.classifyFailoverReason).toEqual(expect.any(Function));
+
+    const errorMessage = JSON.stringify({
+      error: {
+        message: "Daily request limit exceeded",
+        type: "rate_limit_error",
+        code: "daily_rpd_limit_exceeded",
+      },
+      status: 429,
+    });
+
+    expect(
+      provider.classifyFailoverReason?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage,
+      }),
+    ).toBe("rate_limit");
+
+    expect(
+      provider.classifyFailoverReason?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage,
+      }),
+    ).toBe("rate_limit");
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("classified as rate_limit"),
+    );
+  });
+
+  it("warns and falls through when NanoGPT returns a recognized but unmapped error code", () => {
+    const { provider, warn } = getRegisteredProviderHarness();
+    expect(provider.classifyFailoverReason).toEqual(expect.any(Function));
+
+    expect(
+      provider.classifyFailoverReason?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage: JSON.stringify({
+          error: {
+            message: "Every configured fallback failed",
+            type: "server_error",
+            code: "all_fallbacks_failed",
+          },
+          status: 409,
+        }),
+      }),
+    ).toBeUndefined();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("recognized but not mapped"),
+    );
+  });
+
+  it("warns and falls through when NanoGPT returns an unknown structured error envelope", () => {
+    const { provider, warn } = getRegisteredProviderHarness();
+    expect(provider.classifyFailoverReason).toEqual(expect.any(Function));
+
+    expect(
+      provider.classifyFailoverReason?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage: JSON.stringify({
+          error: {
+            detail: "surprising payload",
+          },
+          status: 418,
+        }),
+      }),
+    ).toBeUndefined();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Unknown NanoGPT API error envelope"),
+    );
+  });
+
+  it("routes NanoGPT context length errors through the context overflow hook", () => {
+    const { provider, warn } = getRegisteredProviderHarness();
+    expect(provider.matchesContextOverflowError).toEqual(expect.any(Function));
+    expect(provider.classifyFailoverReason).toEqual(expect.any(Function));
+
+    const errorMessage = JSON.stringify({
+      error: {
+        message: "Context length exceeded",
+        type: "invalid_request_error",
+        code: "context_length_exceeded",
+      },
+      status: 400,
+    });
+
+    expect(
+      provider.matchesContextOverflowError?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage,
+      }),
+    ).toBe(true);
+
+    expect(
+      provider.classifyFailoverReason?.({
+        provider: "nanogpt",
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        errorMessage,
+      }),
+    ).toBeUndefined();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("context overflow handling"),
     );
   });
 
