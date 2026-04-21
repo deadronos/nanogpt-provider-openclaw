@@ -201,10 +201,37 @@ For example:
   - turns without tool definitions use the lighter live guard path instead of
     the full buffered collect/replay wrapper
 - `qwen/*` models use the same buffered repair path as Kimi for
-  malformed tool-call argument JSON, one-shot empty-turn retries, and
+  malformed tool-call argument JSON, one-shot invalid-turn retries, and
   best-effort salvage of structured tool payloads wrapped as assistant text,
-  including XML-ish `<function=...><parameter=...>` payloads leaked as plain
-  assistant text.
+  including XML-ish `<function=...><parameter=...>` payloads, `<invoke ...>`
+  wrapper payloads, self-closing known-tool attribute tags like
+  `<find name="find" pattern="..." glob="..."/>`, generic known-tool wrappers
+  like `<exec>...</exec>` or `<find>...</find>`, raw function-style payloads
+  like `find({"pattern":"*.ts"})` embedded in surrounding prose,
+  `exec({"command":"pwd"})`, leaked `<|mask_start|>...<|mask_end|>` control-token
+  placeholders, bare leaked tool names like `exec`, mixed prose plus broken
+  trailing tool placeholders, and wrong `stop` reasons on successful
+  tool-use turns surfaced through plain assistant text or malformed finish
+  metadata.
+- when a Qwen tool-enabled turn is clearly broken and the wrapper spends its
+  one retry, that retry also upgrades the request to `tool_choice: "required"`
+  when the original tool-choice mode was unset or `auto`, which helps the
+  vLLM-style empty-`tool_calls` failure mode reported upstream.
+- Kimi and Qwen salvage, sanitization, stop-reason normalization, and forced
+  retry rewrites emit structured OpenClaw info logs with `plugin: "nanogpt"`
+  and family-prefixed event names like `nanogpt_kimi_*` and
+  `nanogpt_qwen_*`, so the fallback is visible in gateway logs even when it
+  succeeds.
+- `qwen/*` tools also get request-time schema hints in
+  `normalizeToolSchemas`, plus `inspectToolSchemas` warnings when a tool has no
+  description, no named object properties, or another schema shape that makes
+  leaked plain-text tool wrappers hard to revalidate safely.
+- salvaged tool payloads are replayed when the tool name still matches the
+  active inventory and at least one recovered argument has a meaningful value;
+  the wrapper allows partial arguments (missing non-required fields) to avoid
+  discarding valid salvaged tool wrapper text; if no meaningful arguments are
+  recovered, it falls back to retry/sanitization instead of synthesizing a
+  risky tool call.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required
@@ -340,14 +367,17 @@ npm run typecheck
 
 ### Tool-call reliability debugging
 
-Enable OpenClaw verbose logging before running the plugin to emit structured
-info logs for Kimi-targeted repair, salvage, and retry decisions. GLM semantic
-tool diagnostics use the same structured reliability log envelope when the
-guard path spots a semantic issue, even without verbose logging.
+Enable OpenClaw verbose logging before running the plugin to inspect the
+broader reliability envelope. Kimi and Qwen repair, salvage, retry, and
+rewrite decisions now emit structured OpenClaw info logs with `plugin:
+"nanogpt"` and family-prefixed event names, and GLM semantic tool diagnostics
+use the same envelope with `nanogpt_glm_*` event names even without verbose
+logging.
 
-The debug logs are intended for diagnosing tool-call failures and include fields
-such as the model id, request API, repair stage, retry attempt, and whether a
-structured tool payload was salvaged from assistant text.
+The debug logs are intended for diagnosing tool-call failures and include
+fields such as the plugin name, family, model id, request API, repair stage,
+retry attempt, and whether a structured tool payload was salvaged from
+assistant text.
 
 ### Publish workflow
 
