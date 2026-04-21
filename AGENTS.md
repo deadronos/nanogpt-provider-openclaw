@@ -15,7 +15,7 @@
 - `provider-catalog.ts` — builds the `ModelProviderConfig` from NanoGPT discovery, routing, and request API selection.
 - `provider-discovery.ts` — lightweight provider discovery entry referenced by plugin metadata.
 - `runtime.ts` — NanoGPT HTTP/runtime logic: routing mode, base URLs, provider pricing, usage snapshots, request headers, and dynamic model resolution helpers.
-- `repair.ts` — malformed tool-call argument repair wrapped around the provider stream; start here for tool-call reliability work.
+- `index.ts` — provider registration plus tool-schema hooks, error classification, and the current pass-through `wrapStreamFn`.
 - `web-search.ts` — NanoGPT-backed `web_search` provider; follow its existing credential-resolution pattern.
 - `image-generation-provider.ts` — NanoGPT image generation and image edit provider.
 - `onboard.ts` — config onboarding/apply helpers.
@@ -28,7 +28,7 @@
 - Prefer OpenClaw SDK helpers for config and credential resolution instead of ad hoc env parsing in provider surfaces.
 - When changing user-visible config, auth, install, or capability behavior, keep `README.md` and `openclaw.plugin.json` aligned with the code.
 - When changing what ships, update `package.json`'s `files` list. Packaging tests expect `dist/package` to contain only the declared package surface.
-- For tool-call or stream-response bugs, inspect `repair.ts` and `repair.test.ts` before changing unrelated provider registration code.
+- For tool-call or stream-response bugs, inspect `index.ts` and `index.test.ts` around `wrapStreamFn`, `normalizeToolSchemas`, and `inspectToolSchemas` before changing unrelated provider registration code.
 
 ## Testing and packaging
 

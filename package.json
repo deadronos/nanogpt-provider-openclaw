@@ -85,7 +85,6 @@
     }
   },
   "dependencies": {
-    "grammy": "^1.42.0",
-    "jsonrepair": "^3.13.3"
+    "grammy": "^1.42.0"
   }
 }
