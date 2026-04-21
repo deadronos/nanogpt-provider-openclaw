@@ -19,7 +19,7 @@ import { createWebSearchProviderContractFields } from "openclaw/plugin-sdk/provi
 
 const NANOGPT_WEB_SEARCH_URL = "https://nano-gpt.com/api/web";
 const NANOGPT_WEB_SEARCH_CREDENTIAL_PATH = "plugins.entries.nanogpt.config.webSearch.apiKey";
-const NANOGPT_ENV_REF_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)\}$/;
+const NANOGPT_ENV_REF_PATTERN = /^\$\{(NANOGPT_API_KEY)\}$/;
 const NANOGPT_WEB_SEARCH_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -97,8 +97,12 @@ function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): 
       ? NANOGPT_ENV_REF_PATTERN.exec(searchConfig.apiKey.trim())?.[1]
       : undefined;
 
+  const rawCredentialValue = searchConfig?.apiKey;
+  // If it looks like an environment variable but didn't match the safe pattern, don't pass it through
+  const isUnsafeEnvRef = typeof rawCredentialValue === "string" && /^\$\{([A-Z][A-Z0-9_]*)\}$/.test(rawCredentialValue.trim());
+
   return resolveWebSearchProviderCredential({
-    credentialValue: (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ?? searchConfig?.apiKey,
+    credentialValue: (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ?? (isUnsafeEnvRef ? undefined : rawCredentialValue),
     path: "tools.web.search.apiKey",
     envVars: ["NANOGPT_API_KEY"],
   });
