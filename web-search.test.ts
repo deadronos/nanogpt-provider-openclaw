@@ -300,6 +300,16 @@ describe("nanogpt web search provider", () => {
     expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not resolve unauthorized environment variables", () => {
+    process.env.AWS_SECRET = "super-secret-aws-key";
+
+    const apiKey = __testing.resolveNanoGptWebSearchApiKey({
+      apiKey: "${AWS_SECRET}",
+    });
+
+    expect(apiKey).toBeUndefined();
+  });
+
   it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
     process.env.NANOGPT_API_KEY = "env-ref-key";
     postTrustedWebToolsJsonMock.mockImplementation(
