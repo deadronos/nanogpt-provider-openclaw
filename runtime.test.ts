@@ -1,3 +1,9 @@
+import {
+  NANOGPT_BASE_URL,
+  NANOGPT_SUBSCRIPTION_BASE_URL,
+  NANOGPT_PAID_BASE_URL,
+  NANOGPT_PERSONALIZED_BASE_URL,
+} from "./models.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   sanitizeApiKey,
@@ -10,6 +16,7 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptRequestApi,
   resolveRequestBaseUrl,
+  resolveCatalogBaseUrl,
   probeNanoGptSubscription,
   resolveNanoGptRoutingMode,
   resolveNanoGptUsageAuth,
@@ -219,16 +226,15 @@ describe("resolveRequestBaseUrl", () => {
 });
 
 describe("buildNanoGptRequestHeaders", () => {
-  it("adds provider override and billing override for subscription routing", () => {
+  it("adds provider override headers for paygo routing", () => {
     expect(
       buildNanoGptRequestHeaders({
         apiKey: "test-key",
         config: { provider: "openrouter" },
-        routingMode: "subscription",
+        routingMode: "paygo",
       }),
     ).toEqual({
       Authorization: "Bearer test-key",
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
   });
@@ -238,16 +244,27 @@ describe("buildNanoGptRequestHeaders", () => {
       buildNanoGptRequestHeaders({
         apiKey: "test-key\r\nInjected: true",
         config: { provider: "openrouter\r\nInjected: true" },
-        routingMode: "subscription",
+        routingMode: "paygo",
       }),
     ).toEqual({
       Authorization: "Bearer test-keyInjected: true",
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
     });
   });
 
-  it("does not set a paygo billing override when no provider override is configured", () => {
+  it("ignores provider override during subscription routing", () => {
+    expect(
+      buildNanoGptRequestHeaders({
+        apiKey: "test-key",
+        config: { provider: "openrouter" },
+        routingMode: "subscription",
+      }),
+    ).toEqual({
+      Authorization: "Bearer test-key",
+    });
+  });
+
+  it("does not add extra headers when no provider override is configured", () => {
     expect(
       buildNanoGptRequestHeaders({
         apiKey: "test-key",
@@ -897,5 +914,27 @@ describe("fetchNanoGptSelectedProviderPricing", () => {
       unit: "per_1k_tokens",
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveCatalogBaseUrl", () => {
+  it("maps subscription source to the subscription base URL", () => {
+    expect(resolveCatalogBaseUrl("subscription")).toBe(NANOGPT_SUBSCRIPTION_BASE_URL);
+  });
+
+  it("maps paid source to the paid base URL", () => {
+    expect(resolveCatalogBaseUrl("paid")).toBe(NANOGPT_PAID_BASE_URL);
+  });
+
+  it("maps personalized source to the personalized base URL", () => {
+    expect(resolveCatalogBaseUrl("personalized")).toBe(NANOGPT_PERSONALIZED_BASE_URL);
+  });
+
+  it("maps canonical source to the standard base URL", () => {
+    expect(resolveCatalogBaseUrl("canonical")).toBe(NANOGPT_BASE_URL);
+  });
+
+  it("maps an unknown/default source to the standard base URL", () => {
+    expect(resolveCatalogBaseUrl("unknown" as any)).toBe(NANOGPT_BASE_URL);
   });
 });

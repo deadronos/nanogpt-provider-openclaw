@@ -1,7 +1,13 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { NANOGPT_IMAGE_GENERATION_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
+import {
+  resolveProviderHttpRequestConfig,
+  postJsonRequest,
+  assertOkOrThrowHttpError,
+} from "openclaw/plugin-sdk/provider-http";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
+import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
 
 const NANOGPT_IMAGE_BASE_URL = "https://nano-gpt.com";
 const NANOGPT_DEFAULT_IMAGE_MODEL = "hidream";
@@ -72,6 +78,10 @@ function buildUnsupportedModelGuidance(model: string): string {
 export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
   return {
     id: NANOGPT_PROVIDER_ID,
+    isConfigured: ({ agentDir }) => isProviderApiKeyConfigured({
+      provider: NANOGPT_PROVIDER_ID,
+      agentDir,
+    }),
     label: "NanoGPT",
     defaultModel: NANOGPT_DEFAULT_IMAGE_MODEL,
     models: [...NANOGPT_IMAGE_MODELS],
@@ -134,31 +144,49 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         );
       }
 
-      const response = await fetch(`${NANOGPT_IMAGE_BASE_URL}/v1/images/generations`, {
-        method: "POST",
-        headers: {
+      const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveProviderHttpRequestConfig({
+        baseUrl: NANOGPT_IMAGE_BASE_URL,
+        defaultBaseUrl: NANOGPT_IMAGE_BASE_URL,
+        allowPrivateNetwork: false,
+        defaultHeaders: {
           Authorization: `Bearer ${sanitizeApiKey(auth.apiKey)}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(NANOGPT_IMAGE_GENERATION_TIMEOUT_MS),
+        provider: NANOGPT_PROVIDER_ID,
+        capability: "image",
+        transport: "http",
       });
 
-      if (!response.ok) {
-        const detail = await response.text();
-        const detailMessage = detail.trim();
-        if (
-          response.status === 400 &&
-          /unknown model|invalid model|model/i.test(detailMessage)
-        ) {
-          throw new Error(
-            `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detailMessage}`,
-          );
+      const { response, release } = await postJsonRequest({
+        url: `${baseUrl}/v1/images/generations`,
+        headers,
+        body,
+        timeoutMs: req.timeoutMs ?? NANOGPT_IMAGE_GENERATION_TIMEOUT_MS,
+        fetchFn: fetch,
+        allowPrivateNetwork,
+        dispatcherPolicy,
+      });
+
+      let payload: NanoGptImageApiResponse;
+      try {
+        if (!response.ok) {
+          const detail = (await response.clone().text()).trim();
+          if (
+            response.status === 400 &&
+            /unknown model|invalid model|model/i.test(detail)
+          ) {
+            throw new Error(
+              `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detail}`,
+            );
+          }
         }
-        throw new Error(`NanoGPT image generation failed (${response.status}): ${detail}`);
+
+        await assertOkOrThrowHttpError(response, "NanoGPT image generation failed");
+        payload = (await response.json()) as NanoGptImageApiResponse;
+      } finally {
+        await release();
       }
 
-      const payload = (await response.json()) as NanoGptImageApiResponse;
       const images = (payload.data ?? [])
         .map((entry, index) => {
           if (!entry.b64_json) {

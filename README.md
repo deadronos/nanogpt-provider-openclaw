@@ -113,8 +113,12 @@ The same key is used for:
 - NanoGPT web search
 - NanoGPT image generation
 
-The plugin reads `NANOGPT_API_KEY` by default. Web search can also use a
-dedicated config credential path described below.
+When you onboard NanoGPT auth with `openclaw onboard --nanogpt-api-key ...`
+or the interactive NanoGPT provider setup, the plugin also provisions the
+NanoGPT web-search credential path so the same auth works for text,
+`web_search`, and image generation. The plugin reads `NANOGPT_API_KEY` by
+default, and you can still override web search explicitly with the dedicated
+credential path described below.
 
 ## Text provider configuration
 
@@ -127,9 +131,9 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
       nanogpt: {
         enabled: true,
         config: {
-          routingMode: "auto",
-          catalogSource: "auto",
-          requestApi: "responses",
+          routingMode: "paygo",
+          catalogSource: "canonical",
+          requestApi: "completions",
           provider: "openrouter"
         }
       }
@@ -172,7 +176,7 @@ For example:
 - `routingMode`: `auto`, `subscription`, `paygo`
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `responses`, `completions`
-- `provider`: optional NanoGPT upstream provider id
+- `provider`: optional NanoGPT upstream provider id for paygo provider selection
 
 ### Behavior notes
 
@@ -185,8 +189,9 @@ For example:
 - `requestApi: "responses"` uses OpenAI Responses transport (experimental, requires models compatible with Responses API).
 - `requestApi: "completions"` keeps OpenAI Chat Completions transport.
 - `requestApi: "auto"` defaults to Completions for broader model compatibility; set to `"responses"` explicitly if your models support the Responses API.
-- Completions-mode models are still marked with streaming usage compatibility so
-  OpenClaw requests `stream_options.include_usage` automatically.
+- Completions-mode models with no explicit streaming-usage compat flag are
+  marked with streaming usage compatibility so OpenClaw requests
+  `stream_options.include_usage` automatically.
 - `moonshotai/kimi*` models keep tool support enabled and get extra reliability
   handling in the stream wrapper:
   - malformed tool-call argument JSON repair
@@ -202,9 +207,10 @@ For example:
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
-- `provider` adds NanoGPT's `X-Provider` override header for text requests.
-- if `provider` is set while the request would otherwise use subscription
-  routing, the plugin also sets `X-Billing-Mode: paygo`
+- `provider` adds NanoGPT's `X-Provider` override header only for paygo-routed
+  text requests.
+- subscription-routed text requests ignore `provider` so the plugin does not
+  push subscription calls onto a separate paygo billing path.
 - `requestApi: "responses"` on subscription routing uses NanoGPT's base API
   endpoint (`/api/v1`) rather than the subscription completions endpoint, so
   treat it as a separate compatibility/billing path from standard subscription
@@ -214,9 +220,10 @@ For example:
 
 By default, the plugin exposes pricing from NanoGPT's detailed model catalog.
 
-When `provider` is set, the plugin also tries to align exposed `models[].cost`
-with NanoGPT's provider-selection pricing endpoint so the model cost shown to
-OpenClaw better reflects the billed price for the selected upstream provider.
+When `provider` is set and text routing resolves to paygo, the plugin also
+tries to align exposed `models[].cost` with NanoGPT's provider-selection
+pricing endpoint so the model cost shown to OpenClaw better reflects the billed
+price for the selected upstream provider.
 
 If NanoGPT does not expose provider-selection pricing for a model, the plugin
 falls back to the default catalog pricing instead of failing model discovery.
@@ -244,6 +251,8 @@ direct `POST /api/web` endpoint.
 Web search resolves credentials in this order:
 
 - `plugins.entries.nanogpt.config.webSearch.apiKey`
+  - normal NanoGPT auth/onboarding now provisions this path automatically
+  - you can still set it manually if you want a dedicated web-search override
 - `NANOGPT_API_KEY`
 
 `plugins.entries.nanogpt.config.webSearch.apiKey` is the web-search provider's

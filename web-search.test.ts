@@ -1,4 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { postTrustedWebToolsJsonMock } = vi.hoisted(() => ({
+  postTrustedWebToolsJsonMock: vi.fn(),
+}));
+
+vi.mock("openclaw/plugin-sdk/provider-web-search", async () => {
+  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/provider-web-search")>(
+    "openclaw/plugin-sdk/provider-web-search",
+  );
+  return {
+    ...actual,
+    postTrustedWebToolsJson: postTrustedWebToolsJsonMock,
+  };
+});
+
 import plugin from "./index.js";
 import { clearEnvKeys, restoreEnv, snapshotEnv } from "./test-env.js";
 import { createNanoGptWebSearchProvider, __testing } from "./web-search.js";
@@ -10,6 +25,7 @@ let webSearchEnvSnapshot: Record<string, string | undefined> | undefined;
 beforeEach(() => {
   webSearchEnvSnapshot = snapshotEnv(WEB_SEARCH_ENV_KEYS);
   clearEnvKeys(WEB_SEARCH_ENV_KEYS);
+  postTrustedWebToolsJsonMock.mockReset();
 });
 
 describe("nanogpt web search provider", () => {
@@ -34,6 +50,35 @@ describe("nanogpt web search provider", () => {
     });
   });
 
+  it("round-trips credentials through the normal provider contract fields", () => {
+    const provider = createNanoGptWebSearchProvider();
+    const searchConfig: Record<string, unknown> = {};
+    const config: Record<string, unknown> = {};
+
+    provider.setCredentialValue(searchConfig, "top-level-key");
+    provider.setConfiguredCredentialValue?.(config as never, "configured-key");
+
+    expect(provider.getCredentialValue(searchConfig)).toBe("top-level-key");
+    expect(provider.getConfiguredCredentialValue?.(config as never)).toBe("configured-key");
+    expect(searchConfig).toMatchObject({
+      apiKey: "top-level-key",
+    });
+    expect(config).toMatchObject({
+      plugins: {
+        entries: {
+          nanogpt: {
+            enabled: true,
+            config: {
+              webSearch: {
+                apiKey: "configured-key",
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
   it("returns a missing-key payload when no NanoGPT key is configured", async () => {
     const provider = createNanoGptWebSearchProvider();
     const tool = provider.createTool({
@@ -47,6 +92,7 @@ describe("nanogpt web search provider", () => {
     await expect(tool.execute({ query: "nanogpt docs" })).resolves.toMatchObject({
       error: "missing_nanogpt_api_key",
     });
+    expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
 
   it("rejects search queries that exceed the maximum length", async () => {
@@ -75,34 +121,40 @@ describe("nanogpt web search provider", () => {
     await expect(tool.execute({ query: longQuery })).rejects.toThrow(
       "Search query is too long (maximum 2000 characters)."
     );
+    expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
 
-  it("normalizes NanoGPT search results and forwards domain filters", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: [
+  it("normalizes NanoGPT search results and forwards domain filters through the trusted helper", async () => {
+    postTrustedWebToolsJsonMock.mockImplementation(
+      async (
+        params: Record<string, unknown>,
+        parseResponse: (response: Response) => Promise<unknown>,
+      ) =>
+        await parseResponse(
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  title: "NanoGPT Docs",
+                  url: "https://docs.nano-gpt.com/",
+                  snippet: "API reference and integration guides.",
+                },
+              ],
+              metadata: {
+                query: "nanogpt docs",
+                provider: "linkup",
+                depth: "standard",
+                outputType: "searchResults",
+                cost: 0.006,
+              },
+            }),
             {
-              title: "NanoGPT Docs",
-              url: "https://docs.nano-gpt.com/",
-              snippet: "API reference and integration guides.",
+              status: 200,
+              headers: { "Content-Type": "application/json" },
             },
-          ],
-          metadata: {
-            query: "nanogpt docs",
-            provider: "linkup",
-            depth: "standard",
-            outputType: "searchResults",
-            cost: 0.006,
-          },
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
+          ),
+        ),
     );
-    vi.stubGlobal("fetch", fetchSpy);
 
     const provider = createNanoGptWebSearchProvider();
     const tool = provider.createTool({
@@ -131,23 +183,20 @@ describe("nanogpt web search provider", () => {
       excludeDomains: ["example.com"],
     });
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://nano-gpt.com/api/web");
-    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
-      method: "POST",
-      headers: {
-        Authorization: "Bearer test-key",
-        "Content-Type": "application/json",
-        Accept: "application/json",
+    expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
+    expect(postTrustedWebToolsJsonMock.mock.calls[0]?.[0]).toMatchObject({
+      url: "https://nano-gpt.com/api/web",
+      apiKey: "test-key",
+      timeoutSeconds: 30,
+      errorLabel: "NanoGPT web search",
+      body: {
+        query: "nanogpt docs",
+        provider: "linkup",
+        depth: "standard",
+        outputType: "searchResults",
+        includeDomains: ["docs.nano-gpt.com"],
+        excludeDomains: ["example.com"],
       },
-    });
-    expect(JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body))).toMatchObject({
-      query: "nanogpt docs",
-      provider: "linkup",
-      depth: "standard",
-      outputType: "searchResults",
-      includeDomains: ["docs.nano-gpt.com"],
-      excludeDomains: ["example.com"],
     });
     expect(result).toMatchObject({
       query: "nanogpt docs",
@@ -161,6 +210,148 @@ describe("nanogpt web search provider", () => {
       ],
     });
   });
+
+  it("prefers the dedicated NanoGPT web_search credential over NANOGPT_API_KEY", async () => {
+    process.env.NANOGPT_API_KEY = "env-key";
+    postTrustedWebToolsJsonMock.mockImplementation(
+      async (
+        params: Record<string, unknown>,
+        parseResponse: (response: Response) => Promise<unknown>,
+      ) => {
+        expect(params).toMatchObject({
+          apiKey: "config-key",
+        });
+        return await parseResponse(
+          new Response(JSON.stringify({ data: [], metadata: {} }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "config-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    await tool.execute({ query: "nanogpt docs" });
+    expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefers the configured NanoGPT credential over a top-level search apiKey", async () => {
+    postTrustedWebToolsJsonMock.mockImplementation(
+      async (
+        params: Record<string, unknown>,
+        parseResponse: (response: Response) => Promise<unknown>,
+      ) => {
+        expect(params).toMatchObject({
+          apiKey: "configured-key",
+        });
+        return await parseResponse(
+          new Response(JSON.stringify({ data: [], metadata: {} }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "configured-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {
+        apiKey: "top-level-key",
+      },
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    await tool.execute({ query: "nanogpt docs" });
+    expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
+    process.env.NANOGPT_API_KEY = "env-ref-key";
+    postTrustedWebToolsJsonMock.mockImplementation(
+      async (
+        params: Record<string, unknown>,
+        parseResponse: (response: Response) => Promise<unknown>,
+      ) => {
+        expect(params).toMatchObject({
+          apiKey: "env-ref-key",
+        });
+        return await parseResponse(
+          new Response(
+            JSON.stringify({
+              data: [],
+              metadata: {
+                query: "nanogpt docs",
+              },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        );
+      },
+    );
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "${NANOGPT_API_KEY}",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    await tool.execute({ query: "nanogpt docs" });
+    expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
+  });
+
   it("filters out results with unsafe or invalid URLs", () => {
     expect(
       __testing.normalizeNanoGptWebSearchResult({

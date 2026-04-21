@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildNanoGptProvider } from "./provider-catalog.js";
+import { NANOGPT_FALLBACK_MODELS } from "./models.js";
 import { resetNanoGptRuntimeState } from "./runtime.js";
 
 afterEach(() => {
@@ -217,7 +218,7 @@ describe("buildNanoGptProvider", () => {
     expect(secondProvider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
   });
 
-  it("adds provider override headers and paygo billing override for subscription routing", async () => {
+  it("adds provider override headers for paygo routing", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -229,14 +230,13 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "test-key",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter",
       },
     });
 
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
   });
@@ -253,16 +253,36 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "test-key",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter\r\nInjected: true",
       },
     });
 
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouterInjected: true",
     });
+  });
+
+  it("ignores provider overrides on subscription routing to avoid paygo billing errors", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "subscription",
+        catalogSource: "subscription",
+        provider: "openrouter",
+      },
+    });
+
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/subscription/v1");
+    expect(provider.headers).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("omits Authorization from provider config so runtime auth can inject the real key", async () => {
@@ -297,8 +317,8 @@ describe("buildNanoGptProvider", () => {
     const provider = await buildNanoGptProvider({
       apiKey: "NANOGPT_API_KEY",
       pluginConfig: {
-        routingMode: "subscription",
-        catalogSource: "subscription",
+        routingMode: "paygo",
+        catalogSource: "canonical",
         provider: "openrouter",
       },
     });
@@ -307,7 +327,6 @@ describe("buildNanoGptProvider", () => {
 
     expect(provider.apiKey).toBe("NANOGPT_API_KEY");
     expect(provider.headers).toEqual({
-      "X-Billing-Mode": "paygo",
       "X-Provider": "openrouter",
     });
     expect(serializedProvider).not.toContain("Authorization");
@@ -371,33 +390,27 @@ describe("buildNanoGptProvider", () => {
     expect(provider.models[0]?.cost.cacheWrite).toBe(0);
   });
 
-  it("provides helpful error when responses API has no models but completions does", async () => {
+  it("keeps fallback discovery soft when responses catalog lookup fails", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    // First call (responses discovery): fail → returns fallback models
     fetchMock.mockResolvedValueOnce({
       ok: false,
       json: async () => ({}),
     });
 
-    // Second call (completions validation check): succeed → returns real models
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: [{ id: "gpt-5.4-mini", displayName: "GPT-5.4 Mini" }],
-      }),
+    const provider = await buildNanoGptProvider({
+      apiKey: "test-key",
+      pluginConfig: {
+        routingMode: "paygo",
+        catalogSource: "canonical",
+        requestApi: "responses",
+      },
     });
 
-    await expect(
-      buildNanoGptProvider({
-        apiKey: "test-key",
-        pluginConfig: {
-          routingMode: "paygo",
-          catalogSource: "canonical",
-          requestApi: "responses",
-        },
-      }),
-    ).rejects.toThrow(/Responses API endpoint.*Chat Completions API/);
+    expect(provider.api).toBe("openai-responses");
+    expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
+    expect(provider.models.map((model) => model.id)).toEqual(NANOGPT_FALLBACK_MODELS.map((model) => model.id));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

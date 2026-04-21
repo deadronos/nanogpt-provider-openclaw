@@ -2,7 +2,7 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
 import { readConfiguredProviderCatalogEntries } from "openclaw/plugin-sdk/provider-catalog-shared";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
-import { applyNanoGptProviderConfig } from "./onboard.js";
+import { applyNanoGptProviderAuthConfig, applyNanoGptProviderConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider, readNanoGptModelsJsonSnapshot } from "./provider-catalog.js";
 import {
@@ -37,6 +37,84 @@ type NanoGptCatalogEntry = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const NANOGPT_API_KEY_FLAG_NAME = "--nanogpt-api-key" as const;
+const NANOGPT_API_KEY_ENV_VAR = "NANOGPT_API_KEY" as const;
+const NANOGPT_API_KEY_OPTION_KEY = "nanogptApiKey" as const;
+
+type NanoGptApiKeyAuthMethod = ReturnType<typeof createProviderApiKeyAuthMethod>;
+type NanoGptApiKeyAuthContext = Parameters<NanoGptApiKeyAuthMethod["run"]>[0];
+type NanoGptApiKeyNonInteractiveContext = Parameters<
+  NonNullable<NanoGptApiKeyAuthMethod["runNonInteractive"]>
+>[0];
+
+function resolveNanoGptApiKeyOptionValue(ctx: NanoGptApiKeyNonInteractiveContext): string | undefined {
+  const opts = ctx.opts as Record<string, unknown> | undefined;
+  return typeof opts?.[NANOGPT_API_KEY_OPTION_KEY] === "string"
+    ? opts[NANOGPT_API_KEY_OPTION_KEY]
+    : undefined;
+}
+
+function createNanoGptApiKeyAuthMethod(): NanoGptApiKeyAuthMethod {
+  const baseMethod = createProviderApiKeyAuthMethod({
+    providerId: NANOGPT_PROVIDER_ID,
+    methodId: "api-key",
+    label: "NanoGPT API key",
+    hint: "Subscription or pay-as-you-go",
+    optionKey: NANOGPT_API_KEY_OPTION_KEY,
+    flagName: NANOGPT_API_KEY_FLAG_NAME,
+    envVar: NANOGPT_API_KEY_ENV_VAR,
+    promptMessage: "Enter NanoGPT API key",
+    expectedProviders: [NANOGPT_PROVIDER_ID],
+    applyConfig: (cfg) => applyNanoGptProviderConfig(cfg),
+    wizard: {
+      choiceId: "nanogpt-api-key",
+      choiceLabel: "NanoGPT API key",
+      groupId: "nanogpt",
+      groupLabel: "NanoGPT",
+      groupHint: "Subscription or pay-as-you-go",
+    },
+  });
+  const runNonInteractive = baseMethod.runNonInteractive;
+
+  return {
+    ...baseMethod,
+    run: async (ctx: NanoGptApiKeyAuthContext) => {
+      const result = await baseMethod.run(ctx);
+      return {
+        ...result,
+        configPatch: applyNanoGptProviderAuthConfig(
+          result.configPatch ?? ctx.config,
+          result.profiles[0]?.credential,
+        ),
+      };
+    },
+    runNonInteractive: runNonInteractive
+      ? async (ctx: NanoGptApiKeyNonInteractiveContext) => {
+          const next = await runNonInteractive(ctx);
+          if (!next) {
+            return next;
+          }
+
+          const resolved = await ctx.resolveApiKey({
+            provider: NANOGPT_PROVIDER_ID,
+            flagValue: resolveNanoGptApiKeyOptionValue(ctx),
+            flagName: NANOGPT_API_KEY_FLAG_NAME,
+            envVar: NANOGPT_API_KEY_ENV_VAR,
+          });
+          if (!resolved || resolved.source === "profile") {
+            return next;
+          }
+
+          const credential = ctx.toApiKeyCredential({
+            provider: NANOGPT_PROVIDER_ID,
+            resolved,
+          });
+          return credential ? applyNanoGptProviderAuthConfig(next, credential) : next;
+        }
+      : undefined,
+  };
 }
 
 function mergeNanoGptCatalogEntries(...groups: NanoGptCatalogEntry[][]): NanoGptCatalogEntry[] {
@@ -145,7 +223,7 @@ function applyNanoGptNativeStreamingUsageCompat(
 
   let changed = false;
   const models = providerConfig.models.map((model) => {
-    if (model.compat?.supportsUsageInStreaming === true) {
+    if (model.compat?.supportsUsageInStreaming !== undefined) {
       return model;
     }
     changed = true;
@@ -247,27 +325,7 @@ export default definePluginEntry({
       label: "NanoGPT",
       docsPath: "/providers/models",
       envVars: ["NANOGPT_API_KEY"],
-      auth: [
-        createProviderApiKeyAuthMethod({
-          providerId: NANOGPT_PROVIDER_ID,
-          methodId: "api-key",
-          label: "NanoGPT API key",
-          hint: "Subscription or pay-as-you-go",
-          optionKey: "nanogptApiKey",
-          flagName: "--nanogpt-api-key",
-          envVar: "NANOGPT_API_KEY",
-          promptMessage: "Enter NanoGPT API key",
-          expectedProviders: [NANOGPT_PROVIDER_ID],
-          applyConfig: (cfg) => applyNanoGptProviderConfig(cfg),
-          wizard: {
-            choiceId: "nanogpt-api-key",
-            choiceLabel: "NanoGPT API key",
-            groupId: "nanogpt",
-            groupLabel: "NanoGPT",
-            groupHint: "Subscription or pay-as-you-go",
-          },
-        }),
-      ],
+      auth: [createNanoGptApiKeyAuthMethod()],
       catalog: {
         order: "simple",
         run: async (ctx: ProviderCatalogContext) => {

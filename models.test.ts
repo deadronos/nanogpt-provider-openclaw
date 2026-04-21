@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+import { snapshotEnv, restoreEnv, setEnvValue } from "./test-env.js";
 import {
   NANOGPT_DEFAULT_MODEL_REF,
   NANOGPT_FALLBACK_MODELS,
@@ -6,6 +9,7 @@ import {
   applyNanoGptProviderPricing,
   buildNanoGptModelDefinition,
   shouldAliasNanoGptWebFetchTool,
+  resolveNanoGptAgentDir,
 } from "./models.js";
 
 describe("model constants", () => {
@@ -134,5 +138,53 @@ describe("shouldAliasNanoGptWebFetchTool", () => {
     expect(shouldAliasNanoGptWebFetchTool("moonshotai/kimi-k2.5:thinking")).toBe(false);
     expect(shouldAliasNanoGptWebFetchTool("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(false);
     expect(shouldAliasNanoGptWebFetchTool("gpt-5.4-mini")).toBe(false);
+  });
+});
+
+describe("resolveNanoGptAgentDir", () => {
+  let envSnapshot: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    envSnapshot = snapshotEnv(["OPENCLAW_AGENT_DIR", "PI_CODING_AGENT_DIR", "OPENCLAW_STATE_DIR", "OPENCLAW_HOME", "HOME"]);
+  });
+
+  afterEach(() => {
+    restoreEnv(envSnapshot);
+    vi.restoreAllMocks();
+  });
+
+  it("returns explicit agentDir if provided and not empty", () => {
+    expect(resolveNanoGptAgentDir("/custom/agent/dir")).toBe("/custom/agent/dir");
+    expect(resolveNanoGptAgentDir("  /custom/agent/dir  ")).toBe("/custom/agent/dir");
+  });
+
+  it("prefers OPENCLAW_AGENT_DIR from env over other options", () => {
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_AGENT_DIR: "/env/agent/dir" })).toBe("/env/agent/dir");
+  });
+
+  it("falls back to PI_CODING_AGENT_DIR if OPENCLAW_AGENT_DIR is missing", () => {
+    expect(resolveNanoGptAgentDir(undefined, { PI_CODING_AGENT_DIR: "/pi/agent/dir" })).toBe("/pi/agent/dir");
+  });
+
+  it("uses OPENCLAW_STATE_DIR to build path if agent dirs are missing", () => {
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_STATE_DIR: "/state/dir" })).toBe(path.join("/state/dir", "agents", "default", "agent"));
+  });
+
+  it("uses OPENCLAW_HOME to build path if state dir is missing", () => {
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_HOME: "/claw/home" })).toBe(path.join("/claw/home", ".openclaw", "agents", "default", "agent"));
+  });
+
+  it("uses HOME to build path if OPENCLAW_HOME is missing", () => {
+    expect(resolveNanoGptAgentDir(undefined, { HOME: "/user/home" })).toBe(path.join("/user/home", ".openclaw", "agents", "default", "agent"));
+  });
+
+  it("uses os.homedir() to build path if HOME is missing", () => {
+    vi.spyOn(os, 'homedir').mockReturnValue('/mock/os/home');
+    expect(resolveNanoGptAgentDir(undefined, {})).toBe(path.join("/mock/os/home", ".openclaw", "agents", "default", "agent"));
+  });
+
+  it("uses process.env by default if env is not provided", () => {
+    setEnvValue("OPENCLAW_AGENT_DIR", "/global/agent/dir");
+    expect(resolveNanoGptAgentDir()).toBe("/global/agent/dir");
   });
 });
