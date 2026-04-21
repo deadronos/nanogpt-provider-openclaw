@@ -79,7 +79,7 @@ export default definePluginEntry({
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
-      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx),
+      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, api.logger),
       matchesContextOverflowError: (ctx) => matchesContextOverflowErrorHook(ctx),
       classifyFailoverReason: (ctx) => classifyFailoverReasonHook(ctx),
     });
