@@ -84,8 +84,8 @@ function normalizeNanoGptRepairModelId(modelId: string): string {
   return normalized.startsWith("nanogpt/") ? normalized.slice("nanogpt/".length) : normalized;
 }
 
-function isQwenThinkingModel(normalizedModelId: string): boolean {
-  return normalizedModelId.startsWith("qwen/") && /(?:[:/-])thinking(?:$|[-/])/.test(normalizedModelId);
+function isQwenModel(normalizedModelId: string): boolean {
+  return normalizedModelId.startsWith("qwen/");
 }
 
 function resolveNanoGptRepairFamily(modelId?: string): NanoGptRepairFamily {
@@ -100,7 +100,7 @@ function resolveNanoGptRepairFamily(modelId?: string): NanoGptRepairFamily {
   if (normalized.startsWith("zai-org/glm")) {
     return "glm";
   }
-  if (isQwenThinkingModel(normalized)) {
+  if (isQwenModel(normalized)) {
     return "qwen";
   }
   return "other";
@@ -493,11 +493,149 @@ function extractPseudoToolWrapperName(attributes: string): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+type XmlParameterBlock = {
+  name: string;
+  value: unknown;
+  start: number;
+  end: number;
+};
+
+function removeTextRanges(text: string, ranges: Array<Pick<XmlParameterBlock, "start" | "end">>): string {
+  if (ranges.length === 0) {
+    return text;
+  }
+
+  let cursor = 0;
+  let stripped = "";
+  for (const range of [...ranges].sort((left, right) => left.start - right.start)) {
+    stripped += text.slice(cursor, range.start);
+    cursor = range.end;
+  }
+  stripped += text.slice(cursor);
+  return stripped;
+}
+
+function findMatchingXmlParameterClose(text: string, contentStartIndex: number): number {
+  let cursor = contentStartIndex;
+  let depth = 1;
+
+  while (cursor < text.length) {
+    const nextOpen = text.indexOf("<parameter=", cursor);
+    const nextClose = text.indexOf("</parameter>", cursor);
+    if (nextClose === -1) {
+      return -1;
+    }
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth += 1;
+      cursor = nextOpen + "<parameter=".length;
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      return nextClose;
+    }
+    cursor = nextClose + "</parameter>".length;
+  }
+
+  return -1;
+}
+
+function parseXmlStyleParameterBlocks(text: string): XmlParameterBlock[] {
+  const blocks: XmlParameterBlock[] = [];
+  const openPattern = /<parameter=([^>\n]+)>/gi;
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    openPattern.lastIndex = cursor;
+    const match = openPattern.exec(text);
+    if (!match || match.index < cursor) {
+      break;
+    }
+
+    const rawName = match[1]?.trim();
+    if (!rawName) {
+      cursor = match.index + match[0].length;
+      continue;
+    }
+
+    const contentStart = match.index + match[0].length;
+    const closeStart = findMatchingXmlParameterClose(text, contentStart);
+    if (closeStart === -1) {
+      cursor = contentStart;
+      continue;
+    }
+
+    const closeEnd = closeStart + "</parameter>".length;
+    const rawContent = text.slice(contentStart, closeStart);
+    const nestedBlocks = parseXmlStyleParameterBlocks(rawContent);
+    const outsideNestedText = removeTextRanges(rawContent, nestedBlocks).trim();
+    const value =
+      nestedBlocks.length > 0 && outsideNestedText.length === 0
+        ? Object.fromEntries(nestedBlocks.map((block) => [block.name, block.value]))
+        : rawContent.trim();
+
+    blocks.push({
+      name: rawName,
+      value,
+      start: match.index,
+      end: closeEnd,
+    });
+    cursor = closeEnd;
+  }
+
+  return blocks;
+}
+
+function extractXmlStyleFunctionCallCandidates(text: string): string[] {
+  const candidates = new Set<string>();
+  const functionPattern = /<function=([^>\n]+)>/gi;
+  const closingSentinels = ["</tool_call>", "</function>", "</execution>", "<function="] as const;
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  for (const match of trimmed.matchAll(functionPattern)) {
+    const rawName = match[1]?.trim();
+    if (!rawName) {
+      continue;
+    }
+
+    const bodyStart = (match.index ?? 0) + match[0].length;
+    let bodyEnd = trimmed.length;
+    for (const sentinel of closingSentinels) {
+      const nextIndex = trimmed.indexOf(sentinel, bodyStart);
+      if (nextIndex !== -1) {
+        bodyEnd = Math.min(bodyEnd, nextIndex);
+      }
+    }
+
+    const body = trimmed.slice(bodyStart, bodyEnd);
+    const parameterBlocks = parseXmlStyleParameterBlocks(body);
+    if (parameterBlocks.length === 0) {
+      continue;
+    }
+
+    candidates.add(
+      JSON.stringify({
+        name: rawName,
+        arguments: Object.fromEntries(parameterBlocks.map((block) => [block.name, block.value])),
+      }),
+    );
+  }
+
+  return [...candidates];
+}
+
 function extractToolPayloadCandidates(text: string): string[] {
   const candidates = new Set<string>(extractRawToolPayloadCandidates(text));
   const trimmed = text.trim();
   if (!trimmed) {
     return [...candidates];
+  }
+
+  for (const candidate of extractXmlStyleFunctionCallCandidates(trimmed)) {
+    candidates.add(candidate);
   }
 
   const pseudoToolWrapperPattern = /<([a-zA-Z][\w-]*)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
