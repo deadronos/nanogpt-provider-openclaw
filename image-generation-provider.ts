@@ -167,8 +167,8 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         dispatcherPolicy,
       });
 
+      let payload: NanoGptImageApiResponse;
       try {
-        // Surface curated model guidance when NanoGPT rejects an unknown model id
         if (!response.ok) {
           const detail = (await response.clone().text()).trim();
           if (
@@ -182,11 +182,11 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         }
 
         await assertOkOrThrowHttpError(response, "NanoGPT image generation failed");
+        payload = (await response.json()) as NanoGptImageApiResponse;
       } finally {
         await release();
       }
 
-      const payload = (await response.json()) as NanoGptImageApiResponse;
       const images = (payload.data ?? [])
         .map((entry, index) => {
           if (!entry.b64_json) {
