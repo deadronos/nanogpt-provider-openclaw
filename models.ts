@@ -18,11 +18,19 @@ export type NanoGptCatalogSource =
   | "paid"
   | "personalized";
 
+export interface NanoGptRepairConfig {
+  kimiRepair?: boolean;
+  glmRepair?: boolean;
+  qwenRepair?: boolean;
+  otherRepair?: boolean;
+}
+
 export interface NanoGptPluginConfig {
   routingMode?: NanoGptRoutingMode;
   catalogSource?: NanoGptCatalogSource;
   requestApi?: "completions" | "responses" | "auto";
   provider?: string;
+  enableRepair?: boolean | NanoGptRepairConfig;
 }
 
 export interface NanoGptModelCapabilities {

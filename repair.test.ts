@@ -1332,6 +1332,61 @@ describe("wrapStreamWithToolCallRepair", () => {
     ]);
   });
 
+  it("salvages <tools> wrapper with JSON tool call payload for Qwen models", async () => {
+    const toolPayload =
+      '<tools>{"name": "read", "arguments": {"path": "src/index.ts"}}</tools>';
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          model: "qwen/Qwen3.6-35B-A3B",
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: {
+              type: "object",
+              properties: {
+                path: { type: "string" },
+              },
+              required: ["path"],
+            },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "read",
+        arguments: {
+          path: "src/index.ts",
+        },
+      },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+  });
+
   it("rejects salvaged tool payloads whose tool names are not in the active inventory", async () => {
     const toolPayload = JSON.stringify({
       tool_calls: [

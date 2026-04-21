@@ -67,7 +67,7 @@ const TOOL_CALL_CONTAINER_KEYS = ["tool_calls", "toolCalls", "tools", "calls", "
 const TOOL_ARGUMENT_KEYS = ["arguments", "args", "parameters", "input"] as const;
 const MODEL_SPECIAL_TOKEN_RE = /<[|｜][^|｜]*[|｜]>/g;
 const THINKING_PLACEHOLDER_RE = /^thinking(?:\.\.\.)?$/i;
-const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall", "find", "glob", "read", "write", "exec", "bash", "run"]);
+const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall", "tools", "find", "glob", "read", "write", "exec", "bash", "run"]);
 const PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN = /\bname\s*=\s*(?:"([^"]+)"|'([^']+)')/i;
 const TOOL_CALL_RESERVED_KEYS = new Set<string>([
   "id",
@@ -1402,7 +1402,16 @@ function extractToolPayloadCandidates(
 
       const parsedInner = parseJsonCandidate(innerCandidate);
       if (isRecord(parsedInner)) {
-        const mergedArgs = { ...allAttrs, ...parsedInner };
+        // If the body is a complete tool call payload with name/arguments,
+        // extract arguments directly and only merge non-reserved keys.
+        const innerArguments =
+          firstDefinedProperty(parsedInner, TOOL_ARGUMENT_KEYS) ?? parsedInner;
+        const mergedArgs = {
+          ...allAttrs,
+          ...Object.fromEntries(
+            Object.entries(innerArguments).filter(([k]) => !TOOL_CALL_RESERVED_KEYS.has(k)),
+          ),
+        };
         candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
       } else {
         candidates.add(JSON.stringify({ name: toolName, arguments: parsedInner }));
@@ -1413,7 +1422,16 @@ function extractToolPayloadCandidates(
       if (isStructuredJsonCandidate(rawBody)) {
         const parsed = parseJsonCandidate(rawBody);
         if (isRecord(parsed)) {
-          const mergedArgs = { ...allAttrs, ...parsed };
+          // If the body is a complete tool call payload with name/arguments,
+          // extract arguments directly and only merge non-reserved keys.
+          const innerArguments =
+            firstDefinedProperty(parsed, TOOL_ARGUMENT_KEYS) ?? parsed;
+          const mergedArgs = {
+            ...allAttrs,
+            ...Object.fromEntries(
+              Object.entries(innerArguments).filter(([k]) => !TOOL_CALL_RESERVED_KEYS.has(k)),
+            ),
+          };
           candidates.add(JSON.stringify({ name: toolName, arguments: mergedArgs }));
         } else {
           candidates.add(JSON.stringify({ name: toolName, arguments: parsed }));

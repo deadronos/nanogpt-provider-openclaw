@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
 
 describe("nanogpt plugin entry", () => {
-  function getRegisteredProvider() {
+  function getRegisteredProvider(overrideConfig: Record<string, unknown> = {}) {
     const providers: unknown[] = [];
     plugin.register(
       {
-        pluginConfig: {},
+        pluginConfig: { enableRepair: false, ...overrideConfig },
         runtime: {
           logging: {
             shouldLogVerbose() {
@@ -282,8 +282,8 @@ describe("nanogpt plugin entry", () => {
     expect(responsesApiResult).toBeNull();
   });
 
-  it("only applies tool-call JSON repair to Kimi-style models", () => {
-    const provider = getRegisteredProvider();
+  it("only applies tool-call JSON repair to Kimi-style models when enableRepair is true", () => {
+    const provider = getRegisteredProvider({ enableRepair: true });
     expect(provider.wrapStreamFn).toEqual(expect.any(Function));
 
     const baseStreamFn = vi.fn();
@@ -306,7 +306,7 @@ describe("nanogpt plugin entry", () => {
   });
 
   it("buffers Kimi thinking models when tools are present and keeps GLM thinking models on the guard path", async () => {
-    const provider = getRegisteredProvider();
+    const provider = getRegisteredProvider({ enableRepair: true });
     expect(provider.wrapStreamFn).toEqual(expect.any(Function));
 
     const tools = [
