@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import {
-  NANOGPT_FALLBACK_MODELS,
   NANOGPT_PROVIDER_ID,
   type NanoGptPluginConfig,
   resolveNanoGptAgentDir,
@@ -11,14 +10,16 @@ import { isRecord } from "./shared/guards.js";
 import { parseFinitePositiveNumber } from "./shared/parse.js";
 import {
   buildNanoGptRequestHeaders,
-  discoverNanoGptModels,
-  getNanoGptConfig,
   resolveCatalogSource,
-  resolveNanoGptRequestApi,
   resolveNanoGptRoutingMode,
   resolveNanoGptSelectedProvider,
   resolveRequestBaseUrl,
-} from "./runtime.js";
+} from "./runtime/routing.js";
+import { discoverNanoGptModels } from "./runtime/discovery.js";
+import {
+  getNanoGptConfig,
+  resolveNanoGptRequestApi,
+} from "./runtime/config.js";
 
 type NanoGptCatalogEntry = {
   provider: string;
@@ -27,10 +28,6 @@ type NanoGptCatalogEntry = {
   contextWindow?: number;
   reasoning?: boolean;
   input?: Array<"text" | "image" | "document">;
-};
-
-type NanoGptModelsJsonProvider = {
-  models?: unknown[];
 };
 
 type NanoGptModelsJsonSnapshot = {

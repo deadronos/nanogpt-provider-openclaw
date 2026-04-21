@@ -10,12 +10,12 @@ import { applyNanoGptProviderAuthConfig, applyNanoGptProviderConfig } from "./on
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider, readNanoGptModelsJsonSnapshot } from "./provider-catalog.js";
 import { isRecord } from "./shared/guards.js";
+import { getNanoGptConfig } from "./runtime/config.js";
+import { resolveNanoGptDynamicModel } from "./runtime/dynamic-models.js";
 import {
   fetchNanoGptUsageSnapshot,
-  getNanoGptConfig,
-  resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
-} from "./runtime.js";
+} from "./runtime/usage.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
   AnyAgentTool,

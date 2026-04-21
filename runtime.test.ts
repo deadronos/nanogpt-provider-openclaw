@@ -8,20 +8,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { sanitizeApiKey } from "./shared/http.js";
 import {
   buildNanoGptRequestHeaders,
-  discoverNanoGptModels,
-  fetchNanoGptUsageSnapshot,
-  getNanoGptConfig,
-  resetNanoGptRuntimeState,
-  resolveCatalogSource,
-  resolveNanoGptDynamicModel,
-  resolveNanoGptRequestApi,
-  resolveRequestBaseUrl,
-  resolveCatalogBaseUrl,
   probeNanoGptSubscription,
+  resolveCatalogBaseUrl,
+  resolveCatalogSource,
   resolveNanoGptRoutingMode,
-  resolveNanoGptUsageAuth,
-  fetchNanoGptSelectedProviderPricing,
-} from "./runtime.js";
+  resolveRequestBaseUrl,
+} from "./runtime/routing.js";
+import { resetNanoGptRuntimeState } from "./runtime.js";
+import { discoverNanoGptModels } from "./runtime/discovery.js";
+import { getNanoGptConfig, resolveNanoGptRequestApi } from "./runtime/config.js";
+import { resolveNanoGptDynamicModel } from "./runtime/dynamic-models.js";
+import { fetchNanoGptSelectedProviderPricing } from "./runtime/provider-pricing.js";
+import { fetchNanoGptUsageSnapshot, resolveNanoGptUsageAuth } from "./runtime/usage.js";
 
 afterEach(() => {
   resetNanoGptRuntimeState();
