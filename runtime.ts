@@ -361,6 +361,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
         ? candidate.requestApi
         : undefined,
     ...(provider ? { provider } : {}),
+    ...(candidate.enableRepair !== undefined && candidate.enableRepair !== null
+      ? { enableRepair: candidate.enableRepair }
+      : {}),
   };
 }
 

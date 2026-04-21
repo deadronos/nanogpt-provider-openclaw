@@ -466,9 +466,39 @@ export default definePluginEntry({
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
       wrapStreamFn: (ctx) => {
         if (ctx.streamFn) {
+          const config = getNanoGptConfig(api.pluginConfig);
+          const enableRepair = config.enableRepair;
+          if (enableRepair === undefined || enableRepair === false) {
+            return ctx.streamFn;
+          }
           const repairModelId =
             typeof ctx.model?.id === "string" && ctx.model.id.trim() ? ctx.model.id : ctx.modelId;
           const repairProfile = resolveNanoGptRepairProfile(repairModelId);
+
+          // Check per-family repair setting
+          let familyRepairEnabled = false;
+          if (typeof enableRepair === "boolean") {
+            familyRepairEnabled = enableRepair;
+          } else {
+            switch (repairProfile.family) {
+              case "kimi":
+                familyRepairEnabled = enableRepair.kimiRepair ?? false;
+                break;
+              case "glm":
+                familyRepairEnabled = enableRepair.glmRepair ?? false;
+                break;
+              case "qwen":
+                familyRepairEnabled = enableRepair.qwenRepair ?? false;
+                break;
+              default:
+                familyRepairEnabled = enableRepair.otherRepair ?? false;
+            }
+          }
+
+          if (!familyRepairEnabled) {
+            return ctx.streamFn;
+          }
+
           const reliabilityOptions = {
             debug: Boolean(api.runtime?.logging?.shouldLogVerbose?.()),
           };
