@@ -203,8 +203,9 @@ For example:
 - `qwen/*` models use the same buffered repair path as Kimi for
   malformed tool-call argument JSON, one-shot empty-turn retries, and
   best-effort salvage of structured tool payloads wrapped as assistant text,
-  including XML-ish `<function=...><parameter=...>` payloads leaked as plain
-  assistant text.
+  including XML-ish `<function=...><parameter=...>` payloads, `<invoke ...>`
+  wrapper payloads, and leaked `<|mask_start|>...<|mask_end|>` control-token
+  placeholders surfaced as plain assistant text.
 - `zai-org/glm*` models stay on the live malformed-tool-call guard path,
   emit semantic warnings when tool schemas look incomplete, and get light
   schema hints in `normalizeToolSchemas` to nudge required

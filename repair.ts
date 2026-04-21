@@ -63,6 +63,8 @@ const INVALID_EMPTY_TOOL_TURN_RETRY_PROMPT =
 
 const TOOL_CALL_CONTAINER_KEYS = ["tool_calls", "toolCalls", "tools", "calls", "actions"] as const;
 const TOOL_ARGUMENT_KEYS = ["arguments", "args", "parameters", "input"] as const;
+const MODEL_SPECIAL_TOKEN_RE = /<[|｜][^|｜]*[|｜]>/g;
+const THINKING_PLACEHOLDER_RE = /^thinking(?:\.\.\.)?$/i;
 const PSEUDO_TOOL_WRAPPER_TAG_NAMES = new Set(["use_tool", "tool", "tool_call", "toolcall"]);
 const PSEUDO_TOOL_NAME_ATTRIBUTE_PATTERN = /\bname\s*=\s*(?:"([^"]+)"|'([^']+)')/i;
 const TOOL_CALL_RESERVED_KEYS = new Set<string>([
@@ -176,14 +178,110 @@ function normalizeAssistantMessage(
   };
 }
 
+function shouldInsertSeparator(before: string | undefined, after: string | undefined): boolean {
+  return Boolean(before && after && !/\s/.test(before) && !/\s/.test(after));
+}
+
+function stripModelSpecialTokens(text: string): string {
+  if (!text) {
+    return text;
+  }
+
+  MODEL_SPECIAL_TOKEN_RE.lastIndex = 0;
+  if (!MODEL_SPECIAL_TOKEN_RE.test(text)) {
+    return text;
+  }
+  MODEL_SPECIAL_TOKEN_RE.lastIndex = 0;
+
+  let stripped = "";
+  let cursor = 0;
+  for (const match of text.matchAll(MODEL_SPECIAL_TOKEN_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    stripped += text.slice(cursor, start);
+    if (shouldInsertSeparator(text[start - 1], text[end])) {
+      stripped += " ";
+    }
+    cursor = end;
+  }
+  stripped += text.slice(cursor);
+  return stripped;
+}
+
+function sanitizeAssistantText(text: string): string {
+  const stripped = stripModelSpecialTokens(text).trim();
+  if (!stripped) {
+    return "";
+  }
+
+  if (stripped !== text.trim() && THINKING_PLACEHOLDER_RE.test(stripped)) {
+    return "";
+  }
+
+  return stripped;
+}
+
+function sanitizeAssistantMessage(
+  message: AssistantMessage,
+): { message: AssistantMessage; changed: boolean } {
+  let changed = false;
+  const nextContent: AssistantMessage["content"] = [];
+
+  for (const block of message.content) {
+    if (block.type !== "text") {
+      nextContent.push(block);
+      continue;
+    }
+
+    const sanitizedText = sanitizeAssistantText(block.text);
+    if (!sanitizedText) {
+      changed = true;
+      continue;
+    }
+
+    if (sanitizedText !== block.text) {
+      changed = true;
+      nextContent.push({
+        ...block,
+        text: sanitizedText,
+      });
+      continue;
+    }
+
+    nextContent.push(block);
+  }
+
+  return changed
+    ? {
+        message: {
+          ...message,
+          content: nextContent,
+        },
+        changed: true,
+      }
+    : { message, changed: false };
+}
+
 function hasVisibleText(message: AssistantMessage): boolean {
   return message.content.some(
-    (block) => block.type === "text" && typeof block.text === "string" && block.text.trim().length > 0,
+    (block) => block.type === "text" && typeof block.text === "string" && sanitizeAssistantText(block.text).length > 0,
   );
 }
 
 function countToolCalls(message: AssistantMessage): number {
   return message.content.filter((block) => block.type === "toolCall").length;
+}
+
+function resolveSyntheticDoneReason(
+  message: AssistantMessage,
+): Extract<AssistantMessageEvent, { type: "done" }>["reason"] {
+  if (countToolCalls(message) > 0) {
+    return "toolUse";
+  }
+  if (message.stopReason === "length") {
+    return "length";
+  }
+  return "stop";
 }
 
 function hasToolEnabledContext(context: Parameters<StreamFn>[1]): boolean {
@@ -520,14 +618,14 @@ function findMatchingXmlParameterClose(text: string, contentStartIndex: number):
   let depth = 1;
 
   while (cursor < text.length) {
-    const nextOpen = text.indexOf("<parameter=", cursor);
+    const nextOpen = text.indexOf("<parameter", cursor);
     const nextClose = text.indexOf("</parameter>", cursor);
     if (nextClose === -1) {
       return -1;
     }
     if (nextOpen !== -1 && nextOpen < nextClose) {
       depth += 1;
-      cursor = nextOpen + "<parameter=".length;
+      cursor = nextOpen + "<parameter".length;
       continue;
     }
     depth -= 1;
@@ -540,9 +638,44 @@ function findMatchingXmlParameterClose(text: string, contentStartIndex: number):
   return -1;
 }
 
+function extractXmlParameterName(attributes: string): string | undefined {
+  const trimmed = attributes.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith("=")) {
+    const inlineName = trimmed.slice(1).trim();
+    return inlineName || undefined;
+  }
+
+  const namedMatch = trimmed.match(/\bname\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i);
+  const namedValue = namedMatch?.[1] ?? namedMatch?.[2] ?? namedMatch?.[3];
+  return typeof namedValue === "string" && namedValue.trim() ? namedValue.trim() : undefined;
+}
+
+function extractMalformedXmlParameterNameAndValue(
+  attributes: string,
+  rawContent: string,
+): { name?: string; rawValue: string } {
+  if (!/\bname\b/i.test(attributes)) {
+    return { rawValue: rawContent };
+  }
+
+  const malformedMatch = rawContent.match(/^\s*([a-zA-Z_][\w.-]*)>([\s\S]*)$/);
+  if (!malformedMatch) {
+    return { rawValue: rawContent };
+  }
+
+  return {
+    name: malformedMatch[1],
+    rawValue: malformedMatch[2] ?? "",
+  };
+}
+
 function parseXmlStyleParameterBlocks(text: string): XmlParameterBlock[] {
   const blocks: XmlParameterBlock[] = [];
-  const openPattern = /<parameter=([^>\n]+)>/gi;
+  const openPattern = /<parameter\b([^>]*)>/gi;
   let cursor = 0;
 
   while (cursor < text.length) {
@@ -552,30 +685,28 @@ function parseXmlStyleParameterBlocks(text: string): XmlParameterBlock[] {
       break;
     }
 
-    const rawName = match[1]?.trim();
-    if (!rawName) {
-      cursor = match.index + match[0].length;
-      continue;
-    }
-
     const contentStart = match.index + match[0].length;
     const closeStart = findMatchingXmlParameterClose(text, contentStart);
-    if (closeStart === -1) {
-      cursor = contentStart;
+    const closeEnd = closeStart === -1 ? text.length : closeStart + "</parameter>".length;
+    const rawContent = text.slice(contentStart, closeStart === -1 ? text.length : closeStart);
+    const rawName = extractXmlParameterName(match[1] ?? "");
+    const malformed = rawName
+      ? { name: rawName, rawValue: rawContent }
+      : extractMalformedXmlParameterNameAndValue(match[1] ?? "", rawContent);
+    if (!malformed.name) {
+      cursor = closeEnd;
       continue;
     }
 
-    const closeEnd = closeStart + "</parameter>".length;
-    const rawContent = text.slice(contentStart, closeStart);
-    const nestedBlocks = parseXmlStyleParameterBlocks(rawContent);
-    const outsideNestedText = removeTextRanges(rawContent, nestedBlocks).trim();
+    const nestedBlocks = parseXmlStyleParameterBlocks(malformed.rawValue);
+    const outsideNestedText = removeTextRanges(malformed.rawValue, nestedBlocks).trim();
     const value =
       nestedBlocks.length > 0 && outsideNestedText.length === 0
         ? Object.fromEntries(nestedBlocks.map((block) => [block.name, block.value]))
-        : rawContent.trim();
+        : malformed.rawValue.trim();
 
     blocks.push({
-      name: rawName,
+      name: malformed.name,
       value,
       start: match.index,
       end: closeEnd,
@@ -588,21 +719,29 @@ function parseXmlStyleParameterBlocks(text: string): XmlParameterBlock[] {
 
 function extractXmlStyleFunctionCallCandidates(text: string): string[] {
   const candidates = new Set<string>();
-  const functionPattern = /<function=([^>\n]+)>/gi;
-  const closingSentinels = ["</tool_call>", "</function>", "</execution>", "<function="] as const;
+  const functionPattern = /<(function|invoke)\b([^>]*)>/gi;
   const trimmed = text.trim();
   if (!trimmed) {
     return [];
   }
 
   for (const match of trimmed.matchAll(functionPattern)) {
-    const rawName = match[1]?.trim();
+    const wrapperTag = match[1]?.trim().toLowerCase();
+    const attributes = match[2] ?? "";
+    const rawName =
+      wrapperTag === "function"
+        ? extractXmlParameterName(attributes)
+        : extractPseudoToolWrapperName(attributes);
     if (!rawName) {
       continue;
     }
 
     const bodyStart = (match.index ?? 0) + match[0].length;
     let bodyEnd = trimmed.length;
+    const closingSentinels =
+      wrapperTag === "invoke"
+        ? ["</invoke>", "<invoke"] as const
+        : ["</tool_call>", "</function>", "</execution>", "<function="] as const;
     for (const sentinel of closingSentinels) {
       const nextIndex = trimmed.indexOf(sentinel, bodyStart);
       if (nextIndex !== -1) {
@@ -750,10 +889,22 @@ function normalizeSalvagedToolCall(
     return null;
   }
 
-  const normalizedName = resolveKnownToolName(rawName, tools, toolMap);
-  const rawArguments =
+  const wrapperArguments =
     firstDefinedProperty(value, TOOL_ARGUMENT_KEYS) ??
     (nestedFunction ? firstDefinedProperty(nestedFunction, TOOL_ARGUMENT_KEYS) : undefined);
+  const normalizedWrapperArguments = normalizeToolArguments(wrapperArguments) ?? {};
+  const invokeWrapperName =
+    rawName === "invoke"
+      ? firstStringProperty(value, ["tool", "toolName"]) ??
+        firstStringProperty(normalizedWrapperArguments, ["name", "tool", "toolName"])
+      : undefined;
+  const invokeWrapperArguments =
+    rawName === "invoke"
+      ? firstDefinedProperty(normalizedWrapperArguments, ["arguments", ...TOOL_ARGUMENT_KEYS])
+      : undefined;
+  const resolvedName = invokeWrapperName ?? rawName;
+  const normalizedName = resolveKnownToolName(resolvedName, tools, toolMap);
+  const rawArguments = invokeWrapperArguments ?? wrapperArguments;
   const normalizedArguments =
     normalizeToolArguments(rawArguments) ?? buildFlattenedToolArguments(value, nestedFunction);
 
@@ -800,12 +951,13 @@ function normalizeStructuredToolTurn(
   return toolCall ? { messageText, toolCalls: [toolCall] } : null;
 }
 
-function buildSyntheticToolEvents(message: AssistantMessage): AssistantMessageEvent[] {
+function buildSyntheticAssistantEvents(message: AssistantMessage): AssistantMessageEvent[] {
+  const doneReason = resolveSyntheticDoneReason(message);
   const partial = normalizeAssistantMessage(
     {
       ...message,
       content: [],
-      stopReason: "toolUse",
+      stopReason: doneReason,
       errorMessage: undefined,
     },
     { modelId: message.model, requestApi: message.api },
@@ -843,10 +995,13 @@ function buildSyntheticToolEvents(message: AssistantMessage): AssistantMessageEv
         events.push({ type: "toolcall_delta", contentIndex, delta, partial });
       }
       events.push({ type: "toolcall_end", contentIndex, toolCall: block, partial });
+      continue;
     }
+
+    partial.content.push(block);
   }
 
-  events.push({ type: "done", reason: "toolUse", message });
+  events.push({ type: "done", reason: doneReason, message });
   return events;
 }
 
@@ -891,7 +1046,7 @@ function salvageStructuredToolTurn(
       });
 
       return {
-        events: buildSyntheticToolEvents(salvagedMessage),
+        events: buildSyntheticAssistantEvents(salvagedMessage),
         finalMessage: salvagedMessage,
       };
     } catch {
@@ -980,6 +1135,12 @@ async function collectRepairAttempt(params: {
       : terminalEvent?.type === "error"
         ? terminalEvent.error
         : normalizeAssistantMessage(lastAssistantMessage, params.meta);
+  let selectedEvents = events;
+  const sanitizedMessage = sanitizeAssistantMessage(finalMessage);
+  if (sanitizedMessage.changed) {
+    finalMessage = sanitizedMessage.message;
+    selectedEvents = buildSyntheticAssistantEvents(finalMessage);
+  }
   const toolEnabled = hasToolEnabledContext(params.args[1]);
 
   if (toolEnabled && !sawToolCall && countToolCalls(finalMessage) === 0) {
@@ -1007,7 +1168,7 @@ async function collectRepairAttempt(params: {
   }
 
   return {
-    events,
+    events: selectedEvents,
     finalMessage,
     toolEnabled,
     sawToolCall,
