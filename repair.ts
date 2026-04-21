@@ -208,7 +208,32 @@ function stripModelSpecialTokens(text: string): string {
   return stripped;
 }
 
-function sanitizeAssistantText(text: string): string {
+function isBareToolNamePlaceholderText(
+  text: string,
+  tools: readonly Tool[],
+  toolMap?: Map<string, Tool>,
+): boolean {
+  if (!text || tools.length === 0) {
+    return false;
+  }
+
+  if (!/^[a-z0-9_\-\s]+$/i.test(text)) {
+    return false;
+  }
+
+  const normalized = canonicalizeToolName(text);
+  if (!normalized) {
+    return false;
+  }
+
+  return Boolean(toolMap?.get(normalized) ?? resolveKnownTool(text, tools, toolMap));
+}
+
+function sanitizeAssistantText(
+  text: string,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): string {
   const stripped = stripModelSpecialTokens(text).trim();
   if (!stripped) {
     return "";
@@ -218,11 +243,17 @@ function sanitizeAssistantText(text: string): string {
     return "";
   }
 
+  if (isBareToolNamePlaceholderText(stripped, tools, toolMap)) {
+    return "";
+  }
+
   return stripped;
 }
 
 function sanitizeAssistantMessage(
   message: AssistantMessage,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
 ): { message: AssistantMessage; changed: boolean } {
   let changed = false;
   const nextContent: AssistantMessage["content"] = [];
@@ -233,7 +264,7 @@ function sanitizeAssistantMessage(
       continue;
     }
 
-    const sanitizedText = sanitizeAssistantText(block.text);
+    const sanitizedText = sanitizeAssistantText(block.text, tools, toolMap);
     if (!sanitizedText) {
       changed = true;
       continue;
@@ -262,9 +293,16 @@ function sanitizeAssistantMessage(
     : { message, changed: false };
 }
 
-function hasVisibleText(message: AssistantMessage): boolean {
+function hasVisibleText(
+  message: AssistantMessage,
+  tools: readonly Tool[] = [],
+  toolMap?: Map<string, Tool>,
+): boolean {
   return message.content.some(
-    (block) => block.type === "text" && typeof block.text === "string" && sanitizeAssistantText(block.text).length > 0,
+    (block) =>
+      block.type === "text" &&
+      typeof block.text === "string" &&
+      sanitizeAssistantText(block.text, tools, toolMap).length > 0,
   );
 }
 
@@ -1094,6 +1132,8 @@ async function collectRepairAttempt(params: {
   meta: RepairRuntimeMeta;
 }): Promise<RepairAttempt> {
   const stream = await params.streamFn(...params.args);
+  const toolDefinitions = Array.isArray(params.args[1]?.tools) ? params.args[1].tools : [];
+  const toolMap = createToolMap(toolDefinitions);
   const toolCallArgBuffers = new Map<number, string>();
   const events: AssistantMessageEvent[] = [];
   let lastAssistantMessage: AssistantMessage | undefined;
@@ -1136,7 +1176,7 @@ async function collectRepairAttempt(params: {
         ? terminalEvent.error
         : normalizeAssistantMessage(lastAssistantMessage, params.meta);
   let selectedEvents = events;
-  const sanitizedMessage = sanitizeAssistantMessage(finalMessage);
+  const sanitizedMessage = sanitizeAssistantMessage(finalMessage, toolDefinitions, toolMap);
   if (sanitizedMessage.changed) {
     finalMessage = sanitizedMessage.message;
     selectedEvents = buildSyntheticAssistantEvents(finalMessage);
@@ -1157,7 +1197,7 @@ async function collectRepairAttempt(params: {
         finalMessage,
         toolEnabled,
         sawToolCall: true,
-        sawVisibleText: hasVisibleText(finalMessage),
+        sawVisibleText: hasVisibleText(finalMessage, toolDefinitions, toolMap),
       };
     }
   }
@@ -1172,7 +1212,7 @@ async function collectRepairAttempt(params: {
     finalMessage,
     toolEnabled,
     sawToolCall,
-    sawVisibleText: hasVisibleText(finalMessage),
+    sawVisibleText: hasVisibleText(finalMessage, toolDefinitions, toolMap),
   };
 }
 

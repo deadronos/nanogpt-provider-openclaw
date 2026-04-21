@@ -797,6 +797,92 @@ describe("wrapStreamWithToolCallRepair", () => {
     );
   });
 
+  it("retries Qwen turns that only leak a bare tool name", async () => {
+    const firstAttemptMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "\n\nexec" }],
+    });
+    const secondAttemptMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "workspace files use 42 MB" }],
+    });
+
+    const mockStreamFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [{ type: "done", reason: "stop", message: firstAttemptMessage } as AssistantMessageEvent],
+          firstAttemptMessage,
+        ),
+      )
+      .mockResolvedValueOnce(
+        createReplayableStream(
+          [{ type: "done", reason: "stop", message: secondAttemptMessage } as AssistantMessageEvent],
+          secondAttemptMessage,
+        ),
+      );
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const resultMessage = await (resultStream as any).result();
+    expect(mockStreamFn).toHaveBeenCalledTimes(2);
+    expect(resultMessage.content).toEqual([{ type: "text", text: "workspace files use 42 MB" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Retrying empty tool-enabled turn from model qwen/Qwen3.6-35B-A3B:thinking"),
+    );
+  });
+
+  it("drops bare tool-name placeholders when retry is disabled", async () => {
+    const leakedMessage = createAssistantMessage({
+      model: "qwen/Qwen3.6-35B-A3B:thinking",
+      content: [{ type: "text", text: "\n\nexec" }],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue(
+      createReplayableStream(
+        [{ type: "done", reason: "stop", message: leakedMessage } as AssistantMessageEvent],
+        leakedMessage,
+      ),
+    );
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger, {
+      retryInvalidEmptyTurns: false,
+    });
+    const resultStream = await wrapped(
+      { id: "qwen/Qwen3.6-35B-A3B:thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "exec",
+            description: "Execute a shell command",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const resultMessage = await (resultStream as any).result();
+    expect(resultMessage.content).toEqual([]);
+  });
+
   it("salvages invoke-wrapper payload text for Qwen models", async () => {
     const toolPayload = [
       '<invoke name="invoke">',
