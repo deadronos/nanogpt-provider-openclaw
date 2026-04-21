@@ -5,8 +5,8 @@ import {
   NANOGPT_PERSONALIZED_BASE_URL,
 } from "./models.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sanitizeApiKey } from "./shared/http.js";
 import {
-  sanitizeApiKey,
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
   fetchNanoGptUsageSnapshot,

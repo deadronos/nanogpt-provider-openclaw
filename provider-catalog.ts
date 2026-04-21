@@ -7,6 +7,8 @@ import {
   type NanoGptPluginConfig,
   resolveNanoGptAgentDir,
 } from "./models.js";
+import { isRecord } from "./shared/guards.js";
+import { parseFinitePositiveNumber } from "./shared/parse.js";
 import {
   buildNanoGptRequestHeaders,
   discoverNanoGptModels,
@@ -48,25 +50,6 @@ const nanoGptModelsJsonCache = new Map<
     snapshot: NanoGptModelsJsonSnapshot;
   }
 >();
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseFinitePositiveNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-
-  return undefined;
-}
 
 function normalizeNanoGptCatalogInput(value: unknown): Array<"text" | "image" | "document"> | undefined {
   if (!Array.isArray(value)) {

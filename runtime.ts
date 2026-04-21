@@ -13,6 +13,9 @@ import {
   type NanoGptPluginConfig,
   type NanoGptRoutingMode,
 } from "./models.js";
+import { isRecord } from "./shared/guards.js";
+import { parseEpochMillis, parseFiniteNumber } from "./shared/parse.js";
+import { sanitizeApiKey, sanitizeHeaderValue } from "./shared/http.js";
 import {
   clampPercent,
   fetchJson,
@@ -26,14 +29,6 @@ import type {
   ProviderRuntimeModel,
   ProviderResolveUsageAuthContext,
 } from "openclaw/plugin-sdk/plugin-entry";
-
-function sanitizeHeaderValue(value: string): string {
-  return value.replace(/[\r\n]/g, "");
-}
-
-export function sanitizeApiKey(apiKey: string): string {
-  return sanitizeHeaderValue(apiKey);
-}
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 const PROVIDER_PRICING_CACHE_TTL_MS = 300_000;
@@ -76,32 +71,6 @@ type NanoGptProviderPricingPayload = {
   supportsProviderSelection?: unknown;
   providers?: NanoGptProviderPricingEntry[];
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim());
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function parseEpochMillis(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value < 1e12 ? Math.floor(value * 1000) : Math.floor(value);
-  }
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Date.parse(value.trim());
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
 
 function normalizeProviderId(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";

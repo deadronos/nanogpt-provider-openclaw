@@ -1,5 +1,5 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-import { sanitizeApiKey } from "./runtime.js";
+import { sanitizeApiKey } from "./shared/http.js";
 import {
   mergeScopedSearchConfig,
   postTrustedWebToolsJson,

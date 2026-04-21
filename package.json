@@ -30,6 +30,9 @@
     "image-generation-provider.ts",
     "web-search.ts",
     "onboard.ts",
+    "shared/guards.ts",
+    "shared/parse.ts",
+    "shared/http.ts",
     "openclaw.plugin.json",
     "README.md",
     "LICENSE.md"

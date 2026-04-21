@@ -1,5 +1,6 @@
 import { NANOGPT_PROVIDER_ID } from "./models.js";
-import { NANOGPT_IMAGE_GENERATION_TIMEOUT_MS, sanitizeApiKey } from "./runtime.js";
+import { NANOGPT_IMAGE_GENERATION_TIMEOUT_MS } from "./runtime.js";
+import { sanitizeApiKey } from "./shared/http.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import {
   resolveProviderHttpRequestConfig,

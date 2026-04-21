@@ -4,10 +4,7 @@ import {
 } from "openclaw/plugin-sdk/provider-onboard";
 import { setProviderWebSearchPluginConfigValue } from "openclaw/plugin-sdk/provider-web-search";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "./shared/guards.js";
 
 function normalizeNanoGptConfiguredCredentialValue(value: unknown): unknown {
   if (typeof value === "string") {

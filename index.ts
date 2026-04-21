@@ -9,6 +9,7 @@ import {
 import { applyNanoGptProviderAuthConfig, applyNanoGptProviderConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider, readNanoGptModelsJsonSnapshot } from "./provider-catalog.js";
+import { isRecord } from "./shared/guards.js";
 import {
   fetchNanoGptUsageSnapshot,
   getNanoGptConfig,
@@ -34,10 +35,6 @@ type NanoGptCatalogEntry = {
   reasoning?: boolean;
   input?: Array<"text" | "image" | "document">;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 const NANOGPT_API_KEY_FLAG_NAME = "--nanogpt-api-key" as const;
 const NANOGPT_API_KEY_ENV_VAR = "NANOGPT_API_KEY" as const;
