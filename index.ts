@@ -2,6 +2,10 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
 import { readConfiguredProviderCatalogEntries } from "openclaw/plugin-sdk/provider-catalog-shared";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
+import {
+  formatNanoGptErrorSurfaceDetails,
+  inspectNanoGptErrorSurface,
+} from "./nanogpt-errors.js";
 import { applyNanoGptProviderAuthConfig, applyNanoGptProviderConfig } from "./onboard.js";
 import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider, readNanoGptModelsJsonSnapshot } from "./provider-catalog.js";
@@ -424,12 +428,75 @@ function inspectNanoGptToolSchemas(
   return diagnostics.length > 0 ? diagnostics : null;
 }
 
+function summarizeNanoGptErrorMessage(message: string | undefined): string {
+  const normalized = message?.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "(no message)";
+  }
+  return normalized.length > 200 ? `${normalized.slice(0, 197)}...` : normalized;
+}
+
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
   name: "NanoGPT Provider",
   description: "NanoGPT provider plugin for OpenClaw",
   register(api) {
     const pluginConfig = api.pluginConfig;
+    const resolvedNanoGptConfig = getNanoGptConfig(pluginConfig);
+    const warnedNanoGptErrorSignatures = new Set<string>();
+
+    function warnNanoGptErrorSurface(params: {
+      modelId?: string;
+      kind: "mapped" | "context_overflow" | "recognized_unmapped" | "unknown_structured";
+      details: string;
+      message?: string;
+      reason?: string;
+    }): void {
+      const modelId = params.modelId?.trim() || "(unknown model)";
+      const routingMode = resolvedNanoGptConfig.routingMode ?? "auto";
+      const providerOverride = resolvedNanoGptConfig.provider?.trim() || "auto";
+      const signature = [
+        params.kind,
+        params.reason ?? "",
+        modelId,
+        routingMode,
+        providerOverride,
+        params.details,
+      ].join("|");
+
+      if (warnedNanoGptErrorSignatures.has(signature)) {
+        return;
+      }
+      warnedNanoGptErrorSignatures.add(signature);
+
+      const context = `[${params.details}, routingMode=${routingMode}, providerOverride=${providerOverride}]`;
+      const summary = summarizeNanoGptErrorMessage(params.message);
+
+      if (params.kind === "mapped") {
+        api.logger.warn(
+          `NanoGPT API error classified as ${params.reason} for model ${modelId} ${context}: ${summary}`,
+        );
+        return;
+      }
+
+      if (params.kind === "context_overflow") {
+        api.logger.warn(
+          `NanoGPT API error matched OpenClaw context overflow handling for model ${modelId} ${context}: ${summary}`,
+        );
+        return;
+      }
+
+      if (params.kind === "recognized_unmapped") {
+        api.logger.warn(
+          `NanoGPT API error recognized but not mapped to an OpenClaw failover reason for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`,
+        );
+        return;
+      }
+
+      api.logger.warn(
+        `Unknown NanoGPT API error envelope for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`,
+      );
+    }
 
     api.registerProvider({
       id: NANOGPT_PROVIDER_ID,
@@ -477,15 +544,43 @@ export default definePluginEntry({
         }
         return undefined;
       },
-      classifyFailoverReason: (ctx) => {
-        if (
-          (ctx.errorMessage.includes("402") || ctx.errorMessage.includes("Insufficient balance")) &&
-          !getNanoGptConfig(api.pluginConfig).provider
-        ) {
-          api.logger.warn(
-            `NanoGPT upstream billing error on model ${ctx.modelId}. This typically means an hourly subscription limit was reached, or a provider failover misrouted to your empty PayGo wallet.`
-          );
+      matchesContextOverflowError: (ctx) => {
+        const inspection = inspectNanoGptErrorSurface(ctx.errorMessage);
+        if (inspection?.kind !== "context_overflow") {
+          return undefined;
         }
+
+        warnNanoGptErrorSurface({
+          modelId: ctx.modelId,
+          kind: inspection.kind,
+          details: formatNanoGptErrorSurfaceDetails(inspection.error),
+          message: inspection.error.message ?? ctx.errorMessage,
+        });
+        return true;
+      },
+      classifyFailoverReason: (ctx) => {
+        const inspection = inspectNanoGptErrorSurface(ctx.errorMessage);
+        if (!inspection) {
+          return undefined;
+        }
+
+        if (inspection.kind === "mapped") {
+          warnNanoGptErrorSurface({
+            modelId: ctx.modelId,
+            kind: inspection.kind,
+            reason: inspection.reason,
+            details: formatNanoGptErrorSurfaceDetails(inspection.error),
+            message: inspection.error.message ?? ctx.errorMessage,
+          });
+          return inspection.reason;
+        }
+
+        warnNanoGptErrorSurface({
+          modelId: ctx.modelId,
+          kind: inspection.kind,
+          details: formatNanoGptErrorSurfaceDetails(inspection.error),
+          message: inspection.error.message ?? ctx.errorMessage,
+        });
         return undefined;
       },
     });
