@@ -33,7 +33,7 @@ type RepairAttempt = {
   sawVisibleText: boolean;
 };
 
-export type NanoGptRepairFamily = "kimi" | "glm" | "other";
+export type NanoGptRepairFamily = "kimi" | "glm" | "qwen" | "other";
 
 export type NanoGptRepairProfile = {
   family: NanoGptRepairFamily;
@@ -84,6 +84,10 @@ function normalizeNanoGptRepairModelId(modelId: string): string {
   return normalized.startsWith("nanogpt/") ? normalized.slice("nanogpt/".length) : normalized;
 }
 
+function isQwenThinkingModel(normalizedModelId: string): boolean {
+  return normalizedModelId.startsWith("qwen/") && /(?:[:/-])thinking(?:$|[-/])/.test(normalizedModelId);
+}
+
 function resolveNanoGptRepairFamily(modelId?: string): NanoGptRepairFamily {
   if (!modelId?.trim()) {
     return "other";
@@ -95,6 +99,9 @@ function resolveNanoGptRepairFamily(modelId?: string): NanoGptRepairFamily {
   }
   if (normalized.startsWith("zai-org/glm")) {
     return "glm";
+  }
+  if (isQwenThinkingModel(normalized)) {
+    return "qwen";
   }
   return "other";
 }
@@ -117,6 +124,14 @@ export function resolveNanoGptRepairProfile(modelId?: string): NanoGptRepairProf
         useLiveGuard: true,
         useSemanticToolDiagnostics: true,
         useToolSchemaHints: true,
+      };
+    case "qwen":
+      return {
+        family,
+        useBufferedRepair: true,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
       };
     default:
       return {

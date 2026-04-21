@@ -86,6 +86,16 @@ describe("resolveNanoGptRepairProfile", () => {
       },
     ],
     [
+      "nanogpt/qwen/qwen3.5-397b-a17b-thinking",
+      {
+        family: "qwen",
+        useBufferedRepair: true,
+        useLiveGuard: true,
+        useSemanticToolDiagnostics: false,
+        useToolSchemaHints: false,
+      },
+    ],
+    [
       "mistralai/mistral-large-3-675b-instruct-2512",
       {
         family: "other",
@@ -146,10 +156,13 @@ describe("resolveNanoGptRepairProfile", () => {
   });
 
 describe("shouldRepairNanoGptToolCallArguments", () => {
-  it("only enables repair for Kimi-style NanoGPT model ids", () => {
+  it("enables buffered repair for Kimi and Qwen thinking model ids", () => {
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5")).toBe(true);
     expect(shouldRepairNanoGptToolCallArguments("moonshotai/kimi-k2.5:thinking")).toBe(true);
     expect(shouldRepairNanoGptToolCallArguments("nanogpt/moonshotai/kimi-k2.5:thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("qwen/qwen3.5-397b-a17b-thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("nanogpt/qwen/qwen3.5-397b-a17b-thinking")).toBe(true);
+    expect(shouldRepairNanoGptToolCallArguments("qwen/qwen3.5-397b-a17b")).toBe(false);
     expect(shouldRepairNanoGptToolCallArguments("zai-org/glm-5:thinking")).toBe(false);
     expect(shouldRepairNanoGptToolCallArguments("nanogpt/zai-org/glm-5:thinking")).toBe(false);
     expect(shouldRepairNanoGptToolCallArguments("mistralai/mistral-large-3-675b-instruct-2512")).toBe(false);
@@ -659,6 +672,64 @@ describe("wrapStreamWithToolCallRepair", () => {
         arguments: {
           query: "NanoGPT",
           url: "https://example.com/search",
+        },
+      },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Salvaged structured tool payload"),
+    );
+  });
+
+  it("salvages structured tool payload text for Qwen thinking models", async () => {
+    const toolPayload = JSON.stringify({
+      tool_calls: [
+        {
+          name: "browser",
+          arguments: {
+            query: "NanoGPT Qwen tool repair",
+            count: 1,
+          },
+        },
+      ],
+    });
+
+    const mockStreamFn = vi.fn().mockResolvedValue((async function* () {
+      yield {
+        type: "done",
+        reason: "stop",
+        message: createAssistantMessage({
+          content: [{ type: "text", text: toolPayload }],
+        }),
+      } satisfies AssistantMessageEvent;
+    })());
+
+    const logger = { warn: vi.fn(), info: vi.fn() };
+    const wrapped = wrapStreamWithToolCallRepair(mockStreamFn as any, logger);
+    const resultStream = await wrapped(
+      { id: "qwen/qwen3.5-397b-a17b-thinking", api: "openai-completions" } as any,
+      {
+        messages: [],
+        tools: [
+          {
+            name: "browser",
+            description: "Browser navigation tool",
+            parameters: { type: "object" },
+          },
+        ],
+      } as any,
+      {} as any,
+    );
+
+    const doneMessage = await (resultStream as any).result();
+    expect(doneMessage.stopReason).toBe("toolUse");
+    expect(doneMessage.content).toEqual([
+      {
+        type: "toolCall",
+        id: "call_salvaged_1",
+        name: "browser",
+        arguments: {
+          query: "NanoGPT Qwen tool repair",
+          count: 1,
         },
       },
     ]);
