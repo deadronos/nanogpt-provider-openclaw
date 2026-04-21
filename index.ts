@@ -11,11 +11,6 @@ import {
   resolveNanoGptDynamicModel,
   resolveNanoGptUsageAuth,
 } from "./runtime.js";
-import {
-  resolveNanoGptRepairProfile,
-  wrapStreamWithMalformedToolCallGuard,
-  wrapStreamWithToolCallRepair,
-} from "./repair.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import type {
   AnyAgentTool,
@@ -247,6 +242,20 @@ function resolveNanoGptToolSchemaModelId(ctx: ProviderNormalizeToolSchemasContex
   return typeof ctx.modelId === "string" ? ctx.modelId : "";
 }
 
+function detectNanoGptModelFamily(modelId: string): "kimi" | "glm" | "qwen" | "other" {
+  const normalized = modelId.trim().toLowerCase();
+  if (normalized.startsWith("moonshotai/kimi")) {
+    return "kimi";
+  }
+  if (normalized.startsWith("zai-org/glm") || normalized.includes("/glm")) {
+    return "glm";
+  }
+  if (normalized.includes("qwen")) {
+    return "qwen";
+  }
+  return "other";
+}
+
 const NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER = "NanoGPT GLM tip:";
 const NANOGPT_GLM_TOOL_SCHEMA_HINT =
   "NanoGPT GLM tip: include required ref/selector/fields arguments explicitly when the tool needs them.";
@@ -371,22 +380,20 @@ function inspectNanoGptQwenToolSchema(
 function normalizeNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): AnyAgentTool[] | null {
-  const repairProfile = resolveNanoGptRepairProfile(resolveNanoGptToolSchemaModelId(ctx));
-  if (!repairProfile.useToolSchemaHints) {
+  const family = detectNanoGptModelFamily(resolveNanoGptToolSchemaModelId(ctx));
+  if (family !== "glm" && family !== "qwen") {
     return null;
   }
 
   let changed = false;
   const tools = ctx.tools.map((tool) => {
-    if (repairProfile.family === "glm" && !shouldAnnotateNanoGptGlmToolSchema(tool)) {
+    if (family === "glm" && !shouldAnnotateNanoGptGlmToolSchema(tool)) {
       return tool;
     }
     const nextDescription =
-      repairProfile.family === "glm"
+      family === "glm"
         ? appendNanoGptGlmToolSchemaHint(tool.description)
-        : repairProfile.family === "qwen"
-          ? appendNanoGptQwenToolSchemaHint(tool)
-          : tool.description;
+        : appendNanoGptQwenToolSchemaHint(tool);
     if (nextDescription === tool.description) {
       return tool;
     }
@@ -403,8 +410,8 @@ function normalizeNanoGptToolSchemas(
 function inspectNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): ProviderToolSchemaDiagnostic[] | null {
-  const repairProfile = resolveNanoGptRepairProfile(resolveNanoGptToolSchemaModelId(ctx));
-  if (repairProfile.family !== "qwen") {
+  const family = detectNanoGptModelFamily(resolveNanoGptToolSchemaModelId(ctx));
+  if (family !== "qwen") {
     return null;
   }
 
@@ -466,50 +473,7 @@ export default definePluginEntry({
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
       wrapStreamFn: (ctx) => {
         if (ctx.streamFn) {
-          const config = getNanoGptConfig(api.pluginConfig);
-          const enableRepair = config.enableRepair;
-          if (enableRepair === undefined || enableRepair === false) {
-            return ctx.streamFn;
-          }
-          const repairModelId =
-            typeof ctx.model?.id === "string" && ctx.model.id.trim() ? ctx.model.id : ctx.modelId;
-          const repairProfile = resolveNanoGptRepairProfile(repairModelId);
-
-          // Check per-family repair setting
-          let familyRepairEnabled = false;
-          if (typeof enableRepair === "boolean") {
-            familyRepairEnabled = enableRepair;
-          } else {
-            switch (repairProfile.family) {
-              case "kimi":
-                familyRepairEnabled = enableRepair.kimiRepair ?? false;
-                break;
-              case "glm":
-                familyRepairEnabled = enableRepair.glmRepair ?? false;
-                break;
-              case "qwen":
-                familyRepairEnabled = enableRepair.qwenRepair ?? false;
-                break;
-              default:
-                familyRepairEnabled = enableRepair.otherRepair ?? false;
-            }
-          }
-
-          if (!familyRepairEnabled) {
-            return ctx.streamFn;
-          }
-
-          const reliabilityOptions = {
-            debug: Boolean(api.runtime?.logging?.shouldLogVerbose?.()),
-          };
-          if (!repairProfile.useBufferedRepair) {
-            return wrapStreamWithMalformedToolCallGuard(
-              ctx.streamFn,
-              api.logger,
-              reliabilityOptions,
-            );
-          }
-          return wrapStreamWithToolCallRepair(ctx.streamFn, api.logger, reliabilityOptions);
+          return ctx.streamFn;
         }
         return undefined;
       },

@@ -282,90 +282,30 @@ describe("nanogpt plugin entry", () => {
     expect(responsesApiResult).toBeNull();
   });
 
-  it("only applies tool-call JSON repair to Kimi-style models when enableRepair is true", () => {
+  it("passes through streamFn directly without repair", () => {
+    const provider = getRegisteredProvider();
+    expect(provider.wrapStreamFn).toEqual(expect.any(Function));
+
+    const baseStreamFn = vi.fn();
+    const resultStream = provider.wrapStreamFn?.({
+      streamFn: baseStreamFn,
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: { id: "moonshotai/kimi-k2.5:thinking" },
+    });
+    expect(resultStream).toBe(baseStreamFn);
+  });
+
+  it("passes through streamFn when enableRepair is true (repair was removed)", () => {
     const provider = getRegisteredProvider({ enableRepair: true });
     expect(provider.wrapStreamFn).toEqual(expect.any(Function));
 
     const baseStreamFn = vi.fn();
-
-    const mistralStreamFn = provider.wrapStreamFn?.({
-      streamFn: baseStreamFn,
-      modelId: "mistralai/mistral-large-3-675b-instruct-2512",
-      model: { id: "mistralai/mistral-large-3-675b-instruct-2512" },
-    });
-    expect(mistralStreamFn).toEqual(expect.any(Function));
-    expect(mistralStreamFn).not.toBe(baseStreamFn);
-
-    const kimiStreamFn = provider.wrapStreamFn?.({
+    const wrappedFn = provider.wrapStreamFn?.({
       streamFn: baseStreamFn,
       modelId: "moonshotai/kimi-k2.5:thinking",
       model: { id: "moonshotai/kimi-k2.5:thinking" },
     });
-    expect(kimiStreamFn).toEqual(expect.any(Function));
-    expect(kimiStreamFn).not.toBe(baseStreamFn);
-  });
-
-  it("buffers Kimi thinking models when tools are present and keeps GLM thinking models on the guard path", async () => {
-    const provider = getRegisteredProvider({ enableRepair: true });
-    expect(provider.wrapStreamFn).toEqual(expect.any(Function));
-
-    const tools = [
-      {
-        name: "get_weather",
-        description: "Weather lookup",
-        parameters: { type: "object" },
-      },
-    ];
-
-    const createStream = () => ({
-      async result() {
-        return { content: [] } as any;
-      },
-      [Symbol.asyncIterator]() {
-        return {
-          async next() {
-            return { done: true as const, value: undefined };
-          },
-          async return(value?: unknown) {
-            return { done: true as const, value };
-          },
-          async throw(error?: unknown) {
-            throw error;
-          },
-          [Symbol.asyncIterator]() {
-            return this;
-          },
-        };
-      },
-    });
-
-    const kimiOriginalStream = createStream();
-    const kimiBaseStreamFn = vi.fn().mockResolvedValue(kimiOriginalStream);
-    const kimiWrappedFn = provider.wrapStreamFn?.({
-      streamFn: kimiBaseStreamFn,
-      modelId: "moonshotai/kimi-k2.5:thinking",
-      model: { id: "moonshotai/kimi-k2.5:thinking" },
-    }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
-    const kimiResultStream = await kimiWrappedFn?.(
-      { id: "moonshotai/kimi-k2.5:thinking", api: "openai-completions" } as any,
-      { messages: [], tools } as any,
-      {} as any,
-    );
-    expect(kimiResultStream).not.toBe(kimiOriginalStream);
-
-    const glmOriginalStream = createStream();
-    const glmBaseStreamFn = vi.fn().mockResolvedValue(glmOriginalStream);
-    const glmWrappedFn = provider.wrapStreamFn?.({
-      streamFn: glmBaseStreamFn,
-      modelId: "zai-org/glm-5:thinking",
-      model: { id: "zai-org/glm-5:thinking" },
-    }) as ((...args: unknown[]) => Promise<unknown>) | undefined;
-    const glmResultStream = await glmWrappedFn?.(
-      { id: "zai-org/glm-5:thinking", api: "openai-completions" } as any,
-      { messages: [], tools } as any,
-      {} as any,
-    );
-    expect(glmResultStream).toBe(glmOriginalStream);
+    expect(wrappedFn).toBe(baseStreamFn);
   });
 
   it("keeps web_fetch untouched on Kimi models because aliasing is disabled", () => {

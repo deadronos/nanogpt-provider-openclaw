@@ -31,7 +31,6 @@ describe("package manifest files", () => {
         "index.ts",
         "api.ts",
         "models.ts",
-        "repair.ts",
         "runtime.ts",
         "provider-catalog.ts",
         "provider-discovery.ts",
