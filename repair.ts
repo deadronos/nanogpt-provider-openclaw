@@ -1779,31 +1779,40 @@ async function collectRepairAttempt(params: {
   const events: AssistantMessageEvent[] = [];
   let lastAssistantMessage: AssistantMessage | undefined;
   let sawToolCall = false;
+  let streamError: unknown;
 
-  for await (const event of stream) {
-    const repairedEvent = repairAssistantMessageEvent(
-      event,
-      toolCallArgBuffers,
-      params.meta,
-      params.logger,
-    );
-    if (
-      repairedEvent.type === "toolcall_start" ||
-      repairedEvent.type === "toolcall_delta" ||
-      repairedEvent.type === "toolcall_end"
-    ) {
-      sawToolCall = true;
+  try {
+    for await (const event of stream) {
+      const repairedEvent = repairAssistantMessageEvent(
+        event,
+        toolCallArgBuffers,
+        params.meta,
+        params.logger,
+      );
+      if (
+        repairedEvent.type === "toolcall_start" ||
+        repairedEvent.type === "toolcall_delta" ||
+        repairedEvent.type === "toolcall_end"
+      ) {
+        sawToolCall = true;
+      }
+      if ("partial" in repairedEvent) {
+        lastAssistantMessage = repairedEvent.partial;
+      }
+      if (repairedEvent.type === "done") {
+        lastAssistantMessage = repairedEvent.message;
+      }
+      if (repairedEvent.type === "error") {
+        lastAssistantMessage = repairedEvent.error;
+      }
+      events.push(repairedEvent);
     }
-    if ("partial" in repairedEvent) {
-      lastAssistantMessage = repairedEvent.partial;
-    }
-    if (repairedEvent.type === "done") {
-      lastAssistantMessage = repairedEvent.message;
-    }
-    if (repairedEvent.type === "error") {
-      lastAssistantMessage = repairedEvent.error;
-    }
-    events.push(repairedEvent);
+  } catch (error) {
+    streamError = error;
+    logNanoGptRepairArtifact(params.logger, params.meta, "stream_error", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      eventsCollected: events.length,
+    });
   }
 
   const terminalEvent = [...events].reverse().find(
@@ -2172,13 +2181,24 @@ function repairToolCallEndEvent(
 }
 
 function repairAssistantMessage(
-  message: AssistantMessage,
+  message: AssistantMessage | null | undefined,
   buffers: Map<number, string>,
   meta: RepairRuntimeMeta,
   logger: RepairLogger,
   silent = false,
 ): AssistantMessage {
-  if (!message.content) return message;
+  if (!message || !message.content) {
+    return message ?? ({
+      role: "assistant",
+      content: [],
+      api: meta.requestApi ?? "openai-completions",
+      provider: "nanogpt",
+      model: meta.modelId,
+      usage: { ...EMPTY_USAGE },
+      stopReason: "stop",
+      timestamp: Date.now(),
+    });
+  }
 
   let changed = false;
   const newContent = message.content.map((block, index) => {
