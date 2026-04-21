@@ -204,12 +204,15 @@ For example:
   malformed tool-call argument JSON, one-shot invalid-turn retries, and
   best-effort salvage of structured tool payloads wrapped as assistant text,
   including XML-ish `<function=...><parameter=...>` payloads, `<invoke ...>`
-  wrapper payloads, generic known-tool wrappers like `<exec>...</exec>`,
-  raw function-style payloads like `exec({"command":"pwd"})`,
-  leaked `<|mask_start|>...<|mask_end|>` control-token placeholders, bare
-  leaked tool names like `exec`, mixed prose plus broken trailing tool
-  placeholders, and wrong `stop` reasons on successful tool-use turns surfaced
-  through plain assistant text or malformed finish metadata.
+  wrapper payloads, self-closing known-tool attribute tags like
+  `<find name="find" pattern="..." glob="..."/>`, generic known-tool wrappers
+  like `<exec>...</exec>` or `<find>...</find>`, raw function-style payloads
+  like `find({"pattern":"*.ts"})` embedded in surrounding prose,
+  `exec({"command":"pwd"})`, leaked `<|mask_start|>...<|mask_end|>` control-token
+  placeholders, bare leaked tool names like `exec`, mixed prose plus broken
+  trailing tool placeholders, and wrong `stop` reasons on successful
+  tool-use turns surfaced through plain assistant text or malformed finish
+  metadata.
 - when a Qwen tool-enabled turn is clearly broken and the wrapper spends its
   one retry, that retry also upgrades the request to `tool_choice: "required"`
   when the original tool-choice mode was unset or `auto`, which helps the
