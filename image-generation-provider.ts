@@ -169,14 +169,16 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
 
       try {
         // Surface curated model guidance when NanoGPT rejects an unknown model id
-        const detail = (await response.clone().text()).trim();
-        if (
-          response.status === 400 &&
-          /unknown model|invalid model|model/i.test(detail)
-        ) {
-          throw new Error(
-            `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detail}`,
-          );
+        if (!response.ok) {
+          const detail = (await response.clone().text()).trim();
+          if (
+            response.status === 400 &&
+            /unknown model|invalid model|model/i.test(detail)
+          ) {
+            throw new Error(
+              `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detail}`,
+            );
+          }
         }
 
         await assertOkOrThrowHttpError(response, "NanoGPT image generation failed");
