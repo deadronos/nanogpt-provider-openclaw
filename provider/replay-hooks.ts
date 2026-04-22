@@ -9,6 +9,12 @@ import type {
 import { buildOpenAICompatibleReplayPolicy } from "openclaw/plugin-sdk/provider-model-shared";
 import { isRecord } from "../shared/guards.js";
 import {
+  NANO_GPT_REASONING_TAG_PAIRS,
+  NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS,
+  NANO_GPT_FUNCTION_CALL_MARKERS,
+  countNanoGptSubstringOccurrences,
+} from "./markers.js";
+import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
   type NanoGptWarnLogger,
@@ -76,46 +82,9 @@ const NANO_GPT_REPLAY_WARNING_LOGGER_CACHE = new WeakMap<
   NanoGptReplayWarnFn
 >();
 
-const NANO_GPT_REASONING_TAG_PAIRS = [
-  { open: "<thinking>", close: "</thinking>" },
-  { open: "<reasoning>", close: "</reasoning>" },
-  { open: "<analysis>", close: "</analysis>" },
-] as const;
-
-const NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS = [
-  "<tool>",
-  "</tool>",
-  "<tool_call>",
-  "</tool_call>",
-  "<tools>",
-  "</tools>",
-  "<invoke>",
-  "</invoke>",
-] as const;
-
-const NANO_GPT_FUNCTION_CALL_MARKERS = ["<function=", "function="] as const;
-
 function normalizeNanoGptReplayText(value: string | undefined): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
   return normalized ? normalized : undefined;
-}
-
-function countNanoGptReplaySubstringOccurrences(haystack: string, needle: string): number {
-  if (!needle) {
-    return 0;
-  }
-
-  const normalizedHaystack = haystack.toLowerCase();
-  const normalizedNeedle = needle.toLowerCase();
-  let count = 0;
-  let index = 0;
-
-  while ((index = normalizedHaystack.indexOf(normalizedNeedle, index)) !== -1) {
-    count += 1;
-    index += normalizedNeedle.length;
-  }
-
-  return count;
 }
 
 function isNanoGptAssistantReplayMessage(message: unknown): message is {
@@ -219,8 +188,8 @@ function collectNanoGptReplayAssistantInspection(
   let reasoningIsUnbalanced = false;
 
   for (const tagPair of NANO_GPT_REASONING_TAG_PAIRS) {
-    const openTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.open);
-    const closeTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.close);
+    const openTagCount = countNanoGptSubstringOccurrences(normalizedVisibleText, tagPair.open);
+    const closeTagCount = countNanoGptSubstringOccurrences(normalizedVisibleText, tagPair.close);
     if (openTagCount === 0 && closeTagCount === 0) {
       continue;
     }
