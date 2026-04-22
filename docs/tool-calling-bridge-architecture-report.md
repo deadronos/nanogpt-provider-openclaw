@@ -209,13 +209,21 @@ wrapStreamFn: (ctx: ProviderWrapStreamFnContext) => StreamFn | undefined
 
 ### Hook 3: `streamWithPayloadPatch` — Upstream Request Transformation
 
-**Current state:** Not used in nanogpt-provider-openclaw; available via `openclaw/plugin-sdk/provider-stream-shared`.
+**Current state:** Not used in nanogpt-provider-openclaw; re-exported from `openclaw/plugin-sdk/provider-stream-shared` (line 425 of `provider-stream-shared.ts`). The SDK helper `createPayloadPatchStreamWrapper` wraps it in a `StreamFn` factory pattern — identical to how kimi-coding's `createKimiThinkingWrapper` uses it.
 
 **Bridge integration point:**  
-Used inside `wrapStreamFn` composition (as kimi-coding demonstrates) to transform the request payload before it reaches the upstream API. NanoProxy could use this to:
+`streamWithPayloadPatch` is available for use inside `wrapStreamFn` composition. However, it can only **add or modify** payload fields — it **cannot remove** existing fields. Specifically:
 
-1. Inject bridge system message into `messages` array
-2. Remove native `tools`/`tool_choice` from payload (since we're using bridge protocol instead)
+- ✅ Inject bridge system message content into the `messages` array via `onPayload`
+- ❌ **Cannot** strip `tools`/`tool_choice`/`parallel_tool_calls` from the payload
+
+This means the full NanoProxy bridge cannot be replicated: nano-gpt would receive both the native `tools` array AND the bridge system message instructions — two conflicting directives. The achievable approximation is a **best-effort bridge** where the bridge prompt coexists with the `tools` array.
+
+**kimi-coding vs nanogpt-provider architecture:**
+
+- kimi-coding uses `createKimiThinkingWrapper(streamFn, thinkingType)` which returns a `StreamFn` factory — compositional
+- nanogpt-provider's `wrapNanoGptStreamFn` receives `ctx.streamFn` (a `StreamFn`) and wraps it inline — same capability, different wrapping style
+- nanogpt-provider's existing `ensureIncludeUsageInStreamingPayload` demonstrates the same `onPayload` interception pattern in action (lines 539-554 of `provider/stream-hooks.ts`)
 
 ---
 
