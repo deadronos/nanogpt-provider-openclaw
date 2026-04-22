@@ -128,4 +128,68 @@ describe("readNanoGptModelsJsonSnapshot", () => {
     expect(firstSnapshot).toBe(secondSnapshot);
     expect(readFileSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("refreshes the cached snapshot after TTL even when mtime stays unchanged", () => {
+    const repoRoot = makeTempDir();
+    const agentDir = path.join(repoRoot, "agent");
+    fs.mkdirSync(agentDir, { recursive: true });
+    const modelsPath = path.join(agentDir, "models.json");
+
+    fs.writeFileSync(
+      modelsPath,
+      JSON.stringify({
+        providers: {
+          [NANOGPT_PROVIDER_ID]: {
+            models: [{ id: "cached-model" }],
+          },
+        },
+      }),
+    );
+    const fixedMtime = new Date(1_700_000_000_000);
+    fs.utimesSync(modelsPath, fixedMtime, fixedMtime);
+
+    const readFileSpy = vi.spyOn(fs, "readFileSync");
+    let nowMs = 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+
+    const firstSnapshot = readNanoGptModelsJsonSnapshot(agentDir, {
+      NANOGPT_MODELS_JSON_CACHE_TTL_MS: "1000",
+    });
+    expect(firstSnapshot.modelDefinitions.has("cached-model")).toBe(true);
+
+    nowMs = 1_500;
+    const secondSnapshot = readNanoGptModelsJsonSnapshot(agentDir, {
+      NANOGPT_MODELS_JSON_CACHE_TTL_MS: "1000",
+    });
+    expect(secondSnapshot).toBe(firstSnapshot);
+
+    fs.writeFileSync(
+      modelsPath,
+      JSON.stringify({
+        providers: {
+          [NANOGPT_PROVIDER_ID]: {
+            models: [{ id: "refreshed-model" }],
+          },
+        },
+      }),
+    );
+    fs.utimesSync(modelsPath, fixedMtime, fixedMtime);
+
+    nowMs = 1_900;
+    const staleSnapshot = readNanoGptModelsJsonSnapshot(agentDir, {
+      NANOGPT_MODELS_JSON_CACHE_TTL_MS: "1000",
+    });
+    expect(staleSnapshot).toBe(firstSnapshot);
+    expect(staleSnapshot.modelDefinitions.has("cached-model")).toBe(true);
+
+    nowMs = 2_100;
+    const refreshedSnapshot = readNanoGptModelsJsonSnapshot(agentDir, {
+      NANOGPT_MODELS_JSON_CACHE_TTL_MS: "1000",
+    });
+
+    expect(refreshedSnapshot).not.toBe(firstSnapshot);
+    expect(refreshedSnapshot.modelDefinitions.has("refreshed-model")).toBe(true);
+    expect(refreshedSnapshot.modelDefinitions.has("cached-model")).toBe(false);
+    expect(readFileSpy).toHaveBeenCalledTimes(2);
+  });
 });

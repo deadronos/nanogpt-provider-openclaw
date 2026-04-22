@@ -24,13 +24,22 @@ const emptyNanoGptModelsJsonSnapshot: NanoGptModelsJsonSnapshot = {
   modelDefinitions: new Map<string, ModelProviderConfig["models"][number]>(),
 };
 
+const DEFAULT_NANOGPT_MODELS_JSON_CACHE_TTL_MS = 5 * 60 * 1000;
+const NANOGPT_MODELS_JSON_CACHE_TTL_ENV = "NANOGPT_MODELS_JSON_CACHE_TTL_MS";
+
 const nanoGptModelsJsonCache = new Map<
   string,
   {
     mtimeMs: number;
+    loadedAtMs: number;
     snapshot: NanoGptModelsJsonSnapshot;
   }
 >();
+
+function resolveNanoGptModelsJsonCacheTtlMs(env?: Record<string, string | undefined>): number {
+  return parseFinitePositiveNumber(env?.[NANOGPT_MODELS_JSON_CACHE_TTL_ENV])
+    ?? DEFAULT_NANOGPT_MODELS_JSON_CACHE_TTL_MS;
+}
 
 function normalizeNanoGptCatalogInput(value: unknown): Array<"text" | "image" | "document"> | undefined {
   if (!Array.isArray(value)) {
@@ -111,8 +120,10 @@ export function readNanoGptModelsJsonSnapshot(
     }
 
     const stats = fs.statSync(modelsPath);
+    const nowMs = Date.now();
+    const ttlMs = resolveNanoGptModelsJsonCacheTtlMs(env);
     const cached = nanoGptModelsJsonCache.get(modelsPath);
-    if (cached && cached.mtimeMs === stats.mtimeMs) {
+    if (cached && cached.mtimeMs === stats.mtimeMs && nowMs - cached.loadedAtMs < ttlMs) {
       return cached.snapshot;
     }
 
@@ -178,6 +189,7 @@ export function readNanoGptModelsJsonSnapshot(
     const snapshot: NanoGptModelsJsonSnapshot = { catalogEntries, modelDefinitions };
     nanoGptModelsJsonCache.set(modelsPath, {
       mtimeMs: stats.mtimeMs,
+      loadedAtMs: nowMs,
       snapshot,
     });
     return snapshot;
