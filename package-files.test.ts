@@ -42,6 +42,7 @@ describe("package manifest files", () => {
         "catalog/build-provider.ts",
         "provider-catalog.ts",
         "provider-discovery.ts",
+        "provider/anomaly-logger.ts",
         "web-search/credentials.ts",
         "web-search/results.ts",
         "image/request.ts",

@@ -1,5 +1,9 @@
 import type { NanoGptPluginConfig } from "../models.js";
 import {
+  createNanoGptWarnOnceLogger as createNanoGptSharedWarnOnceLogger,
+  summarizeNanoGptFreeformMessage,
+} from "./anomaly-logger.js";
+import {
   formatNanoGptErrorSurfaceDetails,
   inspectNanoGptErrorSurface,
 } from "../nanogpt-errors.js";
@@ -28,11 +32,7 @@ type NanoGptErrorSurfaceWarningParams = {
 type NanoGptErrorSurfaceWarnFn = (params: NanoGptErrorSurfaceWarningParams) => void;
 
 export function summarizeNanoGptErrorMessage(message: string | undefined): string {
-  const normalized = message?.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "(no message)";
-  }
-  return normalized.length > 200 ? `${normalized.slice(0, 197)}...` : normalized;
+  return summarizeNanoGptFreeformMessage(message);
 }
 
 function buildNanoGptErrorSurfaceSignature(
@@ -52,50 +52,40 @@ function buildNanoGptErrorSurfaceSignature(
   ].join("|");
 }
 
+function formatNanoGptErrorSurfaceWarning(
+  resolvedNanoGptConfig: NanoGptPluginConfig,
+  warning: NanoGptErrorSurfaceWarningParams,
+): string {
+  const modelId = warning.modelId?.trim() || "(unknown model)";
+  const routingMode = resolvedNanoGptConfig.routingMode ?? "auto";
+  const providerOverride = resolvedNanoGptConfig.provider?.trim() || "auto";
+  const context = `[${warning.details}, routingMode=${routingMode}, providerOverride=${providerOverride}]`;
+  const summary = summarizeNanoGptErrorMessage(warning.message);
+
+  if (warning.kind === "mapped") {
+    return `NanoGPT API error classified as ${warning.reason} for model ${modelId} ${context}: ${summary}`;
+  }
+
+  if (warning.kind === "context_overflow") {
+    return `NanoGPT API error matched OpenClaw context overflow handling for model ${modelId} ${context}: ${summary}`;
+  }
+
+  if (warning.kind === "recognized_unmapped") {
+    return `NanoGPT API error recognized but not mapped to an OpenClaw failover reason for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`;
+  }
+
+  return `Unknown NanoGPT API error envelope for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`;
+}
+
 export function createNanoGptWarnOnceLogger(params: {
   logger: { warn: (message: string) => void };
   resolvedNanoGptConfig: NanoGptPluginConfig;
 }): NanoGptErrorSurfaceWarnFn {
-  const warnedNanoGptErrorSignatures = new Set<string>();
-
-  return (warning: NanoGptErrorSurfaceWarningParams) => {
-    const signature = buildNanoGptErrorSurfaceSignature(params.resolvedNanoGptConfig, warning);
-    if (warnedNanoGptErrorSignatures.has(signature)) {
-      return;
-    }
-    warnedNanoGptErrorSignatures.add(signature);
-
-    const modelId = warning.modelId?.trim() || "(unknown model)";
-    const routingMode = params.resolvedNanoGptConfig.routingMode ?? "auto";
-    const providerOverride = params.resolvedNanoGptConfig.provider?.trim() || "auto";
-    const context = `[${warning.details}, routingMode=${routingMode}, providerOverride=${providerOverride}]`;
-    const summary = summarizeNanoGptErrorMessage(warning.message);
-
-    if (warning.kind === "mapped") {
-      params.logger.warn(
-        `NanoGPT API error classified as ${warning.reason} for model ${modelId} ${context}: ${summary}`,
-      );
-      return;
-    }
-
-    if (warning.kind === "context_overflow") {
-      params.logger.warn(
-        `NanoGPT API error matched OpenClaw context overflow handling for model ${modelId} ${context}: ${summary}`,
-      );
-      return;
-    }
-
-    if (warning.kind === "recognized_unmapped") {
-      params.logger.warn(
-        `NanoGPT API error recognized but not mapped to an OpenClaw failover reason for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`,
-      );
-      return;
-    }
-
-    params.logger.warn(
-      `Unknown NanoGPT API error envelope for model ${modelId} ${context}: ${summary}. Falling back to OpenClaw generic classification.`,
-    );
-  };
+  return createNanoGptSharedWarnOnceLogger({
+    logger: params.logger,
+    buildSignature: (warning) => buildNanoGptErrorSurfaceSignature(params.resolvedNanoGptConfig, warning),
+    formatMessage: (warning) => formatNanoGptErrorSurfaceWarning(params.resolvedNanoGptConfig, warning),
+  });
 }
 
 export function matchesContextOverflowError(
