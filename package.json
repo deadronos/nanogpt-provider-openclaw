@@ -86,7 +86,17 @@
       "hono": "4.12.14",
       "protobufjs": "7.5.5",
       "tar": "7.5.13"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@discordjs/opus",
+      "@matrix-org/matrix-sdk-crypto-nodejs",
+      "@whiskeysockets/baileys",
+      "esbuild",
+      "koffi",
+      "openclaw",
+      "protobufjs",
+      "sharp"
+    ]
   },
   "publishConfig": {
     "access": "public"
