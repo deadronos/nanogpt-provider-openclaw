@@ -55,9 +55,30 @@ describe("nanogpt plugin entry", () => {
     expect((providers[0] as { fetchUsageSnapshot?: unknown }).fetchUsageSnapshot).toEqual(
       expect.any(Function),
     );
+    expect((providers[0] as { buildReplayPolicy?: unknown }).buildReplayPolicy).toEqual(
+      expect.any(Function),
+    );
+    expect((providers[0] as { sanitizeReplayHistory?: unknown }).sanitizeReplayHistory).toEqual(
+      expect.any(Function),
+    );
+    expect((providers[0] as { validateReplayTurns?: unknown }).validateReplayTurns).toEqual(
+      expect.any(Function),
+    );
+    expect((providers[0] as { resolveReasoningOutputMode?: unknown }).resolveReasoningOutputMode).toEqual(
+      expect.any(Function),
+    );
     expect((providers[0] as { applyNativeStreamingUsageCompat?: unknown }).applyNativeStreamingUsageCompat).toEqual(
       expect.any(Function),
     );
+  });
+
+  it("registers replay and reasoning hooks on the model provider surface", () => {
+    const provider = getRegisteredProvider();
+
+    expect(provider.buildReplayPolicy).toEqual(expect.any(Function));
+    expect(provider.sanitizeReplayHistory).toEqual(expect.any(Function));
+    expect(provider.validateReplayTurns).toEqual(expect.any(Function));
+    expect(provider.resolveReasoningOutputMode).toEqual(expect.any(Function));
   });
 
   it("fills missing streaming usage compat without clobbering explicit false", () => {
