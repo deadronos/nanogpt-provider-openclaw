@@ -1,3 +1,4 @@
+import type { NanoGptResponseFormat } from "../models.js";
 import type { ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
 import {
   createNanoGptAnomalyWarnOnceLogger,
@@ -517,6 +518,7 @@ function ensureIncludeUsageInStreamingPayload(
 export function wrapNanoGptStreamFn(
   ctx: ProviderWrapStreamFnContext,
   logger?: NanoGptLogger,
+  responseFormat?: NanoGptResponseFormat,
 ): NanoGptWrappedStreamFn {
   if (ctx.streamFn) {
     const streamFn = ctx.streamFn;
@@ -549,6 +551,25 @@ export function wrapNanoGptStreamFn(
           const ensured = ensureIncludeUsageInStreamingPayload(upstreamPayload, shouldForceIncludeUsage);
           if (ensured.requested) {
             requestedIncludeUsage = true;
+          }
+          // Inject response_format for tool-enabled requests based on config.
+          if (responseFormat) {
+            const basePayload = ensured.payload ?? upstreamPayload;
+            const existing = (basePayload as Record<string, unknown>).response_format;
+            if (!existing) {
+              if (responseFormat === "json_object") {
+                return { ...(basePayload as Record<string, unknown>), response_format: { type: "json_object" } };
+              }
+              if (typeof responseFormat === "object" && responseFormat.type === "json_schema") {
+                const schema = responseFormat.schema;
+                return {
+                  ...(basePayload as Record<string, unknown>),
+                  response_format: schema
+                    ? { type: "json_schema", json_schema: { schema } }
+                    : { type: "json_schema" },
+                };
+              }
+            }
           }
           return ensured.payload ?? upstreamPayload;
         },

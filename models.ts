@@ -25,12 +25,18 @@ export interface NanoGptRepairConfig {
   otherRepair?: boolean;
 }
 
+export type NanoGptResponseFormat =
+  | false
+  | "json_object"
+  | { type: "json_schema"; schema?: Record<string, unknown> };
+
 export interface NanoGptPluginConfig {
   routingMode?: NanoGptRoutingMode;
   catalogSource?: NanoGptCatalogSource;
   requestApi?: "completions" | "responses" | "auto";
   provider?: string;
   enableRepair?: boolean | NanoGptRepairConfig;
+  responseFormat?: NanoGptResponseFormat;
 }
 
 export interface NanoGptModelCapabilities {

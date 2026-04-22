@@ -1,4 +1,4 @@
-import type { NanoGptPluginConfig } from "../models.js";
+import type { NanoGptPluginConfig, NanoGptResponseFormat } from "../models.js";
 
 export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
   if (!config || typeof config !== "object") {
@@ -36,6 +36,17 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
     ...(candidate.enableRepair !== undefined && candidate.enableRepair !== null
       ? { enableRepair: candidate.enableRepair }
       : {}),
+    ...(() => {
+      const rf = candidate.responseFormat;
+      if (
+        rf === false ||
+        rf === "json_object" ||
+        (typeof rf === "object" && rf !== null && (rf as Record<string, unknown>).type === "json_schema")
+      ) {
+        return { responseFormat: rf as NanoGptResponseFormat };
+      }
+      return {};
+    })(),
   };
 }
 

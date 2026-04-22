@@ -188,6 +188,7 @@ For example:
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
+- `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 
 ### Behavior notes
 
@@ -224,6 +225,13 @@ For example:
   endpoint (`/api/v1`) rather than the subscription completions endpoint, so
   treat it as a separate compatibility/billing path from standard subscription
   chat-completions routing.
+- `responseFormat: "json_object"` injects `response_format: { type: "json_object" }` into
+  tool-enabled requests, asking nano-gpt to return valid JSON as `content`. Only
+  injected when not already present in the payload. Experimental: whether this improves
+  tool-call reliability when the native `tools` array is also present is unverified.
+- `responseFormat: { type: "json_schema", schema }` injects
+  `response_format: { type: "json_schema", json_schema: { schema } }` — `schema` is
+  optional and defaults to omitted. Same constraints as `"json_object"` above.
 
 ### Pricing behavior
 

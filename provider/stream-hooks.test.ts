@@ -185,6 +185,43 @@ describe("nanoGPT stream hooks", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("does not inject response_format by default for tool-enabled requests", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      onPayload: (payload) => observedPayloads.push(payload),
+    });
+
+    await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Default responseFormat is false (off), so no injection happens.
+    expect(observedPayloads[0]).not.toHaveProperty("response_format");
+  });
+
+  it("does not inject response_format for non-tool requests", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "hello" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      onPayload: (payload) => observedPayloads.push(payload),
+    });
+
+    await wrapped?.({} as any, {} as any, {}); // no tools
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).not.toHaveProperty("response_format");
+  });
+
   it("warns on tool-like text and leaked reasoning markers without exposing raw content", async () => {
     const message = buildAssistantMessage({
       content: [
@@ -354,6 +391,119 @@ describe("nanoGPT stream hooks", () => {
     expect(messages.filter((message) => message.includes("tool_enabled_turn_without_tool_call"))).toHaveLength(1);
     expect(messages.filter((message) => message.includes("tool_enabled_turn_with_empty_visible_output"))).toHaveLength(1);
     expect(messages).toHaveLength(2);
+  });
+
+  it("injects json_object response_format when configured", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const baseStreamFn = vi.fn(async (_model: unknown, _context: unknown, options?: any) => {
+      if (typeof options?.onPayload === "function") {
+        const observedPayload = await options.onPayload({ stream: true }, {});
+        observedPayloads.push(observedPayload);
+      }
+      const stream = createAssistantMessageEventStream();
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+      return stream;
+    });
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: { id: MODEL_ID, api: "openai-completions" },
+        streamFn: baseStreamFn,
+      } as any,
+      { warn: vi.fn() },
+      "json_object",
+    );
+
+    await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).toMatchObject({
+      response_format: { type: "json_object" },
+    });
+  });
+
+  it("injects json_schema response_format with provided schema", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const schema = { type: "object", properties: { path: { type: "string" } } };
+    const baseStreamFn = vi.fn(async (_model: unknown, _context: unknown, options?: any) => {
+      if (typeof options?.onPayload === "function") {
+        const observedPayload = await options.onPayload({ stream: true }, {});
+        observedPayloads.push(observedPayload);
+      }
+      const stream = createAssistantMessageEventStream();
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+      return stream;
+    });
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: { id: MODEL_ID, api: "openai-completions" },
+        streamFn: baseStreamFn,
+      } as any,
+      { warn: vi.fn() },
+      { type: "json_schema", schema },
+    );
+
+    await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).toMatchObject({
+      response_format: { type: "json_schema", json_schema: { schema } },
+    });
+  });
+
+  it("does not inject response_format when configured as false", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const baseStreamFn = vi.fn(async (_model: unknown, _context: unknown, options?: any) => {
+      if (typeof options?.onPayload === "function") {
+        const observedPayload = await options.onPayload({ stream: true }, {});
+        observedPayloads.push(observedPayload);
+      }
+      const stream = createAssistantMessageEventStream();
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+      return stream;
+    });
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: { id: MODEL_ID, api: "openai-completions" },
+        streamFn: baseStreamFn,
+      } as any,
+      { warn: vi.fn() },
+      false,
+    );
+
+    await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).not.toHaveProperty("response_format");
   });
 });
 
