@@ -10,6 +10,16 @@ import {
   type NanoGptModelFamily,
 } from "./anomaly-types.js";
 import { isRecord } from "../shared/guards.js";
+import {
+  NANO_GPT_REASONING_TAG_PAIRS,
+  NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS,
+  NANO_GPT_FUNCTION_CALL_MARKERS,
+  countNanoGptSubstringOccurrences,
+} from "./markers.js";
+import {
+  collectNanoGptStreamMarkerInspection,
+  type NanoGptStreamMarkerInspection,
+} from "./inspection.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
 
@@ -31,14 +41,6 @@ type NanoGptStreamContentInspection = Readonly<{
   thinkingBlockCount: number;
 }>;
 
-type NanoGptStreamMarkerInspection = Readonly<{
-  reasoningMarkerNames: readonly string[];
-  reasoningIsUnbalanced: boolean;
-  xmlLikeToolWrapperMarkers: readonly string[];
-  functionCallMarkers: readonly string[];
-  toolLikeMarkers: readonly string[];
-}>;
-
 type NanoGptUsage = {
   input: number;
   output: number;
@@ -58,43 +60,6 @@ const NANO_GPT_STREAM_ANOMALY_LOGGER_CACHE = new WeakMap<
   NanoGptLogger,
   (warning: NanoGptAnomalyWarning) => void
 >();
-
-const NANO_GPT_REASONING_TAG_PAIRS = [
-  { open: "<thinking>", close: "</thinking>" },
-  { open: "<reasoning>", close: "</reasoning>" },
-  { open: "<analysis>", close: "</analysis>" },
-] as const;
-
-const NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS = [
-  "<tool>",
-  "</tool>",
-  "<tool_call>",
-  "</tool_call>",
-  "<tools>",
-  "</tools>",
-  "<invoke>",
-  "</invoke>",
-] as const;
-
-const NANO_GPT_FUNCTION_CALL_MARKERS = ["<function=", "function="] as const;
-
-function countNanoGptSubstringOccurrences(haystack: string, needle: string): number {
-  if (!needle) {
-    return 0;
-  }
-
-  const normalizedHaystack = haystack.toLowerCase();
-  const normalizedNeedle = needle.toLowerCase();
-  let count = 0;
-  let index = 0;
-
-  while ((index = normalizedHaystack.indexOf(normalizedNeedle, index)) !== -1) {
-    count += 1;
-    index += normalizedNeedle.length;
-  }
-
-  return count;
-}
 
 function collectNanoGptRequestToolMetadata(context: unknown): NanoGptRequestToolMetadata {
   if (!isRecord(context) || !Array.isArray(context.tools)) {
@@ -163,41 +128,6 @@ function collectNanoGptStreamContentInspection(finalMessage: unknown): NanoGptSt
     textBlockCount,
     toolCallCount,
     thinkingBlockCount,
-  };
-}
-
-function collectNanoGptStreamMarkerInspection(visibleText: string): NanoGptStreamMarkerInspection {
-  const normalizedVisibleText = visibleText.toLowerCase();
-  const reasoningMarkerNames = new Set<string>();
-  let reasoningIsUnbalanced = false;
-
-  for (const tagPair of NANO_GPT_REASONING_TAG_PAIRS) {
-    const openTagCount = countNanoGptSubstringOccurrences(normalizedVisibleText, tagPair.open);
-    const closeTagCount = countNanoGptSubstringOccurrences(normalizedVisibleText, tagPair.close);
-    if (openTagCount === 0 && closeTagCount === 0) {
-      continue;
-    }
-
-    reasoningMarkerNames.add(tagPair.open);
-    reasoningMarkerNames.add(tagPair.close);
-    if (openTagCount !== closeTagCount) {
-      reasoningIsUnbalanced = true;
-    }
-  }
-
-  const xmlLikeToolWrapperMarkers = NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS.filter((marker) =>
-    normalizedVisibleText.includes(marker),
-  );
-  const functionCallMarkers = NANO_GPT_FUNCTION_CALL_MARKERS.filter((marker) =>
-    normalizedVisibleText.includes(marker),
-  );
-
-  return {
-    reasoningMarkerNames: [...reasoningMarkerNames],
-    reasoningIsUnbalanced,
-    xmlLikeToolWrapperMarkers,
-    functionCallMarkers,
-    toolLikeMarkers: [...new Set([...xmlLikeToolWrapperMarkers, ...functionCallMarkers])],
   };
 }
 

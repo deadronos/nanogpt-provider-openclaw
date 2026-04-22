@@ -8,6 +8,7 @@ import type {
 } from "openclaw/plugin-sdk/plugin-entry";
 import { buildOpenAICompatibleReplayPolicy } from "openclaw/plugin-sdk/provider-model-shared";
 import { isRecord } from "../shared/guards.js";
+import { collectNanoGptStreamMarkerInspection } from "./inspection.js";
 import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
@@ -76,46 +77,9 @@ const NANO_GPT_REPLAY_WARNING_LOGGER_CACHE = new WeakMap<
   NanoGptReplayWarnFn
 >();
 
-const NANO_GPT_REASONING_TAG_PAIRS = [
-  { open: "<thinking>", close: "</thinking>" },
-  { open: "<reasoning>", close: "</reasoning>" },
-  { open: "<analysis>", close: "</analysis>" },
-] as const;
-
-const NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS = [
-  "<tool>",
-  "</tool>",
-  "<tool_call>",
-  "</tool_call>",
-  "<tools>",
-  "</tools>",
-  "<invoke>",
-  "</invoke>",
-] as const;
-
-const NANO_GPT_FUNCTION_CALL_MARKERS = ["<function=", "function="] as const;
-
 function normalizeNanoGptReplayText(value: string | undefined): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
   return normalized ? normalized : undefined;
-}
-
-function countNanoGptReplaySubstringOccurrences(haystack: string, needle: string): number {
-  if (!needle) {
-    return 0;
-  }
-
-  const normalizedHaystack = haystack.toLowerCase();
-  const normalizedNeedle = needle.toLowerCase();
-  let count = 0;
-  let index = 0;
-
-  while ((index = normalizedHaystack.indexOf(normalizedNeedle, index)) !== -1) {
-    count += 1;
-    index += normalizedNeedle.length;
-  }
-
-  return count;
 }
 
 function isNanoGptAssistantReplayMessage(message: unknown): message is {
@@ -214,30 +178,7 @@ function collectNanoGptReplayAssistantInspection(
     }
   }
 
-  const normalizedVisibleText = visibleText.toLowerCase();
-  const reasoningMarkerNames = new Set<string>();
-  let reasoningIsUnbalanced = false;
-
-  for (const tagPair of NANO_GPT_REASONING_TAG_PAIRS) {
-    const openTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.open);
-    const closeTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.close);
-    if (openTagCount === 0 && closeTagCount === 0) {
-      continue;
-    }
-
-    reasoningMarkerNames.add(tagPair.open);
-    reasoningMarkerNames.add(tagPair.close);
-    if (openTagCount !== closeTagCount) {
-      reasoningIsUnbalanced = true;
-    }
-  }
-
-  const xmlLikeToolWrapperMarkers = NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS.filter((marker) =>
-    normalizedVisibleText.includes(marker),
-  );
-  const functionCallMarkers = NANO_GPT_FUNCTION_CALL_MARKERS.filter((marker) =>
-    normalizedVisibleText.includes(marker),
-  );
+  const markerInspection = collectNanoGptStreamMarkerInspection(visibleText);
 
   return {
     visibleText,
@@ -247,11 +188,11 @@ function collectNanoGptReplayAssistantInspection(
     toolCallCount,
     toolCalls,
     toolCallNames: [...toolCallNames],
-    reasoningMarkerNames: [...reasoningMarkerNames],
-    reasoningIsUnbalanced,
-    xmlLikeToolWrapperMarkers,
-    functionCallMarkers,
-    toolLikeMarkers: [...new Set([...xmlLikeToolWrapperMarkers, ...functionCallMarkers])],
+    reasoningMarkerNames: markerInspection.reasoningMarkerNames,
+    reasoningIsUnbalanced: markerInspection.reasoningIsUnbalanced,
+    xmlLikeToolWrapperMarkers: markerInspection.xmlLikeToolWrapperMarkers,
+    functionCallMarkers: markerInspection.functionCallMarkers,
+    toolLikeMarkers: markerInspection.toolLikeMarkers,
     missingToolCallIdCount,
     duplicateToolCallIdCount,
   };
