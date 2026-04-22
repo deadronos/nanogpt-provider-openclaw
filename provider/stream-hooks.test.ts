@@ -185,6 +185,44 @@ describe("nanoGPT stream hooks", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("injects response_format: { type: 'json_object' } for tool-enabled requests", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      onPayload: (payload) => observedPayloads.push(payload),
+    });
+
+    await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).toMatchObject({
+      response_format: { type: "json_object" },
+    });
+  });
+
+  it("does not inject response_format for non-tool requests", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "hello" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      onPayload: (payload) => observedPayloads.push(payload),
+    });
+
+    await wrapped?.({} as any, {} as any, {}); // no tools
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).not.toHaveProperty("response_format");
+  });
+
   it("warns on tool-like text and leaked reasoning markers without exposing raw content", async () => {
     const message = buildAssistantMessage({
       content: [
@@ -305,7 +343,7 @@ describe("nanoGPT stream hooks", () => {
     await stream?.result();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(observedPayloads[0]).toEqual({ stream: true });
+    expect(observedPayloads[0]).toEqual({ stream: true, response_format: { type: "json_object" } });
     expect(extractWarnMessages(logger.warn).some((message) => message.includes("tool_enabled_turn_without_tool_call"))).toBe(
       true,
     );

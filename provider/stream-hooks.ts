@@ -550,7 +550,16 @@ export function wrapNanoGptStreamFn(
           if (ensured.requested) {
             requestedIncludeUsage = true;
           }
-          return ensured.payload ?? upstreamPayload;
+          // Inject response_format for tool-enabled requests to request structured JSON output.
+          const hasTools = requestToolMetadata.toolEnabled;
+          const basePayload = ensured.payload ?? upstreamPayload;
+          if (hasTools) {
+            const existing = (basePayload as Record<string, unknown>).response_format;
+            if (!existing) {
+              (basePayload as Record<string, unknown>).response_format = { type: "json_object" };
+            }
+          }
+          return basePayload;
         },
       };
 
