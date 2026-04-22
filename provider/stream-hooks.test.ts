@@ -196,6 +196,7 @@ describe("nanoGPT stream hooks", () => {
       usageEmpty: false,
       stopReason: "stop",
     });
+    const originalMessage = JSON.parse(JSON.stringify(message)) as typeof message;
     const { warn, wrapped } = createWrappedStream({ message });
 
     const stream = await wrapped?.(
@@ -218,6 +219,7 @@ describe("nanoGPT stream hooks", () => {
     expect(messages.some((message) => message.includes("family=kimi"))).toBe(true);
     expect(messages.some((message) => message.includes("plan"))).toBe(false);
     expect(messages.some((message) => message.includes("run"))).toBe(false);
+    expect(message).toEqual(originalMessage);
   });
 
   it("warns on unbalanced reasoning tags without double-reporting the balanced leak kind", async () => {

@@ -23,6 +23,7 @@ function buildUsage(): AssistantMessage["usage"] {
 
 function buildAssistantMessage(params: {
   content: AssistantMessage["content"];
+  timestamp?: number;
 }): AssistantMessage {
   return {
     role: "assistant",
@@ -32,13 +33,14 @@ function buildAssistantMessage(params: {
     model: MODEL_ID,
     usage: buildUsage(),
     stopReason: "stop",
-    timestamp: Date.now(),
+    timestamp: params.timestamp ?? Date.now(),
   };
 }
 
 function buildToolResultMessage(params: {
   toolCallId?: string;
   toolName?: string;
+  timestamp?: number;
 }): ToolResultMessage {
   return {
     role: "toolResult",
@@ -46,7 +48,7 @@ function buildToolResultMessage(params: {
     toolName: params.toolName ?? "",
     content: [{ type: "text", text: "done" }],
     isError: false,
-    timestamp: Date.now(),
+    timestamp: params.timestamp ?? Date.now(),
   };
 }
 
@@ -137,7 +139,10 @@ describe("nanoGPT replay hooks", () => {
 
   it("warns on leaked reasoning tags and tool-like visible replay text without exposing raw payloads", () => {
     const { sanitizeReplayHistory, warn } = createReplayHooks();
+    const userTimestamp = Date.now();
+    const assistantTimestamp = userTimestamp + 1;
     const assistant = buildAssistantMessage({
+      timestamp: assistantTimestamp,
       content: [
         {
           type: "text",
@@ -145,8 +150,16 @@ describe("nanoGPT replay hooks", () => {
         },
       ],
     });
+    const originalMessages = JSON.parse(JSON.stringify([
+      {
+        role: "user",
+        content: "hello",
+        timestamp: userTimestamp,
+      },
+      assistant,
+    ])) as Array<Record<string, unknown>>;
 
-    const result = sanitizeReplayHistory({
+    const context = {
       provider: "nanogpt",
       modelId: MODEL_ID,
       modelApi: "openai-completions",
@@ -154,13 +167,16 @@ describe("nanoGPT replay hooks", () => {
         {
           role: "user",
           content: "hello",
-          timestamp: Date.now(),
+          timestamp: userTimestamp,
         },
         assistant,
       ],
-    } as any);
+    };
+
+    const result = sanitizeReplayHistory(context as any);
 
     expect(result).toBeUndefined();
+    expect(context.messages).toEqual(originalMessages);
 
     const messages = extractWarnMessages(warn);
     expect(messages.some((message) => message.includes("replay_contains_reasoning_leak"))).toBe(true);
@@ -174,7 +190,10 @@ describe("nanoGPT replay hooks", () => {
 
   it("warns when replay tool ordering and tool-call ids are inconsistent", () => {
     const { validateReplayTurns, warn } = createReplayHooks();
-    const result = validateReplayTurns({
+    const assistantTimestamp = Date.now();
+    const toolResultTimestamp = assistantTimestamp + 1;
+    const userTimestamp = assistantTimestamp + 2;
+    const context = {
       provider: "nanogpt",
       modelId: MODEL_ID,
       modelApi: "openai-completions",
@@ -200,21 +219,26 @@ describe("nanoGPT replay hooks", () => {
           model: MODEL_ID,
           usage: buildUsage(),
           stopReason: "toolUse",
-          timestamp: Date.now(),
+          timestamp: assistantTimestamp,
         } as AssistantMessage,
         buildToolResultMessage({
           toolCallId: "call_1",
           toolName: "write",
+          timestamp: toolResultTimestamp,
         }),
         {
           role: "user",
           content: "interrupt",
-          timestamp: Date.now(),
+          timestamp: userTimestamp,
         },
       ],
-    } as any);
+    };
+    const originalMessages = JSON.parse(JSON.stringify(context.messages)) as Array<Record<string, unknown>>;
+
+    const result = validateReplayTurns(context as any);
 
     expect(result).toBeUndefined();
+    expect(context.messages).toEqual(originalMessages);
 
     const messages = extractWarnMessages(warn);
     expect(messages.some((message) => message.includes("replay_has_missing_tool_call_id"))).toBe(true);
@@ -227,41 +251,39 @@ describe("nanoGPT replay hooks", () => {
 
   it("stays quiet for clean replay history", () => {
     const { sanitizeReplayHistory, validateReplayTurns, warn } = createReplayHooks();
+    const userTimestamp = Date.now();
+    const assistantTimestamp = userTimestamp + 1;
     const assistant = buildAssistantMessage({
+      timestamp: assistantTimestamp,
       content: [{ type: "text", text: "All good here." }],
     });
+    const sanitizeContext = {
+      provider: "nanogpt",
+      modelId: MODEL_ID,
+      modelApi: "openai-completions",
+      messages: [
+        {
+          role: "user",
+          content: "hello",
+          timestamp: userTimestamp,
+        },
+        assistant,
+      ],
+    };
+    const validateContext = JSON.parse(JSON.stringify(sanitizeContext)) as typeof sanitizeContext;
+    const sanitizeOriginalMessages = JSON.parse(JSON.stringify(sanitizeContext.messages)) as Array<Record<string, unknown>>;
+    const validateOriginalMessages = JSON.parse(JSON.stringify(validateContext.messages)) as Array<Record<string, unknown>>;
 
     expect(
-      sanitizeReplayHistory({
-        provider: "nanogpt",
-        modelId: MODEL_ID,
-        modelApi: "openai-completions",
-        messages: [
-          {
-            role: "user",
-            content: "hello",
-            timestamp: Date.now(),
-          },
-          assistant,
-        ],
-      } as any),
+      sanitizeReplayHistory(sanitizeContext as any),
     ).toBeUndefined();
 
     expect(
-      validateReplayTurns({
-        provider: "nanogpt",
-        modelId: MODEL_ID,
-        modelApi: "openai-completions",
-        messages: [
-          {
-            role: "user",
-            content: "hello",
-            timestamp: Date.now(),
-          },
-          assistant,
-        ],
-      } as any),
+      validateReplayTurns(validateContext as any),
     ).toBeUndefined();
+
+    expect(sanitizeContext.messages).toEqual(sanitizeOriginalMessages);
+    expect(validateContext.messages).toEqual(validateOriginalMessages);
 
     expect(warn).not.toHaveBeenCalled();
   });
