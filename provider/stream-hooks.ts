@@ -552,13 +552,26 @@ export function wrapNanoGptStreamFn(
           if (ensured.requested) {
             requestedIncludeUsage = true;
           }
-          // Inject response_format for tool-enabled requests to request structured JSON output.
-          const hasTools = requestToolMetadata.toolEnabled;
-          const basePayload = ensured.payload ?? upstreamPayload;
-          if (hasTools && !(basePayload as Record<string, unknown>).response_format) {
-            return { ...(basePayload as Record<string, unknown>), response_format: { type: "json_object" } };
+          // Inject response_format for tool-enabled requests based on config.
+          if (responseFormat) {
+            const basePayload = ensured.payload ?? upstreamPayload;
+            const existing = (basePayload as Record<string, unknown>).response_format;
+            if (!existing) {
+              if (responseFormat === "json_object") {
+                return { ...(basePayload as Record<string, unknown>), response_format: { type: "json_object" } };
+              }
+              if (typeof responseFormat === "object" && responseFormat.type === "json_schema") {
+                const schema = responseFormat.schema;
+                return {
+                  ...(basePayload as Record<string, unknown>),
+                  response_format: schema
+                    ? { type: "json_schema", json_schema: { schema } }
+                    : { type: "json_schema" },
+                };
+              }
+            }
           }
-          return basePayload;
+          return ensured.payload ?? upstreamPayload;
         },
       };
 
