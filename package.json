@@ -37,6 +37,8 @@
     "provider/catalog-hooks.ts",
     "provider/anomaly-types.ts",
     "provider/anomaly-logger.ts",
+    "provider/inspection.ts",
+    "provider/markers.ts",
     "provider/replay-hooks.ts",
     "provider/tool-schema-hooks.ts",
     "provider/error-hooks.ts",
