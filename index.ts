@@ -17,6 +17,7 @@ import {
   resolveNanoGptDynamicModelWithSnapshot,
 } from "./provider/catalog-hooks.js";
 import { createNanoGptErrorSurfaceHooks } from "./provider/error-hooks.js";
+import { createNanoGptReplayHooks } from "./provider/replay-hooks.js";
 import {
   inspectNanoGptToolSchemas,
   normalizeNanoGptToolSchemas,
@@ -33,11 +34,13 @@ export default definePluginEntry({
   register(api) {
     const pluginConfig = api.pluginConfig;
     const resolvedNanoGptConfig = getNanoGptConfig(pluginConfig);
+    const logger = api.logger;
     const { matchesContextOverflowError: matchesContextOverflowErrorHook, classifyFailoverReason: classifyFailoverReasonHook } =
       createNanoGptErrorSurfaceHooks({
-        logger: api.logger,
+        logger,
         resolvedNanoGptConfig,
       });
+    const replayHooks = createNanoGptReplayHooks({ logger });
 
     api.registerProvider({
       id: NANOGPT_PROVIDER_ID,
@@ -79,7 +82,11 @@ export default definePluginEntry({
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
       resolveUsageAuth: async (ctx) => await resolveNanoGptUsageAuth(ctx),
       fetchUsageSnapshot: async (ctx) => await fetchNanoGptUsageSnapshot(ctx),
-      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, api.logger),
+      buildReplayPolicy: replayHooks.buildReplayPolicy,
+      sanitizeReplayHistory: replayHooks.sanitizeReplayHistory,
+      validateReplayTurns: replayHooks.validateReplayTurns,
+      resolveReasoningOutputMode: replayHooks.resolveReasoningOutputMode,
+      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, logger),
       matchesContextOverflowError: (ctx) => matchesContextOverflowErrorHook(ctx),
       classifyFailoverReason: (ctx) => classifyFailoverReasonHook(ctx),
     });

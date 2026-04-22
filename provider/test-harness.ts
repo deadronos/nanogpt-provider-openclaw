@@ -9,6 +9,48 @@ export type RegisteredNanoGptProvider = {
       models?: Array<Record<string, unknown>>;
     };
   }) => unknown;
+  buildReplayPolicy?: (ctx: {
+    provider?: string;
+    modelId?: string;
+    modelApi?: string;
+    model?: {
+      id?: string;
+      api?: string;
+      compat?: Record<string, unknown>;
+    };
+  }) => unknown;
+  sanitizeReplayHistory?: (ctx: {
+    provider?: string;
+    modelId?: string;
+    modelApi?: string;
+    model?: {
+      id?: string;
+      api?: string;
+      compat?: Record<string, unknown>;
+    };
+    messages: Array<Record<string, unknown>>;
+  }) => unknown;
+  validateReplayTurns?: (ctx: {
+    provider?: string;
+    modelId?: string;
+    modelApi?: string;
+    model?: {
+      id?: string;
+      api?: string;
+      compat?: Record<string, unknown>;
+    };
+    messages: Array<Record<string, unknown>>;
+  }) => unknown;
+  resolveReasoningOutputMode?: (ctx: {
+    provider?: string;
+    modelId?: string;
+    modelApi?: string;
+    model?: {
+      id?: string;
+      api?: string;
+      compat?: Record<string, unknown>;
+    };
+  }) => unknown;
   wrapStreamFn?: (ctx: {
     streamFn?: (...args: unknown[]) => unknown;
     modelId: string;
