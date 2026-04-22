@@ -29,6 +29,7 @@
     "runtime/discovery.ts",
     "runtime/provider-pricing.ts",
     "runtime/routing.ts",
+    "runtime/subscription.ts",
     "runtime/usage.ts",
     "catalog/models-json-snapshot.ts",
     "catalog/build-provider.ts",
