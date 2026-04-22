@@ -10,6 +10,12 @@ import {
   type NanoGptModelFamily,
 } from "./anomaly-types.js";
 import { isRecord } from "../shared/guards.js";
+import {
+  NANO_GPT_REASONING_TAG_PAIRS,
+  NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS,
+  NANO_GPT_FUNCTION_CALL_MARKERS,
+  countNanoGptSubstringOccurrences,
+} from "./markers.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
 
@@ -58,43 +64,6 @@ const NANO_GPT_STREAM_ANOMALY_LOGGER_CACHE = new WeakMap<
   NanoGptLogger,
   (warning: NanoGptAnomalyWarning) => void
 >();
-
-const NANO_GPT_REASONING_TAG_PAIRS = [
-  { open: "<thinking>", close: "</thinking>" },
-  { open: "<reasoning>", close: "</reasoning>" },
-  { open: "<analysis>", close: "</analysis>" },
-] as const;
-
-const NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS = [
-  "<tool>",
-  "</tool>",
-  "<tool_call>",
-  "</tool_call>",
-  "<tools>",
-  "</tools>",
-  "<invoke>",
-  "</invoke>",
-] as const;
-
-const NANO_GPT_FUNCTION_CALL_MARKERS = ["<function=", "function="] as const;
-
-function countNanoGptSubstringOccurrences(haystack: string, needle: string): number {
-  if (!needle) {
-    return 0;
-  }
-
-  const normalizedHaystack = haystack.toLowerCase();
-  const normalizedNeedle = needle.toLowerCase();
-  let count = 0;
-  let index = 0;
-
-  while ((index = normalizedHaystack.indexOf(normalizedNeedle, index)) !== -1) {
-    count += 1;
-    index += normalizedNeedle.length;
-  }
-
-  return count;
-}
 
 function collectNanoGptRequestToolMetadata(context: unknown): NanoGptRequestToolMetadata {
   if (!isRecord(context) || !Array.isArray(context.tools)) {
