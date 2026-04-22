@@ -3,6 +3,7 @@ import {
   buildNanoGptExpectedShapeSummary,
   buildNanoGptObservedShapeSummary,
   detectNanoGptModelFamily,
+  resolveNanoGptModelIdentity,
   resolveNanoGptModelFamily,
   resolveNanoGptModelId,
 } from "./anomaly-types.js";
@@ -27,6 +28,25 @@ describe("nanoGPT anomaly types", () => {
     expect(detectNanoGptModelFamily("zai-org/glm-4.6")).toBe("glm");
     expect(resolveNanoGptModelFamily("qwen/Qwen3.6-35B-A3B")).toBe("qwen");
     expect(resolveNanoGptModelFamily("openai/gpt-5.4-mini")).toBe("other");
+  });
+
+  it("resolves a shared NanoGPT model identity with the exact model id and family", () => {
+    expect(
+      resolveNanoGptModelIdentity({
+        modelId: "  fallback/model  ",
+        model: {
+          id: "  moonshotai/kimi-k2.5:thinking  ",
+        },
+      }),
+    ).toEqual({
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      modelFamily: "kimi",
+    });
+
+    expect(resolveNanoGptModelIdentity({ modelId: "qwen/Qwen3.6-35B-A3B" })).toEqual({
+      modelId: "qwen/Qwen3.6-35B-A3B",
+      modelFamily: "qwen",
+    });
   });
 
   it("builds normalized expected and observed shape summaries", () => {

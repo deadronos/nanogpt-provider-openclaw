@@ -3,6 +3,7 @@ import {
   createNanoGptWarnOnceLogger as createNanoGptSharedWarnOnceLogger,
   summarizeNanoGptFreeformMessage,
 } from "./anomaly-logger.js";
+import { detectNanoGptModelFamily } from "./anomaly-types.js";
 import {
   formatNanoGptErrorSurfaceDetails,
   inspectNanoGptErrorSurface,
@@ -40,12 +41,14 @@ function buildNanoGptErrorSurfaceSignature(
   params: NanoGptErrorSurfaceWarningParams,
 ): string {
   const modelId = params.modelId?.trim() || "(unknown model)";
+  const modelFamily = detectNanoGptModelFamily(modelId);
   const routingMode = resolvedNanoGptConfig.routingMode ?? "auto";
   const providerOverride = resolvedNanoGptConfig.provider?.trim() || "auto";
   return [
     params.kind,
     params.reason ?? "",
     modelId,
+    modelFamily,
     routingMode,
     providerOverride,
     params.details,
@@ -57,9 +60,10 @@ function formatNanoGptErrorSurfaceWarning(
   warning: NanoGptErrorSurfaceWarningParams,
 ): string {
   const modelId = warning.modelId?.trim() || "(unknown model)";
+  const modelFamily = detectNanoGptModelFamily(modelId);
   const routingMode = resolvedNanoGptConfig.routingMode ?? "auto";
   const providerOverride = resolvedNanoGptConfig.provider?.trim() || "auto";
-  const context = `[${warning.details}, routingMode=${routingMode}, providerOverride=${providerOverride}]`;
+  const context = `[${warning.details}, routingMode=${routingMode}, providerOverride=${providerOverride}, family=${modelFamily}]`;
   const summary = summarizeNanoGptErrorMessage(warning.message);
 
   if (warning.kind === "mapped") {

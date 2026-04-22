@@ -16,8 +16,7 @@ import {
 import {
   buildNanoGptExpectedShapeSummary,
   buildNanoGptObservedShapeSummary,
-  detectNanoGptModelFamily,
-  resolveNanoGptModelId,
+  resolveNanoGptModelIdentity,
 } from "./anomaly-types.js";
 
 type NanoGptReplayWarnFn = (warning: NanoGptAnomalyWarning) => void;
@@ -286,21 +285,6 @@ function resolveNanoGptReplayTransportApi(context: ProviderReplayPolicyContext):
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function resolveNanoGptReplayModelIdentity(context: ProviderReplayPolicyContext): {
-  modelId: string;
-  modelFamily: NanoGptAnomalyWarning["modelFamily"];
-} {
-  const modelId = resolveNanoGptModelId({
-    modelId: context.modelId,
-    model: context.model,
-  });
-
-  return {
-    modelId,
-    modelFamily: detectNanoGptModelFamily(modelId),
-  };
-}
-
 function isNanoGptTaggedReasoningOutputMode(context: ProviderReasoningOutputModeContext): boolean {
   const compat = context.model?.compat;
   return isRecord(compat) && compat.requiresThinkingAsText === true;
@@ -466,7 +450,7 @@ export function sanitizeReplayHistory(
     return undefined;
   }
 
-  const { modelId, modelFamily } = resolveNanoGptReplayModelIdentity(context);
+  const { modelId, modelFamily } = resolveNanoGptModelIdentity(context);
   const transportApi = resolveNanoGptReplayTransportApi(context);
   const reasoningOutputMode = resolveReasoningOutputMode(context);
 
@@ -571,7 +555,7 @@ export function validateReplayTurns(
     return undefined;
   }
 
-  const { modelId, modelFamily } = resolveNanoGptReplayModelIdentity(context);
+  const { modelId, modelFamily } = resolveNanoGptModelIdentity(context);
   const transportApi = resolveNanoGptReplayTransportApi(context);
   const pendingToolCalls: Array<{
     id: string;

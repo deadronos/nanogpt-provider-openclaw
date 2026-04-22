@@ -214,6 +214,8 @@ describe("nanoGPT stream hooks", () => {
     expect(messages.some((message) => message.includes("visible_output_contains_reasoning_tags"))).toBe(true);
     expect(messages.some((message) => message.includes("visible_output_contains_xml_like_tool_wrappers"))).toBe(true);
     expect(messages.some((message) => message.includes("visible_output_contains_function_call_markers"))).toBe(true);
+    expect(messages.some((message) => message.includes(`model=${MODEL_ID}`))).toBe(true);
+    expect(messages.some((message) => message.includes("family=kimi"))).toBe(true);
     expect(messages.some((message) => message.includes("plan"))).toBe(false);
     expect(messages.some((message) => message.includes("run"))).toBe(false);
   });

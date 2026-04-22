@@ -33,6 +33,8 @@ describe("provider error hooks", () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("classified as rate_limit"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("model moonshotai/kimi-k2.5:thinking"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("family=kimi"));
   });
 
   it("warns and falls through when NanoGPT returns a recognized but unmapped error code", () => {

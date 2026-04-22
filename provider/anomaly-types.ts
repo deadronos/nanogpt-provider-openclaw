@@ -35,6 +35,11 @@ export const NANOGPT_MODEL_FAMILIES = ["kimi", "glm", "qwen", "other"] as const;
 
 export type NanoGptModelFamily = (typeof NANOGPT_MODEL_FAMILIES)[number];
 
+export type NanoGptModelIdentity = Readonly<{
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+}>;
+
 export type NanoGptModelIdentitySource = Readonly<{
   modelId?: string | null;
   model?: Readonly<{
@@ -177,4 +182,12 @@ export function resolveNanoGptModelFamily(modelId: string): NanoGptModelFamily {
 
 export function detectNanoGptModelFamily(modelId: string): NanoGptModelFamily {
   return resolveNanoGptModelFamily(modelId);
+}
+
+export function resolveNanoGptModelIdentity(source: NanoGptModelIdentitySource): NanoGptModelIdentity {
+  const modelId = resolveNanoGptModelId(source);
+  return {
+    modelId,
+    modelFamily: detectNanoGptModelFamily(modelId),
+  };
 }

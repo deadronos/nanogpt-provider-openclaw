@@ -165,6 +165,8 @@ describe("nanoGPT replay hooks", () => {
     const messages = extractWarnMessages(warn);
     expect(messages.some((message) => message.includes("replay_contains_reasoning_leak"))).toBe(true);
     expect(messages.some((message) => message.includes("replay_contains_tool_like_text"))).toBe(true);
+    expect(messages.some((message) => message.includes(`model=${MODEL_ID}`))).toBe(true);
+    expect(messages.some((message) => message.includes("family=kimi"))).toBe(true);
     expect(messages.some((message) => message.includes("plan"))).toBe(false);
     expect(messages.some((message) => message.includes("run"))).toBe(false);
     expect(messages.some((message) => message.includes("read"))).toBe(false);

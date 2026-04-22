@@ -6,8 +6,7 @@ import {
 import {
   buildNanoGptExpectedShapeSummary,
   buildNanoGptObservedShapeSummary,
-  detectNanoGptModelFamily,
-  resolveNanoGptModelId,
+  resolveNanoGptModelIdentity,
   type NanoGptModelFamily,
 } from "./anomaly-types.js";
 import { isRecord } from "../shared/guards.js";
@@ -597,11 +596,10 @@ export function wrapNanoGptStreamFn(
     }
 
     const warnNanoGptAnomaly = createNanoGptStreamAnomalyLogger(logger);
-    const modelId = resolveNanoGptModelId({
+    const { modelId, modelFamily } = resolveNanoGptModelIdentity({
       modelId: ctx.modelId,
       model: ctx.model,
     });
-    const modelFamily = detectNanoGptModelFamily(modelId);
 
     const modelCompat = ctx.model?.compat;
     const shouldForceIncludeUsage = !(isRecord(modelCompat) && modelCompat.supportsUsageInStreaming === false);

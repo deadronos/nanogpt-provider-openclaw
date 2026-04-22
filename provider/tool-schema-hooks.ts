@@ -5,8 +5,7 @@ import type {
 } from "openclaw/plugin-sdk/plugin-entry";
 import { isRecord } from "../shared/guards.js";
 import {
-  detectNanoGptModelFamily,
-  resolveNanoGptModelId,
+  resolveNanoGptModelIdentity,
 } from "./anomaly-types.js";
 
 const NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER = "NanoGPT GLM tip:";
@@ -133,7 +132,7 @@ function inspectNanoGptQwenToolSchema(
 export function normalizeNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): AnyAgentTool[] | null {
-  const family = detectNanoGptModelFamily(resolveNanoGptModelId(ctx));
+  const { modelFamily: family } = resolveNanoGptModelIdentity(ctx);
   if (family !== "glm" && family !== "qwen") {
     return null;
   }
@@ -163,7 +162,7 @@ export function normalizeNanoGptToolSchemas(
 export function inspectNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): ProviderToolSchemaDiagnostic[] | null {
-  const family = detectNanoGptModelFamily(resolveNanoGptModelId(ctx));
+  const { modelFamily: family } = resolveNanoGptModelIdentity(ctx);
   if (family !== "qwen") {
     return null;
   }
