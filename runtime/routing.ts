@@ -8,87 +8,15 @@ import {
   type NanoGptRoutingMode,
 } from "../models.js";
 import { sanitizeApiKey, sanitizeHeaderValue } from "../shared/http.js";
+import {
+  resolveNanoGptSubscriptionActive,
+  type NanoGptSubscriptionPayload,
+} from "./subscription.js";
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 export const NANOGPT_SUBSCRIPTION_PROBE_TIMEOUT_MS = 10_000;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
-
-type NanoGptSubscriptionPayload = {
-  subscribed?: unknown;
-  active?: unknown;
-  state?: unknown;
-  plan?: unknown;
-  graceUntil?: unknown;
-};
-
-function resolveNanoGptSubscriptionState(value: unknown): boolean | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) {
-    return undefined;
-  }
-
-  if (
-    normalized === "active" ||
-    normalized === "subscribed" ||
-    normalized === "grace" ||
-    normalized === "grace_period" ||
-    normalized === "grace-period" ||
-    normalized === "trial" ||
-    normalized === "trialing"
-  ) {
-    return true;
-  }
-
-  if (
-    normalized === "inactive" ||
-    normalized === "expired" ||
-    normalized === "unsubscribed" ||
-    normalized === "cancelled" ||
-    normalized === "canceled" ||
-    normalized === "none"
-  ) {
-    return false;
-  }
-
-  return undefined;
-}
-
-function hasNanoGptFutureGracePeriod(value: unknown): boolean {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value > Date.now();
-  }
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Date.parse(value.trim());
-    return Number.isFinite(parsed) && parsed > Date.now();
-  }
-  return false;
-}
-
-function resolveNanoGptSubscriptionActive(payload: NanoGptSubscriptionPayload): boolean {
-  const subscribed = typeof payload.subscribed === "boolean" ? payload.subscribed : undefined;
-  const active = typeof payload.active === "boolean" ? payload.active : undefined;
-  const state = resolveNanoGptSubscriptionState(payload.state);
-  const plan = resolveNanoGptSubscriptionState(payload.plan);
-
-  if (subscribed === true || active === true || state === true || plan === true) {
-    return true;
-  }
-
-  if (hasNanoGptFutureGracePeriod(payload.graceUntil)) {
-    return true;
-  }
-
-  if (subscribed === false || active === false || state === false || plan === false) {
-    return false;
-  }
-
-  return false;
-}
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {
   const now = Date.now();
