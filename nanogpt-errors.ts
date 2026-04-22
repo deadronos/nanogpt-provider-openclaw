@@ -1,3 +1,5 @@
+import { isRecord } from "./shared/guards.js";
+
 type NanoGptFailoverReason =
   | "auth"
   | "auth_permanent"
@@ -109,10 +111,6 @@ const BILLING_HINTS = [
   "payment required",
   "balance required",
 ] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(value: unknown): string | undefined {
   if (typeof value !== "string") {
