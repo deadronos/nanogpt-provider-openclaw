@@ -18,7 +18,10 @@
 - `catalog/*` — NanoGPT model snapshot parsing and provider assembly helpers.
 - `provider-catalog.ts` — provider catalog facade around `catalog/*` and the exported `ModelProviderConfig` surface.
 - `provider-discovery.ts` — lightweight provider discovery entry referenced by plugin metadata.
-- `provider/*` — auth, catalog hooks, tool-schema hooks, error hooks, and stream hooks.
+- `provider/*` — auth, catalog hooks, tool-schema hooks, error hooks, stream hooks, replay observability, and anomaly logging/types.
+- `provider/anomaly-logger.ts` — safe anomaly summaries, warn-once signatures, and log formatting for passive observability.
+- `provider/anomaly-types.ts` — anomaly taxonomy, stage names, model-family helpers, and shape-summary types.
+- `provider/replay-hooks.ts` — replay policy, replay sanitation/validation, and reasoning-output mode helpers.
 - `web-search.ts` — NanoGPT-backed `web_search` provider surface; keep credential/result logic in `web-search/*`.
 - `web-search/*` — NanoGPT web-search config merge, API-key resolution, normalization, and validation helpers.
 - `image-generation-provider.ts` — NanoGPT image generation and image edit provider surface.
@@ -34,7 +37,7 @@
 - Prefer OpenClaw SDK helpers for config and credential resolution instead of ad hoc env parsing in provider surfaces.
 - When changing user-visible config, auth, install, or capability behavior, keep `README.md` and `openclaw.plugin.json` aligned with the code.
 - When changing what ships, update `package.json`'s `files` list. Packaging tests expect `dist/package` to contain only the declared package surface.
-- For tool-call or stream-response bugs, inspect `provider/stream-hooks.ts`, `provider/tool-schema-hooks.ts`, `provider/error-hooks.ts`, and `index.test.ts` before changing unrelated provider registration code.
+- For tool-call, stream-response, or replay-observability bugs, inspect `provider/stream-hooks.ts`, `provider/replay-hooks.ts`, `provider/anomaly-logger.ts`, `provider/anomaly-types.ts`, `provider/tool-schema-hooks.ts`, `provider/error-hooks.ts`, and `index.test.ts` before changing unrelated provider registration code.
 
 ## Testing and packaging
 
@@ -50,6 +53,7 @@
 Link to these docs instead of duplicating them in future instructions or reports:
 
 - Install, auth, config, and current capabilities: [`README.md`](./README.md)
+- NanoGPT anomaly observability spec: [`docs/superpowers/specs/2026-04-22-nanogpt-provider-anomaly-observability.md`](./docs/superpowers/specs/2026-04-22-nanogpt-provider-anomaly-observability.md)
 - Plugin design context: [`docs/superpowers/specs/2026-04-08-nanogpt-provider-design.md`](./docs/superpowers/specs/2026-04-08-nanogpt-provider-design.md)
 - OpenClaw provider/model hook lifecycle: [`docs/openclaw-provider-model-request-lifecycle-hooks-2026-04-16.md`](./docs/openclaw-provider-model-request-lifecycle-hooks-2026-04-16.md)
 - NanoProxy/tool-reliability comparison: [`docs/nanoproxy-openclaw-tool-reliability-report-2026-04-16.md`](./docs/nanoproxy-openclaw-tool-reliability-report-2026-04-16.md)
