@@ -13,6 +13,13 @@ const NANOGPT_GLM_TOOL_SCHEMA_HINT =
   "NanoGPT GLM tip: include required ref/selector/fields arguments explicitly when the tool needs them.";
 const NANOGPT_QWEN_TOOL_SCHEMA_HINT_MARKER = "NanoGPT Qwen tip:";
 
+/**
+ * NanoGPT family-specific tool schema guidance:
+ * - Kimi: keep untouched. Alias-heavy rewrites have been flaky and are intentionally disabled.
+ * - GLM: improves tool-call reliability when required/named args are made explicit in descriptions.
+ * - Qwen: steers models away from leaked XML-like wrappers toward direct JSON object arguments.
+ */
+
 function getNanoGptToolSchemaSummary(tool: AnyAgentTool): {
   parameters?: Record<string, unknown>;
   required: string[];
@@ -133,6 +140,8 @@ export function normalizeNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): AnyAgentTool[] | null {
   const { modelFamily: family } = resolveNanoGptModelIdentity(ctx);
+  // Only normalize for families that currently need schema nudges.
+  // Kimi intentionally stays passthrough to avoid reintroducing aliasing debt.
   if (family !== "glm" && family !== "qwen") {
     return null;
   }
