@@ -1,3 +1,4 @@
+import type { NanoGptResponseFormat } from "../models.js";
 import type { ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
 import {
   createNanoGptAnomalyWarnOnceLogger,
@@ -517,6 +518,7 @@ function ensureIncludeUsageInStreamingPayload(
 export function wrapNanoGptStreamFn(
   ctx: ProviderWrapStreamFnContext,
   logger?: NanoGptLogger,
+  responseFormat?: NanoGptResponseFormat,
 ): NanoGptWrappedStreamFn {
   if (ctx.streamFn) {
     const streamFn = ctx.streamFn;

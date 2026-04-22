@@ -86,7 +86,7 @@ export default definePluginEntry({
       sanitizeReplayHistory: replayHooks.sanitizeReplayHistory,
       validateReplayTurns: replayHooks.validateReplayTurns,
       resolveReasoningOutputMode: replayHooks.resolveReasoningOutputMode,
-      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, logger),
+      wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, logger, resolvedNanoGptConfig.responseFormat),
       matchesContextOverflowError: (ctx) => matchesContextOverflowErrorHook(ctx),
       classifyFailoverReason: (ctx) => classifyFailoverReasonHook(ctx),
     });
