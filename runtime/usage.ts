@@ -11,10 +11,13 @@ import type {
 import { isRecord } from "../shared/guards.js";
 import { parseEpochMillis, parseFiniteNumber } from "../shared/parse.js";
 import { sanitizeApiKey } from "../shared/http.js";
+import { createNanoGptLoggerSync } from "../provider/nanogpt-logger.js";
 
 const NANOGPT_USAGE_PROVIDER_ID = "nanogpt" as const;
 const NANOGPT_USAGE_DISPLAY_NAME = "NanoGPT";
 const NANOGPT_USAGE_URL = "https://nano-gpt.com/api/subscription/v1/usage";
+
+const _usageLogger = createNanoGptLoggerSync("usage");
 
 type NanoGptUsageWindowPayload = Record<string, unknown> | number | string | undefined;
 
@@ -132,11 +135,14 @@ export async function fetchNanoGptUsageSnapshot(
   );
 
   if (!response.ok) {
-    return buildNanoGptUsageErrorSnapshot(`HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`);
+    const msg = `HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`;
+    _usageLogger.error("usage snapshot fetch failed", { error: msg });
+    return buildNanoGptUsageErrorSnapshot(msg);
   }
 
   const payload = (await response.json().catch(() => null)) as NanoGptUsagePayload | null;
   if (!payload || !isRecord(payload)) {
+    _usageLogger.error("usage snapshot invalid JSON");
     return buildNanoGptUsageErrorSnapshot("Invalid JSON");
   }
 
@@ -155,6 +161,7 @@ export async function fetchNanoGptUsageSnapshot(
   });
   const windows = [daily, monthly].filter((window): window is UsageWindow => window !== null);
 
+  _usageLogger.info("usage snapshot fetched", { windowCount: windows.length });
   return {
     provider: NANOGPT_USAGE_PROVIDER_ID as ProviderUsageSnapshot["provider"],
     displayName: NANOGPT_USAGE_DISPLAY_NAME,

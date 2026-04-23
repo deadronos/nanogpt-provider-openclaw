@@ -34,10 +34,11 @@ import {
   buildNanoGptXmlBridgeSystemMessage,
 } from "./bridge/system-prompt.js";
 import { parseXmlBridgeAssistantText } from "./bridge/xml-parser.js";
+import { createNanoGptLogger, createNanoGptLoggerSync, type NanoGptLogger } from "./nanogpt-logger.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
 
-type NanoGptLogger = {
+type NanoGptPluginLogger = {
   warn?: (message: string, meta?: Record<string, unknown>) => void;
 };
 
@@ -71,7 +72,7 @@ type NanoGptUsage = {
 };
 
 const NANO_GPT_STREAM_ANOMALY_LOGGER_CACHE = new WeakMap<
-  NanoGptLogger,
+  NanoGptPluginLogger,
   (warning: NanoGptAnomalyWarning) => void
 >();
 
@@ -145,7 +146,7 @@ function collectNanoGptStreamContentInspection(finalMessage: unknown): NanoGptSt
   };
 }
 
-function createNanoGptStreamAnomalyLogger(logger?: NanoGptLogger) {
+function createNanoGptStreamAnomalyLogger(logger?: NanoGptPluginLogger) {
   if (!logger?.warn) {
     return undefined;
   }
@@ -236,7 +237,8 @@ function shouldWarnNanoGptToolEnabledTurnWithoutToolCall(params: {
 
 function scheduleNanoGptStreamResultWarnings(params: {
   stream: unknown;
-  logger?: NanoGptLogger;
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
   warnNanoGptAnomaly?: (warning: NanoGptAnomalyWarning) => void;
   modelId: string;
   modelFamily: NanoGptModelFamily;
@@ -254,7 +256,15 @@ function scheduleNanoGptStreamResultWarnings(params: {
       if (params.requestedIncludeUsage && isRecord(finalMessage)) {
         const { empty, invalidFields } = inspectUsage(finalMessage.usage);
         if (empty || invalidFields.length > 0) {
+          const level = "warn";
           params.logger?.warn?.(
+            `[nanogpt] requested stream_options.include_usage but received ${empty ? "empty" : "invalid"} usage in stream result`,
+            {
+              modelId: params.modelId,
+              ...(invalidFields.length > 0 ? { invalidFields } : {}),
+            },
+          );
+          params.nanogptLogger?.warn(
             `[nanogpt] requested stream_options.include_usage but received ${empty ? "empty" : "invalid"} usage in stream result`,
             {
               modelId: params.modelId,
@@ -773,7 +783,7 @@ function replayNanoGptAssistantMessage(message: AssistantMessage) {
 
 export function wrapNanoGptStreamFn(
   ctx: ProviderWrapStreamFnContext,
-  logger?: NanoGptLogger,
+  logger?: NanoGptPluginLogger,
   resolvedConfig?: NanoGptPluginConfig,
 ): NanoGptWrappedStreamFn {
   if (ctx.streamFn) {
@@ -783,6 +793,7 @@ export function wrapNanoGptStreamFn(
       return streamFn;
     }
 
+    const nanogptLogger = createNanoGptLoggerSync("stream-hooks");
     const warnNanoGptAnomaly = createNanoGptStreamAnomalyLogger(logger);
     const { modelId, modelFamily } = resolveNanoGptModelIdentity({
       modelId: ctx.modelId,
@@ -836,6 +847,7 @@ export function wrapNanoGptStreamFn(
       };
 
       let stream = await runAttempt();
+      nanogptLogger.info("stream result received", { modelId, family: modelFamily, bridgeEnabled });
       if (bridgeEnabled) {
         let finalMessage = await stream.result();
         let rewrittenMessage = rewriteNanoGptBridgeMessage({
@@ -845,6 +857,7 @@ export function wrapNanoGptStreamFn(
         });
 
         if (!rewrittenMessage) {
+          nanogptLogger.warn("bridge failed to parse, retrying", { modelId });
           stream = await runAttempt(buildNanoGptBridgeRetrySystemMessage(bridgeProtocol));
           finalMessage = await stream.result();
           rewrittenMessage = rewriteNanoGptBridgeMessage({
@@ -863,6 +876,7 @@ export function wrapNanoGptStreamFn(
       scheduleNanoGptStreamResultWarnings({
         stream,
         logger,
+        nanogptLogger,
         warnNanoGptAnomaly,
         modelId,
         modelFamily,

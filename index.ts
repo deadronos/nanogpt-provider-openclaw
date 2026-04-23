@@ -23,6 +23,7 @@ import {
   normalizeNanoGptToolSchemas,
 } from "./provider/tool-schema-hooks.js";
 import { wrapNanoGptStreamFn } from "./provider/stream-hooks.js";
+import { createNanoGptLogger } from "./provider/nanogpt-logger.js";
 import type {
   ProviderCatalogContext,
 } from "openclaw/plugin-sdk/plugin-entry";
@@ -35,6 +36,16 @@ export default definePluginEntry({
     const pluginConfig = api.pluginConfig;
     const resolvedNanoGptConfig = getNanoGptConfig(pluginConfig);
     const logger = api.logger;
+
+    // Initialize nanogpt log file
+    createNanoGptLogger("plugin").then((log) => {
+      log.info("NanoGPT plugin registered", { version: process.env.npm_package_version ?? "unknown" });
+      log.info("config resolved", {
+        routingMode: resolvedNanoGptConfig.routingMode,
+        bridgeMode: resolvedNanoGptConfig.bridgeMode,
+        bridgeProtocol: resolvedNanoGptConfig.bridgeProtocol,
+      });
+    });
     const { matchesContextOverflowError: matchesContextOverflowErrorHook, classifyFailoverReason: classifyFailoverReasonHook } =
       createNanoGptErrorSurfaceHooks({
         logger,

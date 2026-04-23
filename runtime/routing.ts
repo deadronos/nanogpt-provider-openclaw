@@ -12,16 +12,19 @@ import {
   resolveNanoGptSubscriptionActive,
   type NanoGptSubscriptionPayload,
 } from "./subscription.js";
+import { createNanoGptLoggerSync } from "../provider/nanogpt-logger.js";
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 export const NANOGPT_SUBSCRIPTION_PROBE_TIMEOUT_MS = 10_000;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
+const _routingLogger = createNanoGptLoggerSync("routing");
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {
   const now = Date.now();
   const cached = subscriptionCache.get(apiKey);
   if (cached && cached.expiresAt > now) {
+    _routingLogger.info("subscription probe cached", { active: cached.active });
     return cached.active;
   }
 
@@ -41,10 +44,14 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
     const payload = (await response.json()) as NanoGptSubscriptionPayload;
     const active = resolveNanoGptSubscriptionActive(payload);
     subscriptionCache.set(apiKey, { active, expiresAt: now + SUBSCRIPTION_CACHE_TTL_MS });
+    _routingLogger.info("subscription probe succeeded", { active });
     return active;
-  } catch (error) {
+  } catch (err) {
+    _routingLogger.error("subscription probe failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     subscriptionCache.delete(apiKey);
-    throw error;
+    throw err;
   }
 }
 
@@ -54,12 +61,17 @@ export async function resolveNanoGptRoutingMode(params: {
 }): Promise<Exclude<NanoGptRoutingMode, "auto">> {
   const routingMode = params.config.routingMode ?? "auto";
   if (routingMode === "paygo" || routingMode === "subscription") {
+    _routingLogger.info("routing mode resolved", { routingMode, mode: "explicit" });
     return routingMode;
   }
 
   try {
-    return (await probeNanoGptSubscription(params.apiKey)) ? "subscription" : "paygo";
+    const active = await probeNanoGptSubscription(params.apiKey);
+    const resolved = active ? "subscription" : "paygo";
+    _routingLogger.info("routing mode resolved", { routingMode: resolved, mode: "probed" });
+    return resolved;
   } catch {
+    _routingLogger.warn("routing mode probe failed, defaulting to subscription");
     return "subscription";
   }
 }
@@ -127,4 +139,5 @@ export function buildNanoGptRequestHeaders(params: {
 
 export function resetNanoGptRoutingState(): void {
   subscriptionCache.clear();
+  _routingLogger.info("routing state reset");
 }
