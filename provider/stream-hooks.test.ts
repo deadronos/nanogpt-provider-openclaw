@@ -57,21 +57,27 @@ function buildAssistantMessage(params: {
 
 function createWrappedStream(params: {
   message: AssistantMessage;
+  retryMessage?: AssistantMessage;
   onPayload?: (payload: unknown) => void;
   modelCompat?: Record<string, unknown>;
   logger?: { warn: ReturnType<typeof vi.fn> };
+  config?: Record<string, unknown>;
 }) {
   const logger = params.logger ?? { warn: vi.fn() };
+  const messages = [params.message, ...(params.retryMessage ? [params.retryMessage] : [])];
+  let streamCallIndex = 0;
   const baseStreamFn = vi.fn(async (_model: unknown, _context: unknown, options?: any) => {
     if (typeof options?.onPayload === "function") {
       const observedPayload = await options.onPayload({ stream: true }, {});
       params.onPayload?.(observedPayload);
     }
 
+    const message = messages[Math.min(streamCallIndex, messages.length - 1)];
+    streamCallIndex += 1;
     const stream = createAssistantMessageEventStream();
-    const reason = params.message.stopReason === "length" ? "length" : params.message.stopReason === "toolUse" ? "toolUse" : "stop";
-    stream.push({ type: "done", reason, message: params.message });
-    stream.end(params.message);
+    const reason = message.stopReason === "length" ? "length" : message.stopReason === "toolUse" ? "toolUse" : "stop";
+    stream.push({ type: "done", reason, message });
+    stream.end(message);
     return stream;
   });
 
@@ -88,6 +94,7 @@ function createWrappedStream(params: {
       streamFn: baseStreamFn,
     } as any,
     logger,
+    params.config,
   );
 
   return { warn: logger.warn, wrapped, baseStreamFn };
@@ -393,6 +400,128 @@ describe("nanoGPT stream hooks", () => {
     expect(messages).toHaveLength(2);
   });
 
+  it("injects the object bridge system prompt when bridgeMode=always", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "ok" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      onPayload: (payload) => observedPayloads.push(payload),
+      config: { bridgeMode: "always", bridgeProtocol: "object" },
+    });
+
+    await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+      } as any,
+      {},
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const payloadMessages = (observedPayloads[0] as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+    expect(payloadMessages[0]?.content).toContain("\"v\"");
+    expect(payloadMessages[0]?.content).toContain("\"tool_calls\"");
+  });
+
+  it("rewrites object bridge content into parsed tool calls", async () => {
+    const message = buildAssistantMessage({
+      content: [
+        {
+          type: "text",
+          text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"I will inspect the file now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"src/index.ts\"}}]}",
+        },
+      ],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      config: { bridgeMode: "always", bridgeProtocol: "object" },
+    });
+
+    const stream = await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+      } as any,
+      {},
+    );
+    const result = await stream?.result();
+
+    expect(result?.stopReason).toBe("toolUse");
+    expect(result?.content).toMatchObject([
+      { type: "text", text: "I will inspect the file now." },
+      { type: "toolCall", name: "read", arguments: { path: "src/index.ts" } },
+    ]);
+  });
+
+  it("retries one invalid empty bridged turn", async () => {
+    const invalidMessage = buildAssistantMessage({
+      content: [{ type: "text", text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"\",\"tool_calls\":[]}" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const retryMessage = buildAssistantMessage({
+      content: [{ type: "text", text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"Retrying now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"retry.ts\"}}]}" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const observedPayloads: unknown[] = [];
+    const { wrapped, baseStreamFn } = createWrappedStream({
+      message: invalidMessage,
+      retryMessage,
+      onPayload: (payload) => observedPayloads.push(payload),
+      config: { bridgeMode: "always", bridgeProtocol: "object" },
+    });
+
+    const stream = await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+      } as any,
+      {},
+    );
+    const result = await stream?.result();
+
+    expect(baseStreamFn).toHaveBeenCalledTimes(2);
+    expect(((observedPayloads[1] as Record<string, unknown>).messages as Array<Record<string, string>>).at(-1)?.content).toContain(
+      "invalid because it contained no visible content or tool call",
+    );
+    expect(result?.stopReason).toBe("toolUse");
+    expect(result?.content[1]).toMatchObject({ type: "toolCall", name: "read", arguments: { path: "retry.ts" } });
+  });
+
+  it("supports the xml bridge protocol", async () => {
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "<open>I will inspect the file now.</open><read><path>src/index.ts</path></read>" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      config: { bridgeMode: "always", bridgeProtocol: "xml" },
+    });
+
+    const stream = await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+      } as any,
+      {},
+    );
+    const result = await stream?.result();
+
+    expect(result?.stopReason).toBe("toolUse");
+    expect(result?.content).toMatchObject([
+      { type: "text", text: "I will inspect the file now." },
+      { type: "toolCall", name: "read", arguments: { path: "src/index.ts" } },
+    ]);
+  });
+
   it("injects json_object response_format when configured", async () => {
     const observedPayloads: unknown[] = [];
     const message = buildAssistantMessage({
@@ -420,7 +549,7 @@ describe("nanoGPT stream hooks", () => {
         streamFn: baseStreamFn,
       } as any,
       { warn: vi.fn() },
-      "json_object",
+      { responseFormat: "json_object" },
     );
 
     await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
@@ -459,7 +588,7 @@ describe("nanoGPT stream hooks", () => {
         streamFn: baseStreamFn,
       } as any,
       { warn: vi.fn() },
-      { type: "json_schema", schema },
+      { responseFormat: { type: "json_schema", schema } },
     );
 
     await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
@@ -497,7 +626,7 @@ describe("nanoGPT stream hooks", () => {
         streamFn: baseStreamFn,
       } as any,
       { warn: vi.fn() },
-      false,
+      { responseFormat: false },
     );
 
     await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
@@ -506,4 +635,3 @@ describe("nanoGPT stream hooks", () => {
     expect(observedPayloads[0]).not.toHaveProperty("response_format");
   });
 });
-

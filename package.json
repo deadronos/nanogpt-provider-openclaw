@@ -43,6 +43,12 @@
     "provider/tool-schema-hooks.ts",
     "provider/error-hooks.ts",
     "provider/stream-hooks.ts",
+    "provider/bridge/types.ts",
+    "provider/bridge/system-prompt.ts",
+    "provider/bridge/object-parser.ts",
+    "provider/bridge/xml-parser.ts",
+    "provider/bridge/retry.ts",
+    "provider/bridge/keepalive.ts",
     "provider-catalog.ts",
     "provider-discovery.ts",
     "nanogpt-errors.ts",
@@ -121,6 +127,7 @@
     }
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.69.0",
     "grammy": "^1.42.0"
   }
 }
