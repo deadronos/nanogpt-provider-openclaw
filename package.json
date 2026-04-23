@@ -88,14 +88,18 @@
     "axios": "1.15.0",
     "hono": "4.12.14",
     "protobufjs": "7.5.5",
-    "tar": "7.5.13"
+    "tar": "7.5.13",
+    "fast-xml-parser": "5.7.0",
+    "uuid": "14.0.0"
   },
   "pnpm": {
     "overrides": {
       "axios": "1.15.0",
       "hono": "4.12.14",
       "protobufjs": "7.5.5",
-      "tar": "7.5.13"
+      "tar": "7.5.13",
+      "fast-xml-parser": "5.7.0",
+      "uuid": "14.0.0"
     },
     "onlyBuiltDependencies": [
       "@discordjs/opus",
