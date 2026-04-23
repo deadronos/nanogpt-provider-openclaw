@@ -308,6 +308,8 @@ describe("nanogpt web search provider", () => {
     });
 
     expect(apiKey).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${_secret}" })).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${secret_var}" })).toBeUndefined();
   });
 
   it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
