@@ -36,7 +36,7 @@ function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): 
 
   const rawCredentialValue = searchConfig?.apiKey;
   // If it looks like an environment variable but didn't match the safe pattern, don't pass it through
-  const isUnsafeEnvRef = typeof rawCredentialValue === "string" && /^\$\{([A-Z][A-Z0-9_]*)\}$/.test(rawCredentialValue.trim());
+  const isUnsafeEnvRef = typeof rawCredentialValue === "string" && /^\$\{([^}]+)\}$/.test(rawCredentialValue.trim());
 
   return resolveWebSearchProviderCredential({
     credentialValue:
