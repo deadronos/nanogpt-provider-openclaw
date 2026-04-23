@@ -168,7 +168,6 @@ export function buildNanoGptObjectBridgeSystemMessage(
     "",
     "Tool manifest:",
     manifest,
-    inheritedSystemText ? "" : "",
     inheritedSystemText
       ? "Additional system instructions to follow while still obeying the JSON-only output contract:"
       : "",

@@ -842,7 +842,7 @@ export class StreamingObjectParser {
     if (this.completedCalls.length > 0) {
       return {
         kind: "tool_calls",
-        content: this.messageEmitted ? "" : "",
+        content: "",
         toolCalls: [...this.completedCalls],
       };
     }

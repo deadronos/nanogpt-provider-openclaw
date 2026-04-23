@@ -12,14 +12,63 @@ function xmlUnescape(value: string): string {
 }
 
 function decodeJsonStyleEscapes(value: string): string {
-  if (!value.includes("\\")) {
-    return value;
+  let decoded = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char !== "\\") {
+      decoded += char;
+      continue;
+    }
+
+    const next = value[index + 1];
+    if (next === undefined) {
+      decoded += "\\";
+      continue;
+    }
+
+    if (next === "n") {
+      decoded += "\n";
+      index += 1;
+      continue;
+    }
+    if (next === "r") {
+      decoded += "\r";
+      index += 1;
+      continue;
+    }
+    if (next === "t") {
+      decoded += "\t";
+      index += 1;
+      continue;
+    }
+    if (next === "b") {
+      decoded += "\b";
+      index += 1;
+      continue;
+    }
+    if (next === "f") {
+      decoded += "\f";
+      index += 1;
+      continue;
+    }
+    if (next === "\\" || next === "\"" || next === "/") {
+      decoded += next;
+      index += 1;
+      continue;
+    }
+    if (next === "u") {
+      const hex = value.slice(index + 2, index + 6);
+      if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+        decoded += String.fromCharCode(Number.parseInt(hex, 16));
+        index += 5;
+        continue;
+      }
+    }
+
+    decoded += next;
+    index += 1;
   }
-  try {
-    return JSON.parse(`"${value.replace(/"/g, '\\"').replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t")}"`);
-  } catch {
-    return value;
-  }
+  return decoded;
 }
 
 function normalizeStringArgValue(toolName: string, argName: string, value: string): string {

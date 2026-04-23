@@ -559,6 +559,26 @@ function shouldApplyNanoGptBridge(
   return config?.bridgeMode === "always" && requestToolMetadata.toolEnabled;
 }
 
+function resolveNanoGptReplayStopReason(stopReason: AssistantMessage["stopReason"]): "stop" | "length" | "toolUse" {
+  if (stopReason === "toolUse") {
+    return "toolUse";
+  }
+  if (stopReason === "length") {
+    return "length";
+  }
+  return "stop";
+}
+
+function resolveNanoGptBridgeStopReason(
+  parsedKind: "tool_calls" | "final",
+  stopReason: AssistantMessage["stopReason"],
+): AssistantMessage["stopReason"] {
+  if (parsedKind === "tool_calls") {
+    return "toolUse";
+  }
+  return stopReason === "toolUse" ? "stop" : stopReason;
+}
+
 function maybeInjectNanoGptResponseFormat(
   payload: unknown,
   responseFormat?: NanoGptResponseFormat,
@@ -679,7 +699,7 @@ function rewriteNanoGptBridgeMessage(params: {
   return {
     ...params.finalMessage,
     content,
-    stopReason: parsed.kind === "tool_calls" ? "toolUse" : params.finalMessage.stopReason === "toolUse" ? "stop" : params.finalMessage.stopReason,
+    stopReason: resolveNanoGptBridgeStopReason(parsed.kind, params.finalMessage.stopReason),
   };
 }
 
@@ -742,7 +762,7 @@ function replayNanoGptAssistantMessage(message: AssistantMessage) {
     });
     stream.push({
       type: "done",
-      reason: message.stopReason === "toolUse" ? "toolUse" : message.stopReason === "length" ? "length" : "stop",
+      reason: resolveNanoGptReplayStopReason(message.stopReason),
       message,
     });
     stream.end();
@@ -776,6 +796,7 @@ export function wrapNanoGptStreamFn(
       let requestedIncludeUsage = false;
       const upstreamOnPayload = options?.onPayload;
       const requestToolMetadata = collectNanoGptRequestToolMetadata(context);
+      const requestTools = Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [];
       const bridgeEnabled = shouldApplyNanoGptBridge(resolvedConfig, requestToolMetadata);
       const bridgeProtocol = resolveNanoGptBridgeProtocol(resolvedConfig);
 
@@ -801,7 +822,7 @@ export function wrapNanoGptStreamFn(
             if (bridgeEnabled) {
               nextPayload = injectNanoGptBridgePayload({
                 payload: nextPayload,
-                tools: Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [],
+                tools: requestTools,
                 protocol: bridgeProtocol,
                 retryMessage,
               });
@@ -820,7 +841,7 @@ export function wrapNanoGptStreamFn(
         let rewrittenMessage = rewriteNanoGptBridgeMessage({
           finalMessage,
           protocol: bridgeProtocol,
-          tools: Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [],
+          tools: requestTools,
         });
 
         if (!rewrittenMessage) {
@@ -829,7 +850,7 @@ export function wrapNanoGptStreamFn(
           rewrittenMessage = rewriteNanoGptBridgeMessage({
             finalMessage,
             protocol: bridgeProtocol,
-            tools: Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [],
+            tools: requestTools,
           });
           stream = replayNanoGptAssistantMessage(rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage));
         } else if (rewrittenMessage !== finalMessage) {
