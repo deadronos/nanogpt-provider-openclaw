@@ -127,6 +127,7 @@
     }
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.69.0",
     "grammy": "^1.42.0"
   }
 }
