@@ -37,6 +37,7 @@
     "provider/catalog-hooks.ts",
     "provider/anomaly-types.ts",
     "provider/anomaly-logger.ts",
+    "provider/nanogpt-logger.ts",
     "provider/inspection.ts",
     "provider/markers.ts",
     "provider/replay-hooks.ts",
