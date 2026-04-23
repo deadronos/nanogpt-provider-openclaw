@@ -16,9 +16,7 @@ import {
   type WebSearchProviderPlugin,
 } from "openclaw/plugin-sdk/provider-web-search";
 import { createWebSearchProviderContractFields } from "openclaw/plugin-sdk/provider-web-search-contract";
-import { createNanoGptLoggerSync } from "./provider/nanogpt-logger.js";
-
-const _webSearchLogger = createNanoGptLoggerSync("web-search");
+import { createNanoGptLoggerSync, type NanoGptLogger } from "./provider/nanogpt-logger.js";
 
 const NANOGPT_WEB_SEARCH_URL = "https://nano-gpt.com/api/web";
 const NANOGPT_WEB_SEARCH_SCHEMA = {
@@ -71,6 +69,13 @@ type NanoGptWebSearchResponse = {
   };
 };
 
+let webSearchLogger: NanoGptLogger | undefined;
+
+function getWebSearchLogger(): NanoGptLogger {
+  webSearchLogger ??= createNanoGptLoggerSync("web-search");
+  return webSearchLogger;
+}
+
 function missingNanoGptKeyPayload() {
   return {
     error: "missing_nanogpt_api_key",
@@ -114,7 +119,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         });
         const apiKey = resolveNanoGptWebSearchApiKey(searchConfig);
         if (!apiKey) {
-          _webSearchLogger.error("web search missing API key");
+          getWebSearchLogger().error("web search missing API key");
           return missingNanoGptKeyPayload();
         }
 
@@ -123,7 +128,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
           throw new Error("Search query is too long (maximum 2000 characters).");
         }
 
-        _webSearchLogger.info("web search request", { query });
+        getWebSearchLogger().info("web search request", { query });
         const count = resolveSearchCount(readNumberParam(args, "count", { integer: true }), 5);
         const includeDomains = readStringArrayParam(args, "includeDomains")?.filter(Boolean);
         const excludeDomains = readStringArrayParam(args, "excludeDomains")?.filter(Boolean);
@@ -150,7 +155,10 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
               .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
               .slice(0, count);
 
-            _webSearchLogger.info("web search response received", { query, resultCount: results.length });
+            getWebSearchLogger().info("web search response received", {
+              query,
+              resultCount: results.length,
+            });
             return {
               query,
               provider: "nanogpt",

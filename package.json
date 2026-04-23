@@ -75,7 +75,7 @@
     "build:tgz": "npm run build && npm pack ./dist/package --pack-destination ./dist"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.24-beta.2"
+    "openclaw": ">=2026.4.15"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
@@ -123,8 +123,8 @@
       "nanogpt"
     ],
     "compat": {
-      "pluginApi": ">=2026.3.24-beta.2",
-      "minGatewayVersion": "2026.3.24-beta.2"
+      "pluginApi": ">=2026.4.15",
+      "minGatewayVersion": "2026.4.15"
     },
     "build": {
       "openclawVersion": "2026.4.15",
@@ -132,7 +132,6 @@
     }
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.66.1",
-    "grammy": "^1.42.0"
+    "@mariozechner/pi-ai": "^0.66.1"
   }
 }

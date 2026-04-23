@@ -1,5 +1,4 @@
-import { createWriteStream, existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { createWriteStream, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 
 export type NanoGptLogLevel = "info" | "warn" | "error";
