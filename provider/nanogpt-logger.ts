@@ -1,14 +1,8 @@
-import { createNanoGptLogDir } from "./log-dir.js";
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { homedir } from "node:os";
 
 export type NanoGptLogLevel = "info" | "warn" | "error";
-
-export type NanoGptLogMessage = {
-  level: NanoGptLogLevel;
-  module: string;
-  message: string;
-  meta?: Record<string, unknown>;
-  timestamp: string;
-};
 
 export type NanoGptLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -17,22 +11,38 @@ export type NanoGptLogger = {
 };
 
 const LOGGERS = new Map<string, NanoGptLogger>();
+const NANOGPT_LOG_DIR = ".openclaw/logs/nanogpt";
 const LOG_FILE = "nanogpt.log";
 
-let _logHandle: Awaited<ReturnType<typeof createNanoGptLogDir>> | null = null;
-let _logHandlePromise: Promise<Awaited<ReturnType<typeof createNanoGptLogDir>>> | null = null;
+let _stream: ReturnType<typeof createWriteStream> | null = null;
+let _streamPromise: Promise<void> | null = null;
 
-async function getLogHandle(): Promise<{
-  writeLine: (line: string) => void;
-  close: () => void;
-}> {
-  if (_logHandle) return _logHandle;
-  if (_logHandlePromise) return _logHandlePromise;
-  _logHandlePromise = createNanoGptLogDir(LOG_FILE).then((handle) => {
-    _logHandle = handle;
-    return handle;
+function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; ready: Promise<void> } {
+  if (_stream) {
+    return { stream: _stream, ready: _streamPromise ?? Promise.resolve() };
+  }
+
+  const logDir = homedir() + "/" + NANOGPT_LOG_DIR;
+  mkdirSync(logDir, { recursive: true });
+
+  const logPath = logDir + "/" + LOG_FILE;
+  const stream = createWriteStream(logPath, { flags: "a", encoding: "utf8" });
+  _stream = stream;
+
+  let resolveStream: () => void;
+  _streamPromise = new Promise((resolve) => {
+    resolveStream = resolve;
   });
-  return _logHandlePromise;
+
+  stream.on("open", () => {
+    resolveStream!();
+  });
+
+  stream.on("error", () => {
+    // Non-fatal
+  });
+
+  return { stream, ready: _streamPromise };
 }
 
 function formatTimestamp(): string {
@@ -45,21 +55,21 @@ function formatLogLine(level: NanoGptLogLevel, module: string, message: string, 
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;
 }
 
-export async function createNanoGptLogger(module: string): Promise<NanoGptLogger> {
+export function createNanoGptLoggerSync(module: string): NanoGptLogger {
   const cached = LOGGERS.get(module);
   if (cached) return cached;
 
-  const handle = await getLogHandle();
+  const { stream } = getOrCreateStream();
 
   const logger: NanoGptLogger = {
     info(message: string, meta?: Record<string, unknown>) {
-      handle.writeLine(formatLogLine("info", module, message, meta));
+      stream.write(formatLogLine("info", module, message, meta));
     },
     warn(message: string, meta?: Record<string, unknown>) {
-      handle.writeLine(formatLogLine("warn", module, message, meta));
+      stream.write(formatLogLine("warn", module, message, meta));
     },
     error(message: string, meta?: Record<string, unknown>) {
-      handle.writeLine(formatLogLine("error", module, message, meta));
+      stream.write(formatLogLine("error", module, message, meta));
     },
   };
 
@@ -67,41 +77,26 @@ export async function createNanoGptLogger(module: string): Promise<NanoGptLogger
   return logger;
 }
 
-// Synchronous version — blocks on the handle being ready
-export function createNanoGptLoggerSync(module: string): NanoGptLogger {
+// Async version — waits for stream to be ready before writing
+export async function createNanoGptLogger(module: string): Promise<NanoGptLogger> {
   const cached = LOGGERS.get(module);
   if (cached) return cached;
 
-  // If the async handle isn't ready yet, fall back to a no-op logger until the first async call
-  // has resolved. This avoids throwing during sync module init.
+  const { stream, ready } = getOrCreateStream();
+  await ready;
+
   const logger: NanoGptLogger = {
-    info(_message: string, _meta?: Record<string, unknown>) {},
-    warn(_message: string, _meta?: Record<string, unknown>) {},
-    error(_message: string, _meta?: Record<string, unknown>) {},
+    info(message: string, meta?: Record<string, unknown>) {
+      stream.write(formatLogLine("info", module, message, meta));
+    },
+    warn(message: string, meta?: Record<string, unknown>) {
+      stream.write(formatLogLine("warn", module, message, meta));
+    },
+    error(message: string, meta?: Record<string, unknown>) {
+      stream.write(formatLogLine("error", module, message, meta));
+    },
   };
 
-  // Upgrade once the handle is ready
-  getLogHandle()
-    .then((handle) => {
-      const realLogger: NanoGptLogger = {
-        info(message: string, meta?: Record<string, unknown>) {
-          handle.writeLine(formatLogLine("info", module, message, meta));
-        },
-        warn(message: string, meta?: Record<string, unknown>) {
-          handle.writeLine(formatLogLine("warn", module, message, meta));
-        },
-        error(message: string, meta?: Record<string, unknown>) {
-          handle.writeLine(formatLogLine("error", module, message, meta));
-        },
-      };
-      LOGGERS.set(module, realLogger);
-    })
-    .catch(() => {});
-
+  LOGGERS.set(module, logger);
   return logger;
-}
-
-export async function closeNanoGptLogs(): Promise<void> {
-  const handle = await getLogHandle();
-  handle.close();
 }
