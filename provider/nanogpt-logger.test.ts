@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createNanoGptLoggerSync } from "./nanogpt-logger.js";
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -27,5 +27,32 @@ describe("nanogpt logger", () => {
     expect(contents).toContain("[warn] [test-verify] test-warn");
     expect(contents).toContain("[error] [test-verify] test-error");
     expect(contents).toContain('"key":"value"');
+  });
+
+  it("falls back to a no-op logger when the log directory cannot be created", async () => {
+    vi.resetModules();
+    vi.doMock("node:fs", async () => {
+      const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+      return {
+        ...actual,
+        mkdirSync: vi.fn(() => {
+          throw new Error("readonly home");
+        }),
+      };
+    });
+
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
+      "./nanogpt-logger.js"
+    );
+    const log = createLoggerWithFailingFs("readonly-home");
+
+    expect(() => {
+      log.info("test-info");
+      log.warn("test-warn");
+      log.error("test-error");
+    }).not.toThrow();
+
+    vi.doUnmock("node:fs");
+    vi.resetModules();
   });
 });

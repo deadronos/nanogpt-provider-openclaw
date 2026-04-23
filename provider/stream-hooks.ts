@@ -827,7 +827,7 @@ export function wrapNanoGptStreamFn(
 
             let nextPayload = maybeInjectNanoGptResponseFormat(
               ensured.payload ?? upstreamPayload,
-              resolvedConfig?.responseFormat,
+              requestToolMetadata.toolEnabled ? resolvedConfig?.responseFormat : undefined,
             );
 
             if (bridgeEnabled) {
