@@ -4,13 +4,39 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 type PackageManifest = {
+  dependencies?: unknown;
   files?: unknown;
+  openclaw?: {
+    build?: {
+      openclawVersion?: unknown;
+      pluginSdkVersion?: unknown;
+    };
+    compat?: {
+      minGatewayVersion?: unknown;
+      pluginApi?: unknown;
+    };
+  };
+  peerDependencies?: unknown;
 };
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
+const TARGET_OPENCLAW_VERSION = "2026.4.15";
 
 function readPackageManifest(): PackageManifest {
   return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as PackageManifest;
+}
+
+function readPluginManifest(): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(repoRoot, "openclaw.plugin.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function resolveFileEntries(manifest: PackageManifest): string[] {
@@ -66,5 +92,47 @@ describe("package manifest files", () => {
         "LICENSE.md",
       ]),
     );
+  });
+
+  it("targets the current provider SDK generation explicitly", () => {
+    const manifest = readPackageManifest();
+    const peerDependencies = readRecord(manifest.peerDependencies);
+
+    expect(peerDependencies.openclaw).toBe(`>=${TARGET_OPENCLAW_VERSION}`);
+    expect(manifest.openclaw?.compat?.pluginApi).toBe(`>=${TARGET_OPENCLAW_VERSION}`);
+    expect(manifest.openclaw?.compat?.minGatewayVersion).toBe(TARGET_OPENCLAW_VERSION);
+    expect(manifest.openclaw?.build?.openclawVersion).toBe(TARGET_OPENCLAW_VERSION);
+    expect(manifest.openclaw?.build?.pluginSdkVersion).toBe(TARGET_OPENCLAW_VERSION);
+  });
+
+  it("declares runtime capability ownership through manifest contracts", () => {
+    const manifest = readPluginManifest();
+    const contracts = readRecord(manifest.contracts);
+
+    expect(contracts.imageGenerationProviders).toEqual(["nanogpt"]);
+    expect(contracts.webSearchProviders).toEqual(["nanogpt"]);
+  });
+
+  it("keeps documented plugin config fields in the manifest schema", () => {
+    const manifest = readPluginManifest();
+    const configSchema = readRecord(manifest.configSchema);
+    const properties = readRecord(configSchema.properties);
+
+    expect(properties.responseFormat).toMatchObject({
+      anyOf: expect.arrayContaining([
+        { const: false },
+        {
+          type: "string",
+          enum: ["json_object"],
+        },
+      ]),
+    });
+  });
+
+  it("does not ship unused Telegram runtime dependencies", () => {
+    const manifest = readPackageManifest();
+    const dependencies = readRecord(manifest.dependencies);
+
+    expect(dependencies.grammy).toBeUndefined();
   });
 });

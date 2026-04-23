@@ -53,6 +53,10 @@
     "bridgeProtocol": {
       "label": "Bridge Protocol",
       "help": "Choose the structured bridge protocol to request from NanoGPT."
+    },
+    "responseFormat": {
+      "label": "Response Format",
+      "help": "Optionally inject OpenAI-compatible response_format into NanoGPT requests."
     }
   },
   "configSchema": {
@@ -102,6 +106,34 @@
             "xml"
           ]
         },
+        "responseFormat": {
+          "anyOf": [
+            {
+              "const": false
+            },
+            {
+              "type": "string",
+              "enum": [
+                "json_object"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "const": "json_schema"
+                },
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          ]
+        },
         "webSearch": {
           "type": "object",
         "properties": {
@@ -114,6 +146,9 @@
   },
   "contracts": {
     "imageGenerationProviders": [
+      "nanogpt"
+    ],
+    "webSearchProviders": [
       "nanogpt"
     ]
   }

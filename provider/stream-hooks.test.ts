@@ -229,6 +229,25 @@ describe("nanoGPT stream hooks", () => {
     expect(observedPayloads[0]).not.toHaveProperty("response_format");
   });
 
+  it("does not inject configured response_format for non-tool requests", async () => {
+    const observedPayloads: unknown[] = [];
+    const message = buildAssistantMessage({
+      content: [{ type: "text", text: "hello" }],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const { wrapped } = createWrappedStream({
+      message,
+      config: { responseFormat: "json_object" },
+      onPayload: (payload) => observedPayloads.push(payload),
+    });
+
+    await wrapped?.({} as any, {} as any, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(observedPayloads[0]).not.toHaveProperty("response_format");
+  });
+
   it("warns on tool-like text and leaked reasoning markers without exposing raw content", async () => {
     const message = buildAssistantMessage({
       content: [

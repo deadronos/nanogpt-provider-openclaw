@@ -37,15 +37,24 @@ export default definePluginEntry({
     const resolvedNanoGptConfig = getNanoGptConfig(pluginConfig);
     const logger = api.logger;
 
-    // Initialize nanogpt log file
-    createNanoGptLogger("plugin").then((log) => {
-      log.info("NanoGPT plugin registered", { version: process.env.npm_package_version ?? "unknown" });
-      log.info("config resolved", {
-        routingMode: resolvedNanoGptConfig.routingMode,
-        bridgeMode: resolvedNanoGptConfig.bridgeMode,
-        bridgeProtocol: resolvedNanoGptConfig.bridgeProtocol,
+    createNanoGptLogger("plugin")
+      .then((log) => {
+        log.info("NanoGPT plugin registered", {
+          version: process.env.npm_package_version ?? "unknown",
+        });
+        log.info("config resolved", {
+          routingMode: resolvedNanoGptConfig.routingMode,
+          bridgeMode: resolvedNanoGptConfig.bridgeMode,
+          bridgeProtocol: resolvedNanoGptConfig.bridgeProtocol,
+        });
+      })
+      .catch((error: unknown) => {
+        logger.debug?.(
+          `[nanogpt] log file initialization skipped: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       });
-    });
     const { matchesContextOverflowError: matchesContextOverflowErrorHook, classifyFailoverReason: classifyFailoverReasonHook } =
       createNanoGptErrorSurfaceHooks({
         logger,

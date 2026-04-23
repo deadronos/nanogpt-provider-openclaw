@@ -21,11 +21,15 @@ import {
 } from "openclaw/plugin-sdk/provider-http";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
-import { createNanoGptLoggerSync } from "./provider/nanogpt-logger.js";
-
-const _imageLogger = createNanoGptLoggerSync("image-generation");
+import { createNanoGptLoggerSync, type NanoGptLogger } from "./provider/nanogpt-logger.js";
 
 const NANOGPT_IMAGE_BASE_URL = "https://nano-gpt.com";
+let imageLogger: NanoGptLogger | undefined;
+
+function getImageLogger(): NanoGptLogger {
+  imageLogger ??= createNanoGptLoggerSync("image-generation");
+  return imageLogger;
+}
 
 export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
   return {
@@ -57,7 +61,8 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       },
     },
     async generateImage(req) {
-      _imageLogger.info("image generation request", { model: req.model, count: req.count, size: req.size });
+      const logger = getImageLogger();
+      logger.info("image generation request", { model: req.model, count: req.count, size: req.size });
       const auth = await resolveApiKeyForProvider({
         provider: NANOGPT_PROVIDER_ID,
         cfg: req.cfg,
@@ -65,7 +70,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         store: req.authStore,
       });
       if (!auth.apiKey) {
-        _imageLogger.error("image generation missing API key");
+        logger.error("image generation missing API key");
         throw new Error("NanoGPT API key missing");
       }
 
@@ -125,7 +130,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
       try {
         if (!response.ok) {
           const detail = (await response.clone().text()).trim();
-          _imageLogger.error("image generation HTTP error", {
+          logger.error("image generation HTTP error", {
             status: response.status,
             detail: detail.slice(0, 100),
           });
@@ -145,7 +150,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         await release();
       }
 
-      _imageLogger.info("image generation succeeded", {
+      logger.info("image generation succeeded", {
         model,
         prompt: (req.prompt ?? "").slice(0, 50),
         count,
