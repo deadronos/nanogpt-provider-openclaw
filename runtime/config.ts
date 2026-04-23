@@ -47,6 +47,12 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
       }
       return {};
     })(),
+    ...(candidate.bridgeMode === "never" || candidate.bridgeMode === "always"
+      ? { bridgeMode: candidate.bridgeMode }
+      : {}),
+    ...(candidate.bridgeProtocol === "object" || candidate.bridgeProtocol === "xml"
+      ? { bridgeProtocol: candidate.bridgeProtocol }
+      : {}),
   };
 }
 
