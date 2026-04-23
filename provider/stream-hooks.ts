@@ -1,5 +1,11 @@
-import type { NanoGptResponseFormat } from "../models.js";
-import type { ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
+import { randomUUID } from "node:crypto";
+import {
+  createAssistantMessageEventStream,
+  type AssistantMessage,
+  type ToolCall,
+} from "@mariozechner/pi-ai";
+import type { NanoGptPluginConfig, NanoGptResponseFormat } from "../models.js";
+import type { AnyAgentTool, ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
 import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
@@ -21,6 +27,13 @@ import {
   collectNanoGptStreamMarkerInspection,
   type NanoGptStreamMarkerInspection,
 } from "./inspection.js";
+import { parseObjectBridgeAssistantText } from "./bridge/object-parser.js";
+import { buildNanoGptBridgeRetrySystemMessage } from "./bridge/retry.js";
+import {
+  buildNanoGptObjectBridgeSystemMessage,
+  buildNanoGptXmlBridgeSystemMessage,
+} from "./bridge/system-prompt.js";
+import { parseXmlBridgeAssistantText } from "./bridge/xml-parser.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
 
@@ -515,10 +528,253 @@ function ensureIncludeUsageInStreamingPayload(
   };
 }
 
+function collectNanoGptThinkingText(finalMessage: unknown): string {
+  if (!isRecord(finalMessage) || !Array.isArray(finalMessage.content)) {
+    return "";
+  }
+
+  let thinking = "";
+  for (const contentBlock of finalMessage.content) {
+    if (isRecord(contentBlock) && contentBlock.type === "thinking" && typeof contentBlock.thinking === "string") {
+      thinking += contentBlock.thinking;
+    }
+  }
+  return thinking;
+}
+
+function hasParsedToolCalls(finalMessage: unknown): boolean {
+  return Boolean(collectNanoGptStreamContentInspection(finalMessage)?.toolCallCount);
+}
+
+function resolveNanoGptBridgeProtocol(
+  config: NanoGptPluginConfig | undefined,
+): "object" | "xml" {
+  return config?.bridgeProtocol === "xml" ? "xml" : "object";
+}
+
+function shouldApplyNanoGptBridge(
+  config: NanoGptPluginConfig | undefined,
+  requestToolMetadata: NanoGptRequestToolMetadata,
+): boolean {
+  return config?.bridgeMode === "always" && requestToolMetadata.toolEnabled;
+}
+
+function resolveNanoGptReplayStopReason(stopReason: AssistantMessage["stopReason"]): "stop" | "length" | "toolUse" {
+  if (stopReason === "toolUse") {
+    return "toolUse";
+  }
+  if (stopReason === "length") {
+    return "length";
+  }
+  return "stop";
+}
+
+function resolveNanoGptBridgeStopReason(
+  parsedKind: "tool_calls" | "final",
+  stopReason: AssistantMessage["stopReason"],
+): AssistantMessage["stopReason"] {
+  if (parsedKind === "tool_calls") {
+    return "toolUse";
+  }
+  return stopReason === "toolUse" ? "stop" : stopReason;
+}
+
+function maybeInjectNanoGptResponseFormat(
+  payload: unknown,
+  responseFormat?: NanoGptResponseFormat,
+): unknown {
+  if (!responseFormat || !isRecord(payload)) {
+    return payload;
+  }
+
+  const existing = payload.response_format;
+  if (existing) {
+    return payload;
+  }
+
+  if (responseFormat === "json_object") {
+    return { ...payload, response_format: { type: "json_object" } };
+  }
+  if (typeof responseFormat === "object" && responseFormat.type === "json_schema") {
+    return {
+      ...payload,
+      response_format: responseFormat.schema
+        ? { type: "json_schema", json_schema: { schema: responseFormat.schema } }
+        : { type: "json_schema" },
+    };
+  }
+  return payload;
+}
+
+function injectNanoGptBridgePayload(params: {
+  payload: unknown;
+  tools: readonly AnyAgentTool[];
+  protocol: "object" | "xml";
+  retryMessage?: string;
+}): unknown {
+  if (!isRecord(params.payload)) {
+    return params.payload;
+  }
+
+  const messages = Array.isArray(params.payload.messages) ? [...params.payload.messages] : [];
+  const parallelAllowed = params.payload.parallel_tool_calls !== false;
+  const bridgeSystemMessage =
+    params.protocol === "xml"
+      ? buildNanoGptXmlBridgeSystemMessage(params.tools, parallelAllowed)
+      : buildNanoGptObjectBridgeSystemMessage(params.tools, parallelAllowed);
+
+  return {
+    ...params.payload,
+    messages: [
+      { role: "system", content: bridgeSystemMessage },
+      ...messages,
+      ...(params.retryMessage ? [{ role: "system", content: params.retryMessage }] : []),
+    ],
+  };
+}
+
+function buildNanoGptBridgeFailureMessage(finalMessage: AssistantMessage): AssistantMessage {
+  return {
+    ...finalMessage,
+    content: [
+      ...finalMessage.content.filter((block) => block.type === "thinking"),
+      {
+        type: "text",
+        text: "[nanogpt bridge] upstream returned no visible content or tool call for a tool-enabled turn.",
+      },
+    ],
+    stopReason: "stop",
+  };
+}
+
+function buildNanoGptBridgeToolCall(toolCall: { name: string; arguments: Record<string, unknown> }): ToolCall {
+  return {
+    type: "toolCall",
+    id: `call_${randomUUID().slice(0, 8)}`,
+    name: toolCall.name,
+    arguments: toolCall.arguments,
+  };
+}
+
+function rewriteNanoGptBridgeMessage(params: {
+  finalMessage: AssistantMessage;
+  protocol: "object" | "xml";
+  tools: readonly AnyAgentTool[];
+}): AssistantMessage | null {
+  if (hasParsedToolCalls(params.finalMessage)) {
+    return params.finalMessage;
+  }
+
+  const inspection = collectNanoGptStreamContentInspection(params.finalMessage);
+  const visibleText = inspection?.visibleText ?? "";
+  const parsed =
+    params.protocol === "xml"
+      ? parseXmlBridgeAssistantText(visibleText, params.tools)
+      : parseObjectBridgeAssistantText(visibleText, params.tools);
+
+  if (parsed.kind === "invalid") {
+    const trimmedVisibleText = visibleText.trim();
+    if (
+      trimmedVisibleText.length === 0 ||
+      parsed.error.code === "invalid_empty_turn" ||
+      parsed.error.code === "invalid_schema_turn" ||
+      (params.protocol === "object" && trimmedVisibleText.startsWith("{")) ||
+      (params.protocol === "xml" && trimmedVisibleText.includes("<"))
+    ) {
+      return null;
+    }
+    return params.finalMessage;
+  }
+
+  const content: AssistantMessage["content"] = [
+    ...params.finalMessage.content.filter((block) => block.type === "thinking"),
+  ];
+  if (parsed.content) {
+    content.push({ type: "text", text: parsed.content });
+  }
+  if (parsed.kind === "tool_calls") {
+    content.push(...parsed.toolCalls.map(buildNanoGptBridgeToolCall));
+  }
+
+  return {
+    ...params.finalMessage,
+    content,
+    stopReason: resolveNanoGptBridgeStopReason(parsed.kind, params.finalMessage.stopReason),
+  };
+}
+
+function replayNanoGptAssistantMessage(message: AssistantMessage) {
+  const stream = createAssistantMessageEventStream();
+
+  queueMicrotask(() => {
+    stream.push({ type: "start", partial: message });
+    message.content.forEach((contentBlock, contentIndex) => {
+      if (contentBlock.type === "text") {
+        stream.push({ type: "text_start", contentIndex, partial: message });
+        stream.push({
+          type: "text_delta",
+          contentIndex,
+          delta: contentBlock.text,
+          partial: message,
+        });
+        stream.push({
+          type: "text_end",
+          contentIndex,
+          content: contentBlock.text,
+          partial: message,
+        });
+        return;
+      }
+
+      if (contentBlock.type === "thinking") {
+        stream.push({ type: "thinking_start", contentIndex, partial: message });
+        stream.push({
+          type: "thinking_delta",
+          contentIndex,
+          delta: contentBlock.thinking,
+          partial: message,
+        });
+        stream.push({
+          type: "thinking_end",
+          contentIndex,
+          content: contentBlock.thinking,
+          partial: message,
+        });
+        return;
+      }
+
+      if (contentBlock.type === "toolCall") {
+        const delta = JSON.stringify(contentBlock.arguments);
+        stream.push({ type: "toolcall_start", contentIndex, partial: message });
+        stream.push({
+          type: "toolcall_delta",
+          contentIndex,
+          delta,
+          partial: message,
+        });
+        stream.push({
+          type: "toolcall_end",
+          contentIndex,
+          toolCall: contentBlock,
+          partial: message,
+        });
+      }
+    });
+    stream.push({
+      type: "done",
+      reason: resolveNanoGptReplayStopReason(message.stopReason),
+      message,
+    });
+    stream.end();
+  });
+
+  return stream;
+}
+
 export function wrapNanoGptStreamFn(
   ctx: ProviderWrapStreamFnContext,
   logger?: NanoGptLogger,
-  responseFormat?: NanoGptResponseFormat,
+  resolvedConfig?: NanoGptPluginConfig,
 ): NanoGptWrappedStreamFn {
   if (ctx.streamFn) {
     const streamFn = ctx.streamFn;
@@ -540,42 +796,69 @@ export function wrapNanoGptStreamFn(
       let requestedIncludeUsage = false;
       const upstreamOnPayload = options?.onPayload;
       const requestToolMetadata = collectNanoGptRequestToolMetadata(context);
-      const patchedOptions = {
-        ...(options ?? {}),
-        onPayload: async (payload: unknown, payloadModel: unknown) => {
-          const upstreamPayload =
-            typeof upstreamOnPayload === "function"
-              ? ((await upstreamOnPayload(payload, payloadModel as never)) ?? payload)
-              : payload;
+      const requestTools = Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [];
+      const bridgeEnabled = shouldApplyNanoGptBridge(resolvedConfig, requestToolMetadata);
+      const bridgeProtocol = resolveNanoGptBridgeProtocol(resolvedConfig);
 
-          const ensured = ensureIncludeUsageInStreamingPayload(upstreamPayload, shouldForceIncludeUsage);
-          if (ensured.requested) {
-            requestedIncludeUsage = true;
-          }
-          // Inject response_format for tool-enabled requests based on config.
-          if (responseFormat) {
-            const basePayload = ensured.payload ?? upstreamPayload;
-            const existing = (basePayload as Record<string, unknown>).response_format;
-            if (!existing) {
-              if (responseFormat === "json_object") {
-                return { ...(basePayload as Record<string, unknown>), response_format: { type: "json_object" } };
-              }
-              if (typeof responseFormat === "object" && responseFormat.type === "json_schema") {
-                const schema = responseFormat.schema;
-                return {
-                  ...(basePayload as Record<string, unknown>),
-                  response_format: schema
-                    ? { type: "json_schema", json_schema: { schema } }
-                    : { type: "json_schema" },
-                };
-              }
+      const runAttempt = async (retryMessage?: string) => {
+        const patchedOptions = {
+          ...(options ?? {}),
+          onPayload: async (payload: unknown, payloadModel: unknown) => {
+            const upstreamPayload =
+              typeof upstreamOnPayload === "function"
+                ? ((await upstreamOnPayload(payload, payloadModel as never)) ?? payload)
+                : payload;
+
+            const ensured = ensureIncludeUsageInStreamingPayload(upstreamPayload, shouldForceIncludeUsage);
+            if (ensured.requested) {
+              requestedIncludeUsage = true;
             }
-          }
-          return ensured.payload ?? upstreamPayload;
-        },
+
+            let nextPayload = maybeInjectNanoGptResponseFormat(
+              ensured.payload ?? upstreamPayload,
+              resolvedConfig?.responseFormat,
+            );
+
+            if (bridgeEnabled) {
+              nextPayload = injectNanoGptBridgePayload({
+                payload: nextPayload,
+                tools: requestTools,
+                protocol: bridgeProtocol,
+                retryMessage,
+              });
+            }
+
+            return nextPayload;
+          },
+        };
+
+        return await streamFn(model, context, patchedOptions);
       };
 
-      const stream = await streamFn(model, context, patchedOptions);
+      let stream = await runAttempt();
+      if (bridgeEnabled) {
+        let finalMessage = await stream.result();
+        let rewrittenMessage = rewriteNanoGptBridgeMessage({
+          finalMessage,
+          protocol: bridgeProtocol,
+          tools: requestTools,
+        });
+
+        if (!rewrittenMessage) {
+          stream = await runAttempt(buildNanoGptBridgeRetrySystemMessage(bridgeProtocol));
+          finalMessage = await stream.result();
+          rewrittenMessage = rewriteNanoGptBridgeMessage({
+            finalMessage,
+            protocol: bridgeProtocol,
+            tools: requestTools,
+          });
+          stream = replayNanoGptAssistantMessage(rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage));
+        } else if (rewrittenMessage !== finalMessage) {
+          stream = replayNanoGptAssistantMessage(rewrittenMessage);
+        } else {
+          stream = replayNanoGptAssistantMessage(finalMessage);
+        }
+      }
 
       scheduleNanoGptStreamResultWarnings({
         stream,

@@ -25,6 +25,9 @@ export interface NanoGptRepairConfig {
   otherRepair?: boolean;
 }
 
+export type NanoGptBridgeMode = "never" | "always";
+export type NanoGptBridgeProtocol = "object" | "xml";
+
 export type NanoGptResponseFormat =
   | false
   | "json_object"
@@ -37,6 +40,8 @@ export interface NanoGptPluginConfig {
   provider?: string;
   enableRepair?: boolean | NanoGptRepairConfig;
   responseFormat?: NanoGptResponseFormat;
+  bridgeMode?: NanoGptBridgeMode;
+  bridgeProtocol?: NanoGptBridgeProtocol;
 }
 
 export interface NanoGptModelCapabilities {

@@ -45,6 +45,14 @@
     "provider": {
       "label": "Provider Override",
       "help": "Optional NanoGPT upstream provider id for paygo provider selection."
+    },
+    "bridgeMode": {
+      "label": "Bridge Mode",
+      "help": "Enable the NanoProxy-style bridge for tool-enabled completions requests."
+    },
+    "bridgeProtocol": {
+      "label": "Bridge Protocol",
+      "help": "Choose the structured bridge protocol to request from NanoGPT."
     }
   },
   "configSchema": {
@@ -77,11 +85,25 @@
           "responses"
         ]
       },
-      "provider": {
-        "type": "string"
-      },
-      "webSearch": {
-        "type": "object",
+        "provider": {
+          "type": "string"
+        },
+        "bridgeMode": {
+          "type": "string",
+          "enum": [
+            "never",
+            "always"
+          ]
+        },
+        "bridgeProtocol": {
+          "type": "string",
+          "enum": [
+            "object",
+            "xml"
+          ]
+        },
+        "webSearch": {
+          "type": "object",
         "properties": {
           "apiKey": {
             "type": "string"

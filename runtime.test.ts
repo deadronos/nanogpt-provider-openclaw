@@ -18,12 +18,16 @@ describe("getNanoGptConfig", () => {
         catalogSource: "personalized",
         requestApi: "responses",
         provider: " openrouter ",
+        bridgeMode: "always",
+        bridgeProtocol: "xml",
       }),
     ).toEqual({
       routingMode: "subscription",
       catalogSource: "personalized",
       requestApi: "responses",
       provider: "openrouter",
+      bridgeMode: "always",
+      bridgeProtocol: "xml",
     });
   });
 });

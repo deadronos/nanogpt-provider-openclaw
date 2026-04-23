@@ -189,6 +189,8 @@ For example:
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
+- `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
+- `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
 
 ### Behavior notes
 
@@ -232,6 +234,14 @@ For example:
 - `responseFormat: { type: "json_schema", schema }` injects
   `response_format: { type: "json_schema", json_schema: { schema } }` — `schema` is
   optional and defaults to omitted. Same constraints as `"json_object"` above.
+- `bridgeMode: "always"` prepends a bridge system prompt to tool-enabled completions
+  turns and rewrites bridged text responses back into OpenClaw tool calls. The bridge is
+  intentionally off by default, and the native `tools` array still remains in the request
+  because the current hook surface cannot remove it.
+- `bridgeProtocol: "object"` asks NanoGPT for a single JSON turn object with `{ v, mode,
+  message, tool_calls }`; `"xml"` asks for XML tool-call tags with optional `<open>`
+  status text. Both bridged modes retry one invalid empty turn once with a corrective
+  system message.
 
 ### Pricing behavior
 
