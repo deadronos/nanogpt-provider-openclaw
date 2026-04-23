@@ -14,6 +14,7 @@ import {
   type NanoGptAnomalyWarning,
   type NanoGptWarnLogger,
 } from "./anomaly-logger.js";
+import { createNanoGptLoggerSync } from "./nanogpt-logger.js";
 import {
   buildNanoGptExpectedShapeSummary,
   buildNanoGptObservedShapeSummary,
@@ -742,10 +743,16 @@ export function createNanoGptReplayHooks(params: { logger?: NanoGptWarnLogger })
     context: ProviderReasoningOutputModeContext,
   ) => ProviderReasoningOutputMode;
 } {
+  const nanogptLogger = createNanoGptLoggerSync("replay-hooks");
+  nanogptLogger.info("replay hooks created");
   const warnNanoGptAnomaly = createNanoGptReplayAnomalyLogger(params.logger);
 
   return {
-    buildReplayPolicy,
+    buildReplayPolicy: (ctx) => {
+      const policy = buildReplayPolicy(ctx);
+      nanogptLogger.info("replay policy built", { modelId: ctx.modelId });
+      return policy;
+    },
     sanitizeReplayHistory: (context) => sanitizeReplayHistory(context, warnNanoGptAnomaly),
     validateReplayTurns: (context) => validateReplayTurns(context, warnNanoGptAnomaly),
     resolveReasoningOutputMode,

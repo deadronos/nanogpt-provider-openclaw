@@ -1,3 +1,4 @@
+import { createNanoGptLogger, createNanoGptLoggerSync } from "./nanogpt-logger.js";
 import type { NanoGptPluginConfig } from "../models.js";
 import {
   createNanoGptWarnOnceLogger as createNanoGptSharedWarnOnceLogger,
@@ -147,10 +148,36 @@ export function createNanoGptErrorSurfaceHooks(params: {
   matchesContextOverflowError: (ctx: ProviderFailoverErrorContext) => boolean | undefined;
   classifyFailoverReason: (ctx: ProviderFailoverErrorContext) => FailoverReason | null | undefined;
 } {
+  const nanogptLogger = createNanoGptLoggerSync("error-hooks");
+  nanogptLogger.info("error surface hooks created", {
+    routingMode: params.resolvedNanoGptConfig.routingMode,
+    bridgeMode: params.resolvedNanoGptConfig.bridgeMode,
+  });
   const warnNanoGptErrorSurface = createNanoGptWarnOnceLogger(params);
   return {
     warnNanoGptErrorSurface,
-    matchesContextOverflowError: (ctx) => matchesContextOverflowError(ctx, warnNanoGptErrorSurface),
-    classifyFailoverReason: (ctx) => classifyFailoverReason(ctx, warnNanoGptErrorSurface),
+    matchesContextOverflowError: (ctx) => {
+      const result = matchesContextOverflowError(ctx, warnNanoGptErrorSurface);
+      if (result === true) {
+        nanogptLogger.warn("context overflow error matched", { modelId: ctx.modelId });
+      }
+      return result;
+    },
+    classifyFailoverReason: (ctx) => {
+      const inspection = inspectNanoGptErrorSurface(ctx.errorMessage);
+      const result = classifyFailoverReason(ctx, warnNanoGptErrorSurface);
+      if (inspection?.kind === "mapped" && inspection.reason) {
+        nanogptLogger.warn(`error mapped to failover reason`, {
+          modelId: ctx.modelId,
+          reason: inspection.reason,
+        });
+      } else if (inspection && inspection.kind !== "mapped") {
+        nanogptLogger.warn(`error not mapped`, {
+          modelId: ctx.modelId,
+          kind: inspection.kind,
+        });
+      }
+      return result;
+    },
   };
 }
