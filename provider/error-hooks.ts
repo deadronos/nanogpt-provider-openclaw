@@ -1,4 +1,4 @@
-import { createNanoGptLogger, createNanoGptLoggerSync } from "./nanogpt-logger.js";
+import { createNanoGptLoggerSync } from "./nanogpt-logger.js";
 import type { NanoGptPluginConfig } from "../models.js";
 import {
   createNanoGptWarnOnceLogger as createNanoGptSharedWarnOnceLogger,

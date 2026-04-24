@@ -4,6 +4,7 @@
 
 - This repository is a TypeScript ESM OpenClaw provider plugin for NanoGPT.
 - Validate most code changes with:
+  - `npm run lint`
   - `npm test`
   - `npm run typecheck`
 - If you changed packaging, install flow, or shipped files, also run:
@@ -63,6 +64,6 @@ Link to these docs instead of duplicating them in future instructions or reports
 
 1. Identify the owning module before editing.
 2. Make the smallest change that preserves the current public surface.
-3. Run `npm test` and `npm run typecheck` after behavior changes.
+3. Run `npm run lint`, `npm test`, and `npm run typecheck` after behavior changes.
 4. If the package surface or install path changed, run `npm run build` and review the staged output expectations.
 5. Update linked user-facing docs when config, auth, install, or capability behavior changes.

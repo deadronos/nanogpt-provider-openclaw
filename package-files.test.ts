@@ -20,7 +20,7 @@ type PackageManifest = {
 };
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
-const TARGET_OPENCLAW_VERSION = "2026.4.15";
+const TARGET_OPENCLAW_VERSION = "2026.4.22";
 
 function readPackageManifest(): PackageManifest {
   return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as PackageManifest;

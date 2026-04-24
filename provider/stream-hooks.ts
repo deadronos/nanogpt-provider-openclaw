@@ -18,12 +18,6 @@ import {
 } from "./anomaly-types.js";
 import { isRecord } from "../shared/guards.js";
 import {
-  NANO_GPT_REASONING_TAG_PAIRS,
-  NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS,
-  NANO_GPT_FUNCTION_CALL_MARKERS,
-  countNanoGptSubstringOccurrences,
-} from "./markers.js";
-import {
   collectNanoGptStreamMarkerInspection,
   type NanoGptStreamMarkerInspection,
 } from "./inspection.js";
@@ -34,9 +28,10 @@ import {
   buildNanoGptXmlBridgeSystemMessage,
 } from "./bridge/system-prompt.js";
 import { parseXmlBridgeAssistantText } from "./bridge/xml-parser.js";
-import { createNanoGptLogger, createNanoGptLoggerSync, type NanoGptLogger } from "./nanogpt-logger.js";
+import { createNanoGptLoggerSync, type NanoGptLogger } from "./nanogpt-logger.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
+type NanoGptStreamResult = Awaited<ReturnType<NonNullable<NanoGptWrappedStreamFn>>>;
 
 type NanoGptPluginLogger = {
   warn?: (message: string, meta?: Record<string, unknown>) => void;
@@ -256,7 +251,6 @@ function scheduleNanoGptStreamResultWarnings(params: {
       if (params.requestedIncludeUsage && isRecord(finalMessage)) {
         const { empty, invalidFields } = inspectUsage(finalMessage.usage);
         if (empty || invalidFields.length > 0) {
-          const level = "warn";
           params.logger?.warn?.(
             `[nanogpt] requested stream_options.include_usage but received ${empty ? "empty" : "invalid"} usage in stream result`,
             {
@@ -538,20 +532,6 @@ function ensureIncludeUsageInStreamingPayload(
   };
 }
 
-function collectNanoGptThinkingText(finalMessage: unknown): string {
-  if (!isRecord(finalMessage) || !Array.isArray(finalMessage.content)) {
-    return "";
-  }
-
-  let thinking = "";
-  for (const contentBlock of finalMessage.content) {
-    if (isRecord(contentBlock) && contentBlock.type === "thinking" && typeof contentBlock.thinking === "string") {
-      thinking += contentBlock.thinking;
-    }
-  }
-  return thinking;
-}
-
 function hasParsedToolCalls(finalMessage: unknown): boolean {
   return Boolean(collectNanoGptStreamContentInspection(finalMessage)?.toolCallCount);
 }
@@ -696,9 +676,7 @@ function rewriteNanoGptBridgeMessage(params: {
     return params.finalMessage;
   }
 
-  const content: AssistantMessage["content"] = [
-    ...params.finalMessage.content.filter((block) => block.type === "thinking"),
-  ];
+  const content: AssistantMessage["content"] = params.finalMessage.content.filter((block) => block.type === "thinking");
   if (parsed.content) {
     content.push({ type: "text", text: parsed.content });
   }
@@ -713,8 +691,8 @@ function rewriteNanoGptBridgeMessage(params: {
   };
 }
 
-function replayNanoGptAssistantMessage(message: AssistantMessage) {
-  const stream = createAssistantMessageEventStream();
+function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStreamResult {
+  const stream = createAssistantMessageEventStream() as unknown as NanoGptStreamResult;
 
   queueMicrotask(() => {
     stream.push({ type: "start", partial: message });
@@ -813,7 +791,7 @@ export function wrapNanoGptStreamFn(
 
       const runAttempt = async (retryMessage?: string) => {
         const patchedOptions = {
-          ...(options ?? {}),
+          ...options,
           onPayload: async (payload: unknown, payloadModel: unknown) => {
             const upstreamPayload =
               typeof upstreamOnPayload === "function"

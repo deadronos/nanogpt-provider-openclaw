@@ -1,6 +1,6 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
-import { NANOGPT_DEFAULT_MODEL_REF, NANOGPT_PROVIDER_ID } from "./models.js";
+import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { resolveNanoGptPluginConfigFromProviderCatalogContext } from "./provider-catalog.js";
 import { getNanoGptConfig } from "./runtime/config.js";
