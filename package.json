@@ -123,12 +123,12 @@
       "nanogpt"
     ],
     "compat": {
-      "pluginApi": ">=2026.4.15",
+      "pluginApi": ">=2026.4.22",
       "minGatewayVersion": "2026.4.15"
     },
     "build": {
-      "openclawVersion": ">=2026.4.15",
-      "pluginSdkVersion": ">=2026.4.15"
+      "openclawVersion": "2026.4.22",
+      "pluginSdkVersion": "2026.4.22"
     }
   },
   "dependencies": {
