@@ -60,12 +60,12 @@ function buildToolDescription(tool: NanoGptBridgeTool): string {
 }
 
 function buildXmlExampleForTool(tool: NanoGptBridgeTool, index: number, introText: string): string {
-  let out = `\n## Example ${index}: Using the \"${tool.name}\" tool\n`;
+  let out = `\n## Example ${index}: Using the "${tool.name}" tool\n`;
   out += `<open>${introText}</open>\n`;
   out += `<${tool.name}>\n`;
   for (const arg of tool.args) {
     if (arg.type === "object" || arg.type === "array") {
-      out += `<${arg.name}>{\"key\":\"value\"}</${arg.name}>\n`;
+      out += `<${arg.name}>{"key":"value"}</${arg.name}>\n`;
     } else {
       out += `<${arg.name}>example_value</${arg.name}>\n`;
     }
@@ -92,7 +92,7 @@ function buildBatchedXmlExample(tools: readonly NanoGptBridgeTool[], startIndex:
     out += `<${tool.name}>\n`;
     for (const arg of tool.args) {
       if (arg.type === "object" || arg.type === "array") {
-        out += `<${arg.name}>{\"key\":\"value\"}</${arg.name}>\n`;
+        out += `<${arg.name}>{"key":"value"}</${arg.name}>\n`;
       } else {
         out += `<${arg.name}>example_value</${arg.name}>\n`;
       }

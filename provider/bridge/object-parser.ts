@@ -658,7 +658,7 @@ export class StreamingObjectParser {
   }
 
   private findKeyStart(key: string, fromIndex = 0): number {
-    return this.buffer.indexOf(`\"${key}\"`, fromIndex);
+    return this.buffer.indexOf(`"${key}"`, fromIndex);
   }
 
   private findValueStartAfterKey(key: string, fromIndex = 0): { start: number } | { error: string } | null {

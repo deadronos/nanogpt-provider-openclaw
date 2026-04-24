@@ -1,11 +1,10 @@
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stagePackageDir } from "./scripts/stage-package-dir.mjs";
+import { resolvePluginDiscoveryProvidersRuntime } from "./openclaw-discovery-runtime.js";
 import { mergeProcessEnv } from "./test-env.js";
-
 type ProviderCatalogHook = {
   order?: string;
   run: (params: {
@@ -24,7 +23,7 @@ type ProviderCatalogHook = {
       source: "env" | "profile" | "none";
       profileId?: string;
     };
-  }) => Promise<unknown> | unknown;
+  }) => unknown;
 };
 
 type ProviderPlugin = {
@@ -74,11 +73,6 @@ async function resolvePluginDiscoveryProviders(params: {
   env?: NodeJS.ProcessEnv;
   onlyPluginIds?: string[];
 }): Promise<ProviderPlugin[]> {
-  const require = createRequire(import.meta.url);
-  const { resolvePluginDiscoveryProvidersRuntime } = require("./node_modules/openclaw/dist/plugins/provider-discovery.runtime.js") as {
-    resolvePluginDiscoveryProvidersRuntime: (runtimeParams: typeof params) => ProviderPlugin[];
-  };
-
   return resolvePluginDiscoveryProvidersRuntime(params).filter(
     (provider: ProviderPlugin) => resolveProviderCatalogHook(provider) !== undefined,
   );
@@ -142,15 +136,17 @@ function runProviderCatalog(params: {
     source: "env" | "profile" | "none";
     profileId?: string;
   };
-}): Promise<unknown> | unknown {
-  return resolveProviderCatalogHook(params.provider)?.run({
+}): Promise<unknown> {
+  return Promise.resolve(
+    resolveProviderCatalogHook(params.provider)?.run({
     config: params.config,
     agentDir: params.agentDir,
     workspaceDir: params.workspaceDir,
     env: params.env,
     resolveProviderApiKey: params.resolveProviderApiKey,
     resolveProviderAuth: params.resolveProviderAuth,
-  });
+    }),
+  );
 }
 
 async function loadNanoGptCatalogProvider(workspaceDir: string): Promise<ProviderPlugin | undefined> {

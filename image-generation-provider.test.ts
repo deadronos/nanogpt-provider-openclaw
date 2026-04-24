@@ -318,7 +318,7 @@ describe("nanogpt image-generation provider", () => {
     mockNanoGptApiKey();
     const provider = buildNanoGptImageGenerationProvider();
     expect(typeof provider.isConfigured).toBe("function");
-    const result = await provider.isConfigured!({ agentDir: "/test/agent" } as any);
+    const result = await Promise.resolve(provider.isConfigured!({ agentDir: "/test/agent" } as any));
     expect(result).toBe(true);
   });
 
@@ -326,7 +326,7 @@ describe("nanogpt image-generation provider", () => {
     isProviderApiKeyConfiguredMock.mockResolvedValue(false);
     resolveApiKeyForProviderMock.mockResolvedValue({ apiKey: undefined });
     const provider = buildNanoGptImageGenerationProvider();
-    const result = await provider.isConfigured!({ agentDir: "/test/agent" } as any);
+    const result = await Promise.resolve(provider.isConfigured!({ agentDir: "/test/agent" } as any));
     expect(result).toBe(false);
   });
 

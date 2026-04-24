@@ -676,9 +676,7 @@ function rewriteNanoGptBridgeMessage(params: {
     return params.finalMessage;
   }
 
-  const content: AssistantMessage["content"] = [
-    ...params.finalMessage.content.filter((block) => block.type === "thinking"),
-  ];
+  const content: AssistantMessage["content"] = params.finalMessage.content.filter((block) => block.type === "thinking");
   if (parsed.content) {
     content.push({ type: "text", text: parsed.content });
   }
@@ -793,7 +791,7 @@ export function wrapNanoGptStreamFn(
 
       const runAttempt = async (retryMessage?: string) => {
         const patchedOptions = {
-          ...(options ?? {}),
+          ...options,
           onPayload: async (payload: unknown, payloadModel: unknown) => {
             const upstreamPayload =
               typeof upstreamOnPayload === "function"
