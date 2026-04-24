@@ -82,6 +82,11 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         validateNanoGptImageSize(size);
       }
       const inputImages = req.inputImages ?? [];
+
+      if (req.prompt && req.prompt.length > 4000) {
+        throw new Error("Image prompt is too long (maximum 4000 characters).");
+      }
+
       const body: Record<string, unknown> = {
         model,
         prompt: req.prompt,

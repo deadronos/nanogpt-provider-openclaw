@@ -365,6 +365,21 @@ describe("nanogpt image-generation provider", () => {
     );
   });
 
+  it("throws an error when the prompt is too long", async () => {
+    mockNanoGptApiKey();
+
+    const provider = buildNanoGptImageGenerationProvider();
+
+    await expect(async () => {
+      await provider.generateImage({
+        provider: "nanogpt",
+        model: "hidream",
+        prompt: "a".repeat(4001),
+        cfg: {},
+      });
+    }).rejects.toThrow("Image prompt is too long (maximum 4000 characters).");
+  });
+
   it("falls back to default timeout when req.timeoutMs is not set", async () => {
     mockNanoGptApiKey();
 
