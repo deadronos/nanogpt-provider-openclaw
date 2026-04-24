@@ -37,6 +37,7 @@ import { parseXmlBridgeAssistantText } from "./bridge/xml-parser.js";
 import { createNanoGptLogger, createNanoGptLoggerSync, type NanoGptLogger } from "./nanogpt-logger.js";
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
+type NanoGptStreamResult = Awaited<ReturnType<NonNullable<NanoGptWrappedStreamFn>>>;
 
 type NanoGptPluginLogger = {
   warn?: (message: string, meta?: Record<string, unknown>) => void;
@@ -713,8 +714,8 @@ function rewriteNanoGptBridgeMessage(params: {
   };
 }
 
-function replayNanoGptAssistantMessage(message: AssistantMessage) {
-  const stream = createAssistantMessageEventStream();
+function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStreamResult {
+  const stream = createAssistantMessageEventStream() as unknown as NanoGptStreamResult;
 
   queueMicrotask(() => {
     stream.push({ type: "start", partial: message });

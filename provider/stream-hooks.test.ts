@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { wrapNanoGptStreamFn } from "./stream-hooks.js";
 
 const MODEL_ID = "moonshotai/kimi-k2.5:thinking";
+type WarnMock = ((message: string, meta?: Record<string, unknown>) => void) & {
+  mock: { calls: unknown[][] };
+};
 
 function buildUsage(isEmpty: boolean): AssistantMessage["usage"] {
   if (isEmpty) {
@@ -60,10 +63,11 @@ function createWrappedStream(params: {
   retryMessage?: AssistantMessage;
   onPayload?: (payload: unknown) => void;
   modelCompat?: Record<string, unknown>;
-  logger?: { warn: ReturnType<typeof vi.fn> };
+  logger?: { warn?: (message: string, meta?: Record<string, unknown>) => void };
   config?: Record<string, unknown>;
 }) {
-  const logger = params.logger ?? { warn: vi.fn() };
+  const warn = (params.logger?.warn ?? vi.fn()) as WarnMock;
+  const logger = params.logger ?? { warn };
   const messages = [params.message, ...(params.retryMessage ? [params.retryMessage] : [])];
   let streamCallIndex = 0;
   const baseStreamFn = vi.fn(async (_model: unknown, _context: unknown, options?: any) => {
@@ -97,10 +101,10 @@ function createWrappedStream(params: {
     params.config,
   );
 
-  return { warn: logger.warn, wrapped, baseStreamFn };
+  return { warn, wrapped, baseStreamFn };
 }
 
-function extractWarnMessages(warn: ReturnType<typeof vi.fn>): string[] {
+function extractWarnMessages(warn: WarnMock): string[] {
   return warn.mock.calls.map(([message]) => String(message));
 }
 

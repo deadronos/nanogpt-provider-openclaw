@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "*.d.ts"],
   "exclude": ["openclaw-discovery.test.ts"]
 }

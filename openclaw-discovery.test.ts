@@ -1,10 +1,9 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-// @ts-expect-error Test imports a plain .mjs build script under a TS-only repo config.
 import { stagePackageDir } from "./scripts/stage-package-dir.mjs";
-import { resolvePluginDiscoveryProvidersRuntime } from "./node_modules/openclaw/dist/plugins/provider-discovery.runtime.js";
 import { mergeProcessEnv } from "./test-env.js";
 
 type ProviderCatalogHook = {
@@ -75,8 +74,13 @@ async function resolvePluginDiscoveryProviders(params: {
   env?: NodeJS.ProcessEnv;
   onlyPluginIds?: string[];
 }): Promise<ProviderPlugin[]> {
-  return (await resolvePluginDiscoveryProvidersRuntime(params)).filter(
-    (provider) => resolveProviderCatalogHook(provider) !== undefined,
+  const require = createRequire(import.meta.url);
+  const { resolvePluginDiscoveryProvidersRuntime } = require("./node_modules/openclaw/dist/plugins/provider-discovery.runtime.js") as {
+    resolvePluginDiscoveryProvidersRuntime: (runtimeParams: typeof params) => ProviderPlugin[];
+  };
+
+  return resolvePluginDiscoveryProvidersRuntime(params).filter(
+    (provider: ProviderPlugin) => resolveProviderCatalogHook(provider) !== undefined,
   );
 }
 

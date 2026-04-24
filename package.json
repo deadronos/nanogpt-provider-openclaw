@@ -72,17 +72,26 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && node ./scripts/stage-package-dir.mjs",
-    "build:tgz": "npm run build && npm pack ./dist/package --pack-destination ./dist"
+    "build:tgz": "npm run build && npm pack ./dist/package --pack-destination ./dist",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check --threads=1",
+    "format:fix": "oxfmt --write",
+    "lint": "oxlint",
+    "lint:all": "oxlint --type-aware --type-check",
+    "lint:fix": "oxlint --fix && npm run format"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.4.15"
+    "openclaw": ">=2026.4.22"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "openclaw": "2026.4.22",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "oxfmt": "0.46.0",
+    "oxlint": "^1.61.0",
+    "oxlint-tsgolint": "^0.21.1"
   },
   "overrides": {
     "axios": "1.15.0",
@@ -124,7 +133,7 @@
     ],
     "compat": {
       "pluginApi": ">=2026.4.22",
-      "minGatewayVersion": "2026.4.15"
+      "minGatewayVersion": "2026.4.22"
     },
     "build": {
       "openclawVersion": "2026.4.22",
@@ -132,6 +141,6 @@
     }
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.66.1"
+    "@mariozechner/pi-ai": "^0.69.0"
   }
 }
