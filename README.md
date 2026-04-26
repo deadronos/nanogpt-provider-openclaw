@@ -131,6 +131,11 @@ NanoGPT web-search credential path so the same auth works for text,
 default, and you can still override web search explicitly with the dedicated
 credential path described below.
 
+For now, the plugin keeps both manifest paths in sync: the legacy
+`providerAuthEnvVars` field and the newer `setup.providers[].envVars` field.
+Newer OpenClaw builds prefer the setup descriptor path, while older installs
+still pick up the compatibility metadata.
+
 ## Text provider configuration
 
 The plugin config controls NanoGPT text-model discovery and transport behavior:

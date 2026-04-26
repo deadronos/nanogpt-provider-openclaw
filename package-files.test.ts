@@ -113,6 +113,19 @@ describe("package manifest files", () => {
     expect(contracts.webSearchProviders).toEqual(["nanogpt"]);
   });
 
+  it("mirrors NanoGPT auth env metadata into setup providers", () => {
+    const manifest = readPluginManifest();
+    const setup = readRecord(manifest.setup);
+    const providers = Array.isArray(setup.providers) ? setup.providers : [];
+
+    expect(providers).toEqual([
+      expect.objectContaining({
+        id: "nanogpt",
+        envVars: ["NANOGPT_API_KEY"],
+      }),
+    ]);
+  });
+
   it("keeps documented plugin config fields in the manifest schema", () => {
     const manifest = readPluginManifest();
     const configSchema = readRecord(manifest.configSchema);
