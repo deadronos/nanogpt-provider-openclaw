@@ -14,6 +14,16 @@
       "NANOGPT_API_KEY"
     ]
   },
+  "setup": {
+    "providers": [
+      {
+        "id": "nanogpt",
+        "envVars": [
+          "NANOGPT_API_KEY"
+        ]
+      }
+    ]
+  },
   "providerAuthChoices": [
     {
       "provider": "nanogpt",
