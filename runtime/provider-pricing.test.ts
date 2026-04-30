@@ -97,6 +97,38 @@ describe("fetchNanoGptSelectedProviderPricing", () => {
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("caches fetch failures using a very short TTL", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.fn().mockRejectedValue(new Error("Network error"));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const params = {
+      apiKey: "test-key",
+      modelId: "test-model",
+      provider: "valid-provider",
+    };
+
+    // First call: should trigger fetch and return null
+    const firstResult = await fetchNanoGptSelectedProviderPricing(params);
+    expect(firstResult).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Second call: should hit the very short failure cache, fetch not called again
+    const secondResult = await fetchNanoGptSelectedProviderPricing(params);
+    expect(secondResult).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Advance time past VERY_SHORT_FAILURE_CACHE_TTL_MS (5000ms)
+    vi.advanceTimersByTime(5001);
+
+    // Third call: cache expired, should trigger fetch again
+    const thirdResult = await fetchNanoGptSelectedProviderPricing(params);
+    expect(thirdResult).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
 });
 
 describe("resetNanoGptRuntimeState", () => {
