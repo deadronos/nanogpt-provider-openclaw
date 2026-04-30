@@ -10,6 +10,7 @@ import {
   buildNanoGptRequestHeaders,
   resolveCatalogBaseUrl,
   resolveCatalogSource,
+  probeNanoGptSubscription,
   resolveNanoGptRoutingMode,
   resolveRequestBaseUrl,
 } from "./routing.js";
@@ -17,6 +18,20 @@ import {
 afterEach(() => {
   resetNanoGptRuntimeState();
   vi.unstubAllGlobals();
+});
+
+describe("probeNanoGptSubscription", () => {
+  it("throws when the subscription probe fails with a non-OK status", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(probeNanoGptSubscription("test-key")).rejects.toThrow(
+      "NanoGPT subscription probe failed with HTTP 500",
+    );
+  });
 });
 
 describe("resolveNanoGptRoutingMode", () => {
