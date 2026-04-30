@@ -9,3 +9,8 @@
 **Vulnerability:** The image generation provider accepted an arbitrarily long `req.prompt` parameter, passing it directly to the provider payload. This lack of validation created a potential DoS/resource exhaustion vector.
 **Learning:** Missing length limits on arbitrary text inputs passed to external APIs can be exploited to cause large memory allocations or exceed upstream API payload limits unnecessarily.
 **Prevention:** Implement input length validation early in the request pipeline (e.g. `req.prompt.length > 4000`) to enforce a safe maximum before payload serialization.
+
+## 2024-05-20 - Missing array length limits for external tool inputs
+**Vulnerability:** External inputs that accept arrays (e.g., `includeDomains`, `excludeDomains` in web-search) were missing length limits. This creates a resource exhaustion (DoS) vector if a user or agent submits an array with thousands of items.
+**Learning:** Even if individual strings inside an array are bounded by JSON schema or token limits, the array itself must have a maximum length enforced to prevent excessive iterations or huge payload sizes.
+**Prevention:** Always enforce a hard `length` limit on any user-provided array (e.g. `if (array.length > 50) throw new Error(...)`) before processing it.
