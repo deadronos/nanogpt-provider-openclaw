@@ -95,6 +95,61 @@ describe("nanogpt web search provider", () => {
     expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
 
+  it("accepts search queries exactly at the maximum length limit", async () => {
+    postTrustedWebToolsJsonMock.mockImplementation(
+      async (
+        params: Record<string, unknown>,
+        parseResponse: (response: Response) => Promise<unknown>,
+      ) =>
+        await parseResponse(
+          new Response(
+            JSON.stringify({
+              data: [],
+              metadata: {
+                query: "a".repeat(2000),
+              },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        ),
+    );
+
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "test-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    const exactLengthQuery = "a".repeat(2000);
+    const result = await tool.execute({ query: exactLengthQuery });
+
+    expect(postTrustedWebToolsJsonMock).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      query: exactLengthQuery,
+      provider: "nanogpt",
+      count: 0,
+      results: [],
+    });
+  });
+
   it("rejects search queries that exceed the maximum length", async () => {
     const provider = createNanoGptWebSearchProvider();
     const tool = provider.createTool({
@@ -119,7 +174,7 @@ describe("nanogpt web search provider", () => {
 
     const longQuery = "a".repeat(2001);
     await expect(tool.execute({ query: longQuery })).rejects.toThrow(
-      "Search query is too long (maximum 2000 characters)."
+      "Search query is too long (maximum 2000 characters).",
     );
     expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
@@ -370,7 +425,7 @@ describe("nanogpt web search provider", () => {
         url: "javascript:alert(1)",
         title: "Malicious",
         snippet: "Malicious",
-      })
+      }),
     ).toBeNull();
 
     expect(
@@ -378,7 +433,7 @@ describe("nanogpt web search provider", () => {
         url: "data:text/html,<script>alert(1)</script>",
         title: "Malicious",
         snippet: "Malicious",
-      })
+      }),
     ).toBeNull();
 
     expect(
@@ -386,7 +441,7 @@ describe("nanogpt web search provider", () => {
         url: "not-a-valid-url",
         title: "Invalid",
         snippet: "Invalid",
-      })
+      }),
     ).toBeNull();
   });
 });
