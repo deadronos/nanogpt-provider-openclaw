@@ -82,4 +82,42 @@ describe("fetchNanoGptUsageSnapshot", () => {
       error: expect.stringContaining("HTTP 401"),
     });
   });
+
+  it("returns an error snapshot on invalid JSON", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error("SyntaxError: Unexpected token");
+      },
+    });
+
+    await expect(
+      fetchNanoGptUsageSnapshot({
+        token: "test-key",
+        timeoutMs: 1_000,
+        fetchFn: fetchSpy,
+      } as never),
+    ).resolves.toMatchObject({
+      provider: "nanogpt",
+      error: "Invalid JSON",
+    });
+  });
+
+  it("returns an error snapshot on null payload", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => null,
+    });
+
+    await expect(
+      fetchNanoGptUsageSnapshot({
+        token: "test-key",
+        timeoutMs: 1_000,
+        fetchFn: fetchSpy,
+      } as never),
+    ).resolves.toMatchObject({
+      provider: "nanogpt",
+      error: "Invalid JSON",
+    });
+  });
 });
