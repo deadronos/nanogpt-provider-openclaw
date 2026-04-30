@@ -17,12 +17,12 @@ It answers three questions:
 
 ## OpenClaw audio-related surfaces that matter
 
-| OpenClaw surface | Current OpenClaw contract | Best NanoGPT fit |
-| --- | --- | --- |
-| `registerSpeechProvider(...)` | One-shot TTS via `synthesize`; optional telephony output; optional voice listing | `POST /api/v1/audio/speech`; optionally `POST /api/tts` plus `GET /api/tts/status` |
-| `registerMediaUnderstandingProvider({ transcribeAudio })` | File transcription in `openclaw infer audio transcribe` and related media flows | `POST /api/v1/audio/transcriptions`; optionally `POST /api/transcribe` plus `POST /api/transcribe/status` |
-| `registerRealtimeTranscriptionProvider(...)` | Live streaming STT sessions | No clear NanoGPT realtime STT surface found in the scanned docs |
-| `registerRealtimeVoiceProvider(...)` | Duplex live voice bridge | No clear NanoGPT duplex realtime voice surface found in the scanned docs |
+| OpenClaw surface                                          | Current OpenClaw contract                                                        | Best NanoGPT fit                                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `registerSpeechProvider(...)`                             | One-shot TTS via `synthesize`; optional telephony output; optional voice listing | `POST /api/v1/audio/speech`; optionally `POST /api/tts` plus `GET /api/tts/status`                        |
+| `registerMediaUnderstandingProvider({ transcribeAudio })` | File transcription in `openclaw infer audio transcribe` and related media flows  | `POST /api/v1/audio/transcriptions`; optionally `POST /api/transcribe` plus `POST /api/transcribe/status` |
+| `registerRealtimeTranscriptionProvider(...)`              | Live streaming STT sessions                                                      | No clear NanoGPT realtime STT surface found in the scanned docs                                           |
+| `registerRealtimeVoiceProvider(...)`                      | Duplex live voice bridge                                                         | No clear NanoGPT duplex realtime voice surface found in the scanned docs                                  |
 
 Key OpenClaw refs:
 
@@ -34,14 +34,14 @@ Key OpenClaw refs:
 
 ## Best endpoint mapping for each future NanoGPT audio feature
 
-| Goal | Best NanoGPT endpoint(s) | Why it fits OpenClaw well | Notes |
-| --- | --- | --- | --- |
-| Low-latency TTS | `POST /api/v1/audio/speech` | Direct audio bytes back; OpenAI-compatible; maps naturally to `SpeechProviderPlugin.synthesize` | Best default TTS path |
-| Async / long-form TTS | `POST /api/tts`; `GET /api/tts/status` | Handles queued async models like ElevenLabs; useful when audio is not returned inline | Good optional second phase |
-| Simple STT | `POST /api/v1/audio/transcriptions` | OpenAI-compatible STT; easy mapping to `transcribeAudio` | Best default STT path |
-| Rich STT with diarization | `POST /api/transcribe`; `POST /api/transcribe/status` | Supports async jobs, diarization, and richer metadata | Good if we want premium STT features |
-| YouTube transcript extraction | `POST /api/youtube-transcribe` | Useful, but not a direct fit to current OpenClaw audio infer surface | Better as a separate tool/integration, not the first audio milestone |
-| Music generation | `POST /api/v1/audio/speech` with music models | OpenClaw has a music-generation capability family, but this is lower priority | Treat separately from TTS |
+| Goal                          | Best NanoGPT endpoint(s)                              | Why it fits OpenClaw well                                                                       | Notes                                                                |
+| ----------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Low-latency TTS               | `POST /api/v1/audio/speech`                           | Direct audio bytes back; OpenAI-compatible; maps naturally to `SpeechProviderPlugin.synthesize` | Best default TTS path                                                |
+| Async / long-form TTS         | `POST /api/tts`; `GET /api/tts/status`                | Handles queued async models like ElevenLabs; useful when audio is not returned inline           | Good optional second phase                                           |
+| Simple STT                    | `POST /api/v1/audio/transcriptions`                   | OpenAI-compatible STT; easy mapping to `transcribeAudio`                                        | Best default STT path                                                |
+| Rich STT with diarization     | `POST /api/transcribe`; `POST /api/transcribe/status` | Supports async jobs, diarization, and richer metadata                                           | Good if we want premium STT features                                 |
+| YouTube transcript extraction | `POST /api/youtube-transcribe`                        | Useful, but not a direct fit to current OpenClaw audio infer surface                            | Better as a separate tool/integration, not the first audio milestone |
+| Music generation              | `POST /api/v1/audio/speech` with music models         | OpenClaw has a music-generation capability family, but this is lower priority                   | Treat separately from TTS                                            |
 
 ## NanoGPT TTS surface snapshot
 
@@ -63,14 +63,14 @@ Key OpenClaw refs:
 
 ### TTS pricing snapshot from current NanoGPT docs
 
-| Model | Pricing in docs | Notes |
-| --- | --- | --- |
-| `gpt-4o-mini-tts` | `$0.0006 / 1k chars` | Cheapest documented TTS option |
-| `Kokoro-82m` | `$0.001 / 1k chars` | Low-cost multilingual option |
-| `tts-1` | `$0.015 / 1k chars` | OpenAI standard quality |
-| `tts-1-hd` | `$0.030 / 1k chars` | Higher quality; voice instructions |
-| `Elevenlabs-Turbo-V2.5` | `$0.06 / 1k chars` | Premium; async-friendly; voice controls |
-| `Elevenlabs-V3` | `Varies` | Docs do not pin one stable price in the summary |
+| Model                   | Pricing in docs      | Notes                                           |
+| ----------------------- | -------------------- | ----------------------------------------------- |
+| `gpt-4o-mini-tts`       | `$0.0006 / 1k chars` | Cheapest documented TTS option                  |
+| `Kokoro-82m`            | `$0.001 / 1k chars`  | Low-cost multilingual option                    |
+| `tts-1`                 | `$0.015 / 1k chars`  | OpenAI standard quality                         |
+| `tts-1-hd`              | `$0.030 / 1k chars`  | Higher quality; voice instructions              |
+| `Elevenlabs-Turbo-V2.5` | `$0.06 / 1k chars`   | Premium; async-friendly; voice controls         |
+| `Elevenlabs-V3`         | `Varies`             | Docs do not pin one stable price in the summary |
 
 ### TTS implementation recommendation
 
@@ -105,15 +105,15 @@ If we add TTS to this plugin:
 
 ### STT pricing snapshot from current NanoGPT docs
 
-| Model | Pricing in docs | Notes |
-| --- | --- | --- |
-| `Whisper-Large-V3` | `~$0.0005 / min` | Cheapest documented STT option |
-| `gpt-4o-mini-transcribe` | `$0.003 / min` | Good OpenAI-family fit |
-| `Wizper` | `$0.01 / min` | Faster synchronous option |
-| `Elevenlabs-STT` | `$0.03 / min` | Async; supports diarization and audio-event tagging |
-| `openai-whisper-with-video` | `$0.06 / min` | Video-to-text transcription |
-| `qwen-voice-clone` | `$0.25 / run` | Special workflow, not plain STT |
-| `minimax-voice-clone` | `$1.00 / run` | Special workflow, not plain STT |
+| Model                       | Pricing in docs  | Notes                                               |
+| --------------------------- | ---------------- | --------------------------------------------------- |
+| `Whisper-Large-V3`          | `~$0.0005 / min` | Cheapest documented STT option                      |
+| `gpt-4o-mini-transcribe`    | `$0.003 / min`   | Good OpenAI-family fit                              |
+| `Wizper`                    | `$0.01 / min`    | Faster synchronous option                           |
+| `Elevenlabs-STT`            | `$0.03 / min`    | Async; supports diarization and audio-event tagging |
+| `openai-whisper-with-video` | `$0.06 / min`    | Video-to-text transcription                         |
+| `qwen-voice-clone`          | `$0.25 / run`    | Special workflow, not plain STT                     |
+| `minimax-voice-clone`       | `$1.00 / run`    | Special workflow, not plain STT                     |
 
 ### STT implementation recommendation
 

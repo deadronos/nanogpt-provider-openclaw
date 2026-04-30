@@ -12,11 +12,11 @@
 
 ## Three Alternatives at a Glance
 
-| Alternative | Effort | Scope | Key Limitation |
-|---|---|---|---|
-| **A: `response_format` experiment** | 1–2 days | NanoGPT native structured output, no new files | May not work for tool calls specifically |
-| **B: Streaming parsers only** | 1 week | Port `StreamingObjectParser` + `StreamingXmlParser` for better response parsing | No bridge prompt injection, no retry |
-| **C: Best-effort full bridge** | 3–4 weeks | B + system prompt injection + keepalive + retry | `tools` array always present alongside bridge instructions |
+| Alternative                         | Effort    | Scope                                                                           | Key Limitation                                             |
+| ----------------------------------- | --------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **A: `response_format` experiment** | 1–2 days  | NanoGPT native structured output, no new files                                  | May not work for tool calls specifically                   |
+| **B: Streaming parsers only**       | 1 week    | Port `StreamingObjectParser` + `StreamingXmlParser` for better response parsing | No bridge prompt injection, no retry                       |
+| **C: Best-effort full bridge**      | 3–4 weeks | B + system prompt injection + keepalive + retry                                 | `tools` array always present alongside bridge instructions |
 
 **Recommendation:** Start with A to validate whether bridging is even necessary. If nano-gpt's `response_format: { type: "json_object" }` works for tool calls, Alternatives B and C become unnecessary.
 
@@ -38,6 +38,7 @@
 ### Task 1: Add `response_format` injection to `wrapStreamFn`
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts` (lines 537–555)
 
 - [ ] **Step 1: Write the failing test**
@@ -164,7 +165,11 @@ const testOptions = {
   __test_payload: true,
 };
 
-await wrapped({ api: "openai-completions" }, { tools: [{ name: "read", parameters: {} }] }, testOptions);
+await wrapped(
+  { api: "openai-completions" },
+  { tools: [{ name: "read", parameters: {} }] },
+  testOptions,
+);
 ```
 
 Run: `npx tsx scripts/test-response-format.ts`
@@ -195,6 +200,7 @@ Document whether `response_format` alone (with `tools` still present) is suffici
 ### Task 1: Create `provider/bridge/` directory and result types
 
 **Files:**
+
 - Create: `provider/bridge/bridge-result.ts`
 - Create: `provider/bridge/bridge-result.test.ts`
 
@@ -203,15 +209,13 @@ Document whether `response_format` alone (with `tools` still present) is suffici
 ```typescript
 // provider/bridge/bridge-result.test.ts
 import { describe, expect, it } from "vitest";
-import {
-  buildNanoGptBridgeResult,
-  type NanoGptBridgeResultKind,
-} from "./bridge-result.js";
+import { buildNanoGptBridgeResult, type NanoGptBridgeResultKind } from "./bridge-result.js";
 
 describe("NanoGPT bridge result types", () => {
   it("classifies a valid object-bridge turn with tool calls", () => {
     const result = buildNanoGptBridgeResult({
-      rawText: '{"v":1,"mode":"tool","message":"reading file","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}',
+      rawText:
+        '{"v":1,"mode":"tool","message":"reading file","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}',
       parsedKind: "object",
     });
     expect(result.kind).toBe("valid");
@@ -303,6 +307,7 @@ git commit -m "feat(bridge): add bridge result types"
 ### Task 2: Port `StreamingObjectParser`
 
 **Files:**
+
 - Create: `provider/bridge/object-parser.ts`
 - Create: `provider/bridge/object-parser.test.ts`
 
@@ -321,14 +326,12 @@ describe("StreamingObjectParser", () => {
     parser.on("toolCall", (tc) => events.push(`toolCall:${tc.name}`));
     parser.on("done", () => events.push("done"));
 
-    parser.feed('{"v":1,"mode":"tool","message":"reading","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}');
+    parser.feed(
+      '{"v":1,"mode":"tool","message":"reading","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}',
+    );
     parser.flush();
 
-    expect(events).toEqual([
-      "message:reading",
-      "toolCall:read",
-      "done",
-    ]);
+    expect(events).toEqual(["message:reading", "toolCall:read", "done"]);
   });
 
   it("handles incremental JSON streaming", () => {
@@ -342,17 +345,16 @@ describe("StreamingObjectParser", () => {
     parser.feed('uments":{"path":"a.js"}}]}');
     parser.flush();
 
-    expect(events).toEqual([
-      "message:reading",
-      "toolCall:read",
-    ]);
+    expect(events).toEqual(["message:reading", "toolCall:read"]);
   });
 
   it("classifies invalid empty turn on flush", () => {
     const parser = new StreamingObjectParser();
     let resultKind: string = "";
     parser.on("done", () => {});
-    parser.on("result", (r) => { resultKind = r.kind; });
+    parser.on("result", (r) => {
+      resultKind = r.kind;
+    });
 
     parser.feed('{"v":1,"mode":"tool","message":"","tool_calls":[]}');
     parser.flush();
@@ -414,7 +416,11 @@ export class StreamingObjectParser {
   }
 
   flush(): void {
-    if (this.state.buffer.trim() && !this.state.messageEmitted && this.state.completedCalls.length === 0) {
+    if (
+      this.state.buffer.trim() &&
+      !this.state.messageEmitted &&
+      this.state.completedCalls.length === 0
+    ) {
       this.emit("result", { kind: "invalid_empty", rawText: this.state.buffer });
     }
     this.emit("done", undefined);
@@ -427,6 +433,7 @@ export class StreamingObjectParser {
 ```
 
 Implement the full state machine from NanoProxy's `StreamingObjectParser` class. Key methods to port:
+
 - `_scanHeader()` — validates `v` field, extracts `mode`, extracts `message` content
 - `_scanToolCalls()` — scans through `tool_calls` array character by character
 - `tryReadJsonObject(buffer, start)` — finds complete `{...}` spans without calling `JSON.parse` on incomplete chunks
@@ -450,6 +457,7 @@ git commit -m "feat(bridge): port StreamingObjectParser from NanoProxy"
 ### Task 3: Port `StreamingXmlParser`
 
 **Files:**
+
 - Create: `provider/bridge/xml-parser.ts`
 - Create: `provider/bridge/xml-parser.test.ts`
 
@@ -500,6 +508,7 @@ Expected: FAIL
 - [ ] **Step 3: Port from NanoProxy `src/core.js` `StreamingXmlParser`**
 
 Implement a character-by-character state machine that:
+
 - Detects `<open>...</open>` for visible content
 - Detects `<toolname>...</toolname>` for tool calls
 - Parses child tags as named arguments
@@ -522,6 +531,7 @@ git commit -m "feat(bridge): port StreamingXmlParser from NanoProxy"
 ### Task 4: Wire parsers into `wrapNanoGptStreamFn` under config flag
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts`
 - Modify: `provider/stream-hooks.test.ts`
 
@@ -534,14 +544,23 @@ The key challenge: `wrapStreamFn` receives a `StreamFn` that returns a `Response
 ```typescript
 it("uses StreamingObjectParser when bridgeMode=always for tool-enabled requests", async () => {
   const message = buildAssistantMessage({
-    content: [{ type: "text", text: '{"v":1,"mode":"tool","message":"ok","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}' }],
+    content: [
+      {
+        type: "text",
+        text: '{"v":1,"mode":"tool","message":"ok","tool_calls":[{"name":"read","arguments":{"path":"a.js"}}]}',
+      },
+    ],
     usageEmpty: false,
     stopReason: "stop",
   });
   const { wrapped } = createWrappedStream({ message });
 
   // With bridgeMode=always, the result should reflect parsed bridge output.
-  const stream = await wrapped?.({} as any, { tools: [{ name: "read", parameters: {} }] } as any, {});
+  const stream = await wrapped?.(
+    {} as any,
+    { tools: [{ name: "read", parameters: {} }] } as any,
+    {},
+  );
   const result = await stream?.result();
   expect(result.content).toMatchObject([
     { type: "text", text: "ok" },
@@ -584,6 +603,7 @@ git commit -m "feat(bridge): wire streaming parsers into wrapStreamFn"
 ## Alternative C: Best-Effort Full Bridge
 
 **Principle:** Everything in Alternative B, plus:
+
 - Bridge system prompt injection via `onPayload`
 - SSE keepalive heartbeat injection (15-second timer)
 - Invalid turn retry (one automatic retry with corrective system message)
@@ -603,6 +623,7 @@ This is the closest approximation of NanoProxy's full behavior within OpenClaw's
 ### Task 5: Port `buildObjectBridgeSystemMessage()`
 
 **Files:**
+
 - Create: `provider/bridge/system-prompt.ts`
 - Create: `provider/bridge/system-prompt.test.ts`
 
@@ -646,6 +667,7 @@ Expected: FAIL
 Adapt the function signature to accept `AnyAgentTool[]` (from `provider/tool-schema-hooks.ts`) instead of NanoProxy's internal tool format.
 
 The system prompt should:
+
 - List each tool with name, description, and parameter schema
 - Instruct nano-gpt to emit exactly one JSON object per turn
 - Specify the required fields: `v=1`, `mode`, `message`, `tool_calls`
@@ -669,6 +691,7 @@ git commit -m "feat(bridge): port object bridge system message builder"
 ### Task 6: Add bridge system prompt injection to `wrapStreamFn`
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -686,9 +709,22 @@ it("injects bridge system message via onPayload for tool-enabled requests when b
     onPayload: (payload) => observedPayloads.push(payload),
   });
 
-  await wrapped?.({} as any, {
-    tools: [{ name: "read", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } }],
-  } as any, {});
+  await wrapped?.(
+    {} as any,
+    {
+      tools: [
+        {
+          name: "read",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+          },
+        },
+      ],
+    } as any,
+    {},
+  );
 
   expect(observedPayloads[0]).toHaveProperty("messages");
   const msgs = observedPayloads[0].messages as Array<Record<string, unknown>>;
@@ -711,7 +747,8 @@ In the `onPayload` callback in `wrapNanoGptStreamFn`, after the existing payload
 const bridgeMode = resolvedConfig?.bridgeMode ?? "never";
 if (hasTools && bridgeMode === "always") {
   const bridgeSystemMessage = buildNanoGptObjectBridgeSystemMessage(context.tools);
-  const messages = (upstreamPayload as Record<string, unknown>).messages as Array<Record<string, unknown>> ?? [];
+  const messages =
+    ((upstreamPayload as Record<string, unknown>).messages as Array<Record<string, unknown>>) ?? [];
   (upstreamPayload as Record<string, unknown>).messages = [
     { role: "system", content: bridgeSystemMessage },
     ...messages,
@@ -737,6 +774,7 @@ git commit -m "feat(bridge): inject object bridge system prompt for tool-enabled
 ### Task 7: Add SSE keepalive heartbeat injection
 
 **Files:**
+
 - Create: `provider/bridge/keepalive.ts`
 - Create: `provider/bridge/keepalive.test.ts`
 
@@ -784,7 +822,10 @@ export function buildSseKeepaliveChunks(): Uint8Array {
   return new TextEncoder().encode(SSE_KEEPALIVE_CHUNK);
 }
 
-export function createKeepaliveTimer(callback: () => void, intervalMs = 15_000): {
+export function createKeepaliveTimer(
+  callback: () => void,
+  intervalMs = 15_000,
+): {
   start: () => void;
   stop: () => void;
 } {
@@ -819,6 +860,7 @@ git commit -m "feat(bridge): add SSE keepalive heartbeat support"
 ### Task 8: Add invalid turn retry logic
 
 **Files:**
+
 - Create: `provider/bridge/retry.ts`
 - Create: `provider/bridge/retry.test.ts`
 
@@ -851,6 +893,7 @@ Run: `npm test -- --run provider/bridge/retry.test.ts 2>&1`
 - [ ] **Step 3: Port from NanoProxy `src/plugin.mjs` `buildInvalidBridgeRetryBuffer`**
 
 The retry logic:
+
 1. After the upstream stream completes, inspect the `NanoGptBridgeResult`
 2. If `kind === "invalid_empty"`, build a retry system message
 3. Append it to the messages array in the retry request body
@@ -874,14 +917,14 @@ git commit -m "feat(bridge): add invalid turn retry logic"
 
 ## Decision Matrix
 
-| Criterion | A: `response_format` | B: Parsers Only | C: Full Bridge |
-|---|---|---|---|
-| Days of effort | 1–2 | ~7 | 21–28 |
-| New files | 0 | 8 | 12+ |
-| Tests | 2 | 6 | 10+ |
-| Risk | Low (just an experiment) | Medium (SSE re-streaming is complex) | High (many moving parts) |
-| Reliability improvement | Unknown (needs testing) | Moderate (better parsing, no protocol change) | High (bridge protocol + parsers + retry) |
-| Structural limitation | `tools` still sent alongside | `tools` still sent alongside | `tools` still sent alongside |
+| Criterion               | A: `response_format`         | B: Parsers Only                               | C: Full Bridge                           |
+| ----------------------- | ---------------------------- | --------------------------------------------- | ---------------------------------------- |
+| Days of effort          | 1–2                          | ~7                                            | 21–28                                    |
+| New files               | 0                            | 8                                             | 12+                                      |
+| Tests                   | 2                            | 6                                             | 10+                                      |
+| Risk                    | Low (just an experiment)     | Medium (SSE re-streaming is complex)          | High (many moving parts)                 |
+| Reliability improvement | Unknown (needs testing)      | Moderate (better parsing, no protocol change) | High (bridge protocol + parsers + retry) |
+| Structural limitation   | `tools` still sent alongside | `tools` still sent alongside                  | `tools` still sent alongside             |
 
 **Bottom line:** If A works, done. If A partially works, combine A + B. If A fails completely, consider C but accept the degraded bridge quality.
 

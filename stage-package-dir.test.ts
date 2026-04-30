@@ -53,9 +53,7 @@ describe("stage package dir", () => {
     expect(fs.readFileSync(path.join(outputDir, "package.json"), "utf8")).toContain(
       '"example-plugin"',
     );
-    expect(fs.readFileSync(path.join(outputDir, "index.ts"), "utf8")).toContain(
-      "plugin = true",
-    );
+    expect(fs.readFileSync(path.join(outputDir, "index.ts"), "utf8")).toContain("plugin = true");
     expect(fs.readFileSync(path.join(outputDir, "README.md"), "utf8")).toContain("# Example");
     expect(fs.readFileSync(path.join(outputDir, "nested", "config.json"), "utf8")).toContain(
       '"ok":true',

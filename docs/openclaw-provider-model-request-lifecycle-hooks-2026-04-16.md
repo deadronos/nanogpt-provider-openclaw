@@ -27,32 +27,32 @@ The most important implementation detail is that hook dispatch is spread across 
 
 ### Hook surface definitions
 
-| File | Role |
-| ------ | ------ |
-| `src/plugins/types.ts` | Defines the full `ProviderPlugin` interface and the context/result types for provider hooks. |
-| `src/plugin-sdk/plugin-entry.ts` | Re-exports provider hook types for plugin authors via the public SDK. |
-| `src/plugin-sdk/provider-entry.ts` | Convenience helper for single-provider plugins using `registerProvider(...)`. |
+| File                                      | Role                                                                                                |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/plugins/types.ts`                    | Defines the full `ProviderPlugin` interface and the context/result types for provider hooks.        |
+| `src/plugin-sdk/plugin-entry.ts`          | Re-exports provider hook types for plugin authors via the public SDK.                               |
+| `src/plugin-sdk/provider-entry.ts`        | Convenience helper for single-provider plugins using `registerProvider(...)`.                       |
 | `src/plugin-sdk/provider-model-shared.ts` | Shared helpers for replay/model family behavior; not the hook registry itself, but closely related. |
-| `src/plugin-sdk/provider-stream.ts` | Shared stream wrapper helpers and prebuilt hook families for plugin authors. |
+| `src/plugin-sdk/provider-stream.ts`       | Shared stream wrapper helpers and prebuilt hook families for plugin authors.                        |
 
 ### Runtime dispatch and lifecycle files
 
-| File | Role |
-| ------ | ------ |
-| `src/plugins/provider-runtime.ts` | Main dispatcher for most provider hooks. |
-| `src/plugins/provider-hook-runtime.ts` | Hook-plugin resolution cache plus `prepareExtraParams` and `wrapStreamFn`. |
-| `src/plugins/provider-thinking.ts` | Fast-path provider thinking-policy resolution. |
-| `src/agents/pi-embedded-runner/model.ts` | Main model resolution pipeline; dynamic model hooks and normalization live here. |
-| `src/agents/pi-embedded-runner/extra-params.ts` | Prepares provider extra params and applies `wrapStreamFn`. |
-| `src/agents/provider-stream.ts` | Chooses `createStreamFn` vs default transport-aware stream function. |
-| `src/agents/pi-embedded-runner/run/auth-controller.ts` | Calls `prepareRuntimeAuth` for live inference and refresh paths. |
-| `src/agents/pi-embedded-runner/run/attempt.ts` | Applies prompt contribution and prompt transform hooks while building system prompt. |
-| `src/agents/pi-embedded-runner/replay-history.ts` | Applies provider replay sanitization/validation hooks. |
-| `src/agents/pi-embedded-runner/tool-schema-runtime.ts` | Applies tool-schema normalization/diagnostic hooks. |
-| `src/agents/openai-transport-stream.ts` | Uses per-turn transport metadata hooks for HTTP streaming. |
-| `src/agents/openai-ws-stream.ts` | Uses per-turn metadata and WebSocket session policy hooks. |
-| `src/infra/provider-usage.auth.ts` | Uses `resolveUsageAuth`. |
-| `src/infra/provider-usage.load.ts` | Uses `fetchUsageSnapshot`. |
+| File                                                   | Role                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `src/plugins/provider-runtime.ts`                      | Main dispatcher for most provider hooks.                                             |
+| `src/plugins/provider-hook-runtime.ts`                 | Hook-plugin resolution cache plus `prepareExtraParams` and `wrapStreamFn`.           |
+| `src/plugins/provider-thinking.ts`                     | Fast-path provider thinking-policy resolution.                                       |
+| `src/agents/pi-embedded-runner/model.ts`               | Main model resolution pipeline; dynamic model hooks and normalization live here.     |
+| `src/agents/pi-embedded-runner/extra-params.ts`        | Prepares provider extra params and applies `wrapStreamFn`.                           |
+| `src/agents/provider-stream.ts`                        | Chooses `createStreamFn` vs default transport-aware stream function.                 |
+| `src/agents/pi-embedded-runner/run/auth-controller.ts` | Calls `prepareRuntimeAuth` for live inference and refresh paths.                     |
+| `src/agents/pi-embedded-runner/run/attempt.ts`         | Applies prompt contribution and prompt transform hooks while building system prompt. |
+| `src/agents/pi-embedded-runner/replay-history.ts`      | Applies provider replay sanitization/validation hooks.                               |
+| `src/agents/pi-embedded-runner/tool-schema-runtime.ts` | Applies tool-schema normalization/diagnostic hooks.                                  |
+| `src/agents/openai-transport-stream.ts`                | Uses per-turn transport metadata hooks for HTTP streaming.                           |
+| `src/agents/openai-ws-stream.ts`                       | Uses per-turn metadata and WebSocket session policy hooks.                           |
+| `src/infra/provider-usage.auth.ts`                     | Uses `resolveUsageAuth`.                                                             |
+| `src/infra/provider-usage.load.ts`                     | Uses `fetchUsageSnapshot`.                                                           |
 
 ---
 
@@ -182,7 +182,7 @@ Used from `src/agents/models-config.providers.policy.runtime.ts`.
 normalizeProviderConfigWithPlugin({
   provider: runtimeProviderKey,
   context: { provider: providerKey, providerConfig: provider },
-})
+});
 ```
 
 Purpose:
@@ -223,8 +223,8 @@ Used in `src/agents/model-catalog.ts`.
 
 ```ts
 const supplemental = await augmentModelCatalogWithProviderPlugins({
-  context: { ...entries }
-})
+  context: { ...entries },
+});
 ```
 
 Purpose:
@@ -268,7 +268,7 @@ const normalized = runtimeHooks.normalizeProviderTransportWithPlugin({
   provider,
   config: cfg,
   context: { provider, api, baseUrl },
-})
+});
 ```
 
 Purpose:
@@ -284,8 +284,8 @@ Representative use:
 
 ```ts
 const pluginNormalized = runtimeHooks.normalizeProviderResolvedModelWithPlugin({
-  context: { provider, modelId, model }
-})
+  context: { provider, modelId, model },
+});
 ```
 
 Purpose:
@@ -310,8 +310,8 @@ Representative use:
 
 ```ts
 const pluginDynamicModel = runtimeHooks.runProviderDynamicModel({
-  context: { provider, modelId, modelRegistry, providerConfig }
-})
+  context: { provider, modelId, modelRegistry, providerConfig },
+});
 ```
 
 Purpose:
@@ -326,8 +326,8 @@ Representative use:
 
 ```ts
 await runtimeHooks.prepareProviderDynamicModel({
-  context: { provider, modelId, modelRegistry, providerConfig }
-})
+  context: { provider, modelId, modelRegistry, providerConfig },
+});
 ```
 
 Purpose:
@@ -509,7 +509,7 @@ const preparedAuth = await prepareProviderRuntimeAuth({
     authMode: apiKeyInfo.mode,
     profileId: apiKeyInfo.profileId,
   },
-})
+});
 ```
 
 Purpose:
@@ -577,7 +577,7 @@ const pluginWrappedStreamFn = providerRuntimeDeps.wrapProviderStreamFn({
     model,
     streamFn: providerStreamBase,
   },
-})
+});
 ```
 
 Purpose:
@@ -719,71 +719,71 @@ This is not part of the live request execution path, but it is part of the large
 
 ## Model and catalog phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `normalizeConfig` | `src/plugins/provider-runtime.ts` | `src/agents/models-config.providers.policy.runtime.ts` | Normalize `models.providers.<id>` config. |
-| `applyNativeStreamingUsageCompat` | `src/plugins/provider-runtime.ts` | `src/agents/models-config.providers.policy.runtime.ts` | Patch provider config for native streaming usage compat. |
-| `resolveConfigApiKey` | `src/plugins/provider-runtime.ts` | `src/agents/models-config.providers.policy.runtime.ts` | Resolve config/env-backed auth markers or keys. |
-| `suppressBuiltInModel` | `src/plugins/provider-runtime.ts` | `src/agents/model-suppression.ts` | Hide stale built-in models and optionally return a custom error. |
-| `augmentModelCatalog` | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `src/agents/model-catalog.ts` | Add plugin-owned model catalog rows. |
-| `isModernModelRef` | `src/plugins/provider-runtime.ts` | `src/agents/live-model-filter.ts` | Mark models as preferred/modern for live filters. |
-| `normalizeModelId` | `src/plugins/provider-runtime.ts` | `src/gateway/model-pricing-cache.ts` and runtime normalization wrappers | Canonicalize provider-owned model ids. |
+| Hook                              | Primary runtime dispatch                                           | Main consumer(s)                                                        | What it does                                                     |
+| --------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `normalizeConfig`                 | `src/plugins/provider-runtime.ts`                                  | `src/agents/models-config.providers.policy.runtime.ts`                  | Normalize `models.providers.<id>` config.                        |
+| `applyNativeStreamingUsageCompat` | `src/plugins/provider-runtime.ts`                                  | `src/agents/models-config.providers.policy.runtime.ts`                  | Patch provider config for native streaming usage compat.         |
+| `resolveConfigApiKey`             | `src/plugins/provider-runtime.ts`                                  | `src/agents/models-config.providers.policy.runtime.ts`                  | Resolve config/env-backed auth markers or keys.                  |
+| `suppressBuiltInModel`            | `src/plugins/provider-runtime.ts`                                  | `src/agents/model-suppression.ts`                                       | Hide stale built-in models and optionally return a custom error. |
+| `augmentModelCatalog`             | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `src/agents/model-catalog.ts`                                           | Add plugin-owned model catalog rows.                             |
+| `isModernModelRef`                | `src/plugins/provider-runtime.ts`                                  | `src/agents/live-model-filter.ts`                                       | Mark models as preferred/modern for live filters.                |
+| `normalizeModelId`                | `src/plugins/provider-runtime.ts`                                  | `src/gateway/model-pricing-cache.ts` and runtime normalization wrappers | Canonicalize provider-owned model ids.                           |
 
 ## Model resolution phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `normalizeTransport` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts`, `src/agents/tools/pdf-native-providers.ts` | Normalize `api` / `baseUrl`. |
-| `normalizeResolvedModel` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts`, `src/agents/pi-model-discovery.ts` | Final provider-owned resolved-model rewrite. |
-| `contributeResolvedModelCompat` | compositional in `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts`, `src/agents/pi-model-discovery.ts` | Layer compat flags from one or more plugins. |
-| `resolveDynamicModel` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts` | Synchronous dynamic model resolution. |
-| `prepareDynamicModel` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts` | Async warm-up before retrying dynamic resolution. |
-| `preferRuntimeResolvedModel` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts` | Allow runtime model to beat explicit/catalog model. |
-| `buildUnknownModelHint` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts` | Append provider-specific unknown-model help. |
+| Hook                            | Primary runtime dispatch                           | Main consumer(s)                                                                     | What it does                                        |
+| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `normalizeTransport`            | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`, `src/agents/tools/pdf-native-providers.ts` | Normalize `api` / `baseUrl`.                        |
+| `normalizeResolvedModel`        | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`, `src/agents/pi-model-discovery.ts`         | Final provider-owned resolved-model rewrite.        |
+| `contributeResolvedModelCompat` | compositional in `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/model.ts`, `src/agents/pi-model-discovery.ts`         | Layer compat flags from one or more plugins.        |
+| `resolveDynamicModel`           | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`                                             | Synchronous dynamic model resolution.               |
+| `prepareDynamicModel`           | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`                                             | Async warm-up before retrying dynamic resolution.   |
+| `preferRuntimeResolvedModel`    | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`                                             | Allow runtime model to beat explicit/catalog model. |
+| `buildUnknownModelHint`         | `src/plugins/provider-runtime.ts`                  | `src/agents/pi-embedded-runner/model.ts`                                             | Append provider-specific unknown-model help.        |
 
 ## Prompt, replay, and tool schema phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `buildReplayPolicy` | direct in `src/agents/transcript-policy.ts` | transcript policy resolution | Provider-owned replay/compaction rules. |
-| `sanitizeReplayHistory` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/replay-history.ts` | Provider-specific replay sanitation. |
-| `validateReplayTurns` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/replay-history.ts` | Provider-specific replay validation. |
-| `normalizeToolSchemas` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/tool-schema-runtime.ts` | Rewrite tool schemas for transport compatibility. |
-| `inspectToolSchemas` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/tool-schema-runtime.ts` | Emit provider-specific tool schema diagnostics. |
-| `resolveReasoningOutputMode` | `src/plugins/provider-runtime.ts` | `src/utils/provider-utils.ts` | Choose `native` vs `tagged` reasoning mode. |
-| `resolveSystemPromptContribution` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/run/attempt.ts`, `compact.ts` | Add provider prompt contribution. |
-| `transformSystemPrompt` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/run/attempt.ts`, `compact.ts` | Final provider-owned prompt rewrite. |
+| Hook                              | Primary runtime dispatch                    | Main consumer(s)                                             | What it does                                      |
+| --------------------------------- | ------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| `buildReplayPolicy`               | direct in `src/agents/transcript-policy.ts` | transcript policy resolution                                 | Provider-owned replay/compaction rules.           |
+| `sanitizeReplayHistory`           | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/replay-history.ts`            | Provider-specific replay sanitation.              |
+| `validateReplayTurns`             | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/replay-history.ts`            | Provider-specific replay validation.              |
+| `normalizeToolSchemas`            | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/tool-schema-runtime.ts`       | Rewrite tool schemas for transport compatibility. |
+| `inspectToolSchemas`              | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/tool-schema-runtime.ts`       | Emit provider-specific tool schema diagnostics.   |
+| `resolveReasoningOutputMode`      | `src/plugins/provider-runtime.ts`           | `src/utils/provider-utils.ts`                                | Choose `native` vs `tagged` reasoning mode.       |
+| `resolveSystemPromptContribution` | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/run/attempt.ts`, `compact.ts` | Add provider prompt contribution.                 |
+| `transformSystemPrompt`           | `src/plugins/provider-runtime.ts`           | `src/agents/pi-embedded-runner/run/attempt.ts`, `compact.ts` | Final provider-owned prompt rewrite.              |
 
 ## Request/auth/transport phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `buildMissingAuthMessage` | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `src/agents/model-auth.ts` | Replace generic missing-auth message. |
-| `prepareRuntimeAuth` | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `run/auth-controller.ts`, `compact.ts`, `btw.ts`, `runtime-model-auth.runtime.ts` | Exchange source credential into runtime credential and optional request/baseUrl overrides. |
-| `createStreamFn` | `src/plugins/provider-runtime.ts` | `src/agents/provider-stream.ts` | Provide a custom transport/stream implementation. |
-| `prepareExtraParams` | `src/plugins/provider-hook-runtime.ts` | `src/agents/pi-embedded-runner/extra-params.ts` | Merge/normalize provider extra params before wrapper application. |
-| `wrapStreamFn` | `src/plugins/provider-hook-runtime.ts` | `src/agents/pi-embedded-runner/extra-params.ts` | Wrap request stream function for provider-specific mutation. |
-| `resolveTransportTurnState` | `src/plugins/provider-runtime.ts` | `src/agents/openai-transport-stream.ts`, `openai-ws-stream.ts` | Per-turn headers/metadata. |
-| `resolveWebSocketSessionPolicy` | `src/plugins/provider-runtime.ts` | `src/agents/openai-ws-stream.ts` | WebSocket session headers and cooldown policy. |
-| `isCacheTtlEligible` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-runner/cache-ttl.ts` | Prompt-cache TTL eligibility override. |
+| Hook                            | Primary runtime dispatch                                           | Main consumer(s)                                                                  | What it does                                                                               |
+| ------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `buildMissingAuthMessage`       | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `src/agents/model-auth.ts`                                                        | Replace generic missing-auth message.                                                      |
+| `prepareRuntimeAuth`            | `src/plugins/provider-runtime.runtime.ts` -> `provider-runtime.ts` | `run/auth-controller.ts`, `compact.ts`, `btw.ts`, `runtime-model-auth.runtime.ts` | Exchange source credential into runtime credential and optional request/baseUrl overrides. |
+| `createStreamFn`                | `src/plugins/provider-runtime.ts`                                  | `src/agents/provider-stream.ts`                                                   | Provide a custom transport/stream implementation.                                          |
+| `prepareExtraParams`            | `src/plugins/provider-hook-runtime.ts`                             | `src/agents/pi-embedded-runner/extra-params.ts`                                   | Merge/normalize provider extra params before wrapper application.                          |
+| `wrapStreamFn`                  | `src/plugins/provider-hook-runtime.ts`                             | `src/agents/pi-embedded-runner/extra-params.ts`                                   | Wrap request stream function for provider-specific mutation.                               |
+| `resolveTransportTurnState`     | `src/plugins/provider-runtime.ts`                                  | `src/agents/openai-transport-stream.ts`, `openai-ws-stream.ts`                    | Per-turn headers/metadata.                                                                 |
+| `resolveWebSocketSessionPolicy` | `src/plugins/provider-runtime.ts`                                  | `src/agents/openai-ws-stream.ts`                                                  | WebSocket session headers and cooldown policy.                                             |
+| `isCacheTtlEligible`            | `src/plugins/provider-runtime.ts`                                  | `src/agents/pi-embedded-runner/cache-ttl.ts`                                      | Prompt-cache TTL eligibility override.                                                     |
 
 ## Error and usage phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `matchesContextOverflowError` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-helpers/provider-error-patterns.ts` | Provider-specific context-overflow detection. |
-| `classifyFailoverReason` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-helpers/provider-error-patterns.ts` | Provider-specific failover reason classification. |
-| `resolveUsageAuth` | `src/plugins/provider-runtime.ts` | `src/infra/provider-usage.auth.ts` | Resolve auth for usage/quota APIs. |
-| `fetchUsageSnapshot` | `src/plugins/provider-runtime.ts` | `src/infra/provider-usage.load.ts` | Fetch provider-specific usage/quota snapshot. |
+| Hook                          | Primary runtime dispatch          | Main consumer(s)                                            | What it does                                      |
+| ----------------------------- | --------------------------------- | ----------------------------------------------------------- | ------------------------------------------------- |
+| `matchesContextOverflowError` | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-helpers/provider-error-patterns.ts` | Provider-specific context-overflow detection.     |
+| `classifyFailoverReason`      | `src/plugins/provider-runtime.ts` | `src/agents/pi-embedded-helpers/provider-error-patterns.ts` | Provider-specific failover reason classification. |
+| `resolveUsageAuth`            | `src/plugins/provider-runtime.ts` | `src/infra/provider-usage.auth.ts`                          | Resolve auth for usage/quota APIs.                |
+| `fetchUsageSnapshot`          | `src/plugins/provider-runtime.ts` | `src/infra/provider-usage.load.ts`                          | Fetch provider-specific usage/quota snapshot.     |
 
 ## Thinking/UI adjunct phase
 
-| Hook | Primary runtime dispatch | Main consumer(s) | What it does |
-| ------ | ------ | ------ | ------ |
-| `isBinaryThinking` | `src/plugins/provider-thinking.ts` | `src/auto-reply/thinking.ts` | Shape binary thinking UI. |
-| `supportsXHighThinking` | `src/plugins/provider-thinking.ts` | `src/auto-reply/thinking.ts` | Expose `xhigh` thinking level. |
-| `resolveDefaultThinkingLevel` | `src/plugins/provider-thinking.ts` | `src/auto-reply/thinking.ts` | Choose default thinking level for a model. |
-| `onModelSelected` | direct provider lookup in `src/plugins/provider-wizard.ts` | onboarding/configure flows | Provider-owned post-selection callback. |
+| Hook                          | Primary runtime dispatch                                   | Main consumer(s)             | What it does                               |
+| ----------------------------- | ---------------------------------------------------------- | ---------------------------- | ------------------------------------------ |
+| `isBinaryThinking`            | `src/plugins/provider-thinking.ts`                         | `src/auto-reply/thinking.ts` | Shape binary thinking UI.                  |
+| `supportsXHighThinking`       | `src/plugins/provider-thinking.ts`                         | `src/auto-reply/thinking.ts` | Expose `xhigh` thinking level.             |
+| `resolveDefaultThinkingLevel` | `src/plugins/provider-thinking.ts`                         | `src/auto-reply/thinking.ts` | Choose default thinking level for a model. |
+| `onModelSelected`             | direct provider lookup in `src/plugins/provider-wizard.ts` | onboarding/configure flows   | Provider-owned post-selection callback.    |
 
 ---
 

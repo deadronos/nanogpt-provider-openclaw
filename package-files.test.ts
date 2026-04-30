@@ -44,7 +44,9 @@ function resolveFileEntries(manifest: PackageManifest): string[] {
     return [];
   }
 
-  return manifest.files.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  return manifest.files.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
 }
 
 describe("package manifest files", () => {

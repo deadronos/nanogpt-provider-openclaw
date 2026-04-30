@@ -41,9 +41,8 @@ describe("nanogpt logger", () => {
       };
     });
 
-    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
-      "./nanogpt-logger.js"
-    );
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } =
+      await import("./nanogpt-logger.js");
     const log = createLoggerWithFailingFs("readonly-home");
 
     expect(() => {

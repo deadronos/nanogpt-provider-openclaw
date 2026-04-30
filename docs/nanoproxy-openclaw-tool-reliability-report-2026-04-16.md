@@ -10,27 +10,27 @@
 
 ### Local files most relevant to the comparison
 
-| File | Why it matters |
-| ------ | ---------------- |
-| `index.ts` | Registers the NanoGPT provider and wires in `wrapStreamFn`, tool normalization, and streaming compat hooks. |
-| `repair.ts` | Current reliability layer: repairs malformed tool-call argument JSON after tool-call events already exist. |
-| `repair.test.ts` | Shows the exact failure class currently covered: malformed or fenced/truncated tool-call arguments. |
-| `index.test.ts` | Confirms repair is currently gated to Kimi-style models and that web-fetch aliasing is currently disabled. |
+| File                  | Why it matters                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`            | Registers the NanoGPT provider and wires in `wrapStreamFn`, tool normalization, and streaming compat hooks.                                    |
+| `repair.ts`           | Current reliability layer: repairs malformed tool-call argument JSON after tool-call events already exist.                                     |
+| `repair.test.ts`      | Shows the exact failure class currently covered: malformed or fenced/truncated tool-call arguments.                                            |
+| `index.test.ts`       | Confirms repair is currently gated to Kimi-style models and that web-fetch aliasing is currently disabled.                                     |
 | `provider-catalog.ts` | Shows this plugin mostly returns a `ModelProviderConfig`; it does not currently own NanoGPT request/response rewriting the way NanoProxy does. |
-| `models.ts` | Shows `NANOGPT_WEB_FETCH_TOOL_ALIAS` exists, but the alias model-id set is empty right now. |
-| `README.md` | Describes intended behavior, including a now-stale note about `web_fetch` aliasing. |
+| `models.ts`           | Shows `NANOGPT_WEB_FETCH_TOOL_ALIAS` exists, but the alias model-id set is empty right now.                                                    |
+| `README.md`           | Describes intended behavior, including a now-stale note about `web_fetch` aliasing.                                                            |
 
 ### External NanoProxy files inspected
 
-| File | Why it matters |
-| ------ | ---------------- |
-| `README.md` | High-level design: object bridge, XML bridge, native-first fallback, retry policy. |
-| `src/core.js` | Request rewriting, XML parsing, native-first acceptance heuristics, bridge result conversion. |
-| `src/object_bridge.js` | Strict JSON-turn contract, object-mode parser, canonicalization, salvage logic. |
-| `src/plugin.mjs` | OpenCode plugin transport interception, retry behavior, structured debug logging. |
-| `server.js` | Standalone proxy implementation of the same bridge/retry/streaming ideas. |
-| `selftest.js` | Best source of concrete malformed payload cases NanoProxy intentionally supports. |
-| `issues/5` | Confirms NanoProxy users also care about usage metadata in addition to tool reliability. |
+| File                   | Why it matters                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `README.md`            | High-level design: object bridge, XML bridge, native-first fallback, retry policy.            |
+| `src/core.js`          | Request rewriting, XML parsing, native-first acceptance heuristics, bridge result conversion. |
+| `src/object_bridge.js` | Strict JSON-turn contract, object-mode parser, canonicalization, salvage logic.               |
+| `src/plugin.mjs`       | OpenCode plugin transport interception, retry behavior, structured debug logging.             |
+| `server.js`            | Standalone proxy implementation of the same bridge/retry/streaming ideas.                     |
+| `selftest.js`          | Best source of concrete malformed payload cases NanoProxy intentionally supports.             |
+| `issues/5`             | Confirms NanoProxy users also care about usage metadata in addition to tool reliability.      |
 
 ### Architectural constraint that matters most
 
@@ -176,7 +176,7 @@ if (bridgeResult.kind === "invalid" && attempt === 0) {
 And the retry prompt is deliberately narrow:
 
 ```js
-"Your previous response was invalid because it contained no visible content or tool call. Return exactly one valid JSON turn object..."
+"Your previous response was invalid because it contained no visible content or tool call. Return exactly one valid JSON turn object...";
 ```
 
 Why this is useful for us:
@@ -343,12 +343,20 @@ NanoProxy normalizes:
 Representative snippets:
 
 ```js
-if (["tool", "tools", "tool_call", "tool_calls", "action", "actions", "call", "calls"].includes(normalized)) return "tool";
+if (
+  ["tool", "tools", "tool_call", "tool_calls", "action", "actions", "call", "calls"].includes(
+    normalized,
+  )
+)
+  return "tool";
 ```
 
 ```js
 function canonicalizeToolName(name) {
-  return String(name || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 ```
 

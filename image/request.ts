@@ -1,12 +1,7 @@
 import { NANOGPT_PROVIDER_ID } from "../models.js";
 
 const NANOGPT_DEFAULT_IMAGE_MODEL = "hidream";
-const NANOGPT_IMAGE_MODELS = [
-  "hidream",
-  "chroma",
-  "z-image-turbo",
-  "qwen-image-2512",
-] as const;
+const NANOGPT_IMAGE_MODELS = ["hidream", "chroma", "z-image-turbo", "qwen-image-2512"] as const;
 const NANOGPT_IMAGE_SIZES = ["256x256", "512x512", "1024x1024"] as const;
 const NANOGPT_IMAGE_MODEL_ALIASES = new Map<string, (typeof NANOGPT_IMAGE_MODELS)[number]>([
   ["hidream", "hidream"],
@@ -41,7 +36,9 @@ function normalizeImageModelName(model: string): string {
 
 function validateNanoGptImageSize(size: string): void {
   if (!(NANOGPT_IMAGE_SIZES as readonly string[]).includes(size)) {
-    throw new Error(`Invalid image size "${size}". Expected one of: ${NANOGPT_IMAGE_SIZES.join(", ")}`);
+    throw new Error(
+      `Invalid image size "${size}". Expected one of: ${NANOGPT_IMAGE_SIZES.join(", ")}`,
+    );
   }
 }
 

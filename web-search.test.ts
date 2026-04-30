@@ -119,7 +119,7 @@ describe("nanogpt web search provider", () => {
 
     const longQuery = "a".repeat(2001);
     await expect(tool.execute({ query: longQuery })).rejects.toThrow(
-      "Search query is too long (maximum 2000 characters)."
+      "Search query is too long (maximum 2000 characters).",
     );
     expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
@@ -370,7 +370,7 @@ describe("nanogpt web search provider", () => {
         url: "javascript:alert(1)",
         title: "Malicious",
         snippet: "Malicious",
-      })
+      }),
     ).toBeNull();
 
     expect(
@@ -378,7 +378,7 @@ describe("nanogpt web search provider", () => {
         url: "data:text/html,<script>alert(1)</script>",
         title: "Malicious",
         snippet: "Malicious",
-      })
+      }),
     ).toBeNull();
 
     expect(
@@ -386,7 +386,7 @@ describe("nanogpt web search provider", () => {
         url: "not-a-valid-url",
         title: "Invalid",
         snippet: "Invalid",
-      })
+      }),
     ).toBeNull();
   });
 });

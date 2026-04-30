@@ -27,11 +27,11 @@ Provider-specific codegen quirks?       → replay policy + wrapStreamFn
 normalizeToolSchemas: (ctx: ProviderNormalizeToolSchemasContext) => {
   // ctx.tools is the full list of AnyAgentTool[]
   // Return the normalized list (or null/undefined to fall through to default)
-  return ctx.tools.map(tool => ({
+  return ctx.tools.map((tool) => ({
     ...tool,
     parameters: normalizeParameters(tool.parameters),
   }));
-}
+};
 ```
 
 The SDK exports helper families via `buildProviderToolCompatFamilyHooks("gemini")` which wires schema cleanup + diagnostics automatically for supported transport families.
@@ -57,14 +57,15 @@ api.registerHook({
     // event.toolName, event.toolCallId, event.args (parsed JSON)
     return {
       params: rewriteMalformed(event.params), // modified params
-      block: false,                             // or true to block
-      requireApproval: false,                   // or true to require user approval
+      block: false, // or true to block
+      requireApproval: false, // or true to require user approval
     };
   },
 });
 ```
 
 **Merge policy:**
+
 - `block` / `requireApproval` — first defined wins (fail-closed for blocking)
 - `params` — last defined wins (higher-priority hooks cannot be overridden)
 
@@ -90,7 +91,7 @@ wrapStreamFn: (ctx: ProviderCreateStreamFnContext) => {
       },
     });
   };
-}
+};
 ```
 
 **Example providers:** Moonshot (thinking payload normalization), OpenRouter (reasoning injection), MiniMax (fast-mode rewrites)
@@ -130,23 +131,23 @@ api.registerHook({
 contributeResolvedModelCompat: (ctx: ProviderResolveDynamicModelContext) => {
   return resolveXaiModelCompatPatch(ctx.modelId);
   // Returns e.g. { toolSchemaProfile: "xai", toolCallArgumentsEncoding: "json-stringify" }
-}
+};
 
 normalizeResolvedModel: (model) => {
   // Apply compat patch to the resolved model object
   return applyModelCompatPatch(model, resolveXaiModelCompatPatch(model.id));
-}
+};
 ```
 
 The compat flags are extracted at runtime by `resolveToolCallArgumentsEncoding()` and `hasToolSchemaProfile()` in `provider-model-compat.ts`.
 
 **Current compat flags:**
 
-| Flag | What it controls |
-|---|---|
-| `toolSchemaProfile` | Which provider-specific schema profile to apply (e.g. `"xai"`) |
-| `toolCallArgumentsEncoding` | How tool call args are encoded (`"json-stringify"`, etc.) |
-| `unsupportedToolSchemaKeywords` | Schema keywords the provider doesn't support |
+| Flag                            | What it controls                                               |
+| ------------------------------- | -------------------------------------------------------------- |
+| `toolSchemaProfile`             | Which provider-specific schema profile to apply (e.g. `"xai"`) |
+| `toolCallArgumentsEncoding`     | How tool call args are encoded (`"json-stringify"`, etc.)      |
+| `unsupportedToolSchemaKeywords` | Schema keywords the provider doesn't support                   |
 
 **Example providers:** xAI heavily uses compat patches for schema profile + HTML-entity decoding. MiniMax uses `hybrid-anthropic-openai` replay family.
 
@@ -158,13 +159,13 @@ The compat flags are extracted at runtime by `resolveToolCallArgumentsEncoding()
 **Stage:** During transcript replay (when re-sending conversation history to the LLM)  
 **What it fixes:** Tool-call-id sanitation, assistant-first ordering, Gemini-turn validation, Claude-specific thinking block cleanup
 
-| Family | Use case |
-|---|---|
-| `openai-compatible` | OpenAI-compatible transports; tool-call-id sanitation, assistant-first fixes |
-| `passthrough-gemini` | Gemini models through OpenAI-compatible proxy (OpenRouter, Kilocode, Opencode) |
-| `anthropic-by-model` | Claude-only cleanup scoped to actual Claude ids |
+| Family                    | Use case                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `openai-compatible`       | OpenAI-compatible transports; tool-call-id sanitation, assistant-first fixes        |
+| `passthrough-gemini`      | Gemini models through OpenAI-compatible proxy (OpenRouter, Kilocode, Opencode)      |
+| `anthropic-by-model`      | Claude-only cleanup scoped to actual Claude ids                                     |
 | `hybrid-anthropic-openai` | Mixed Anthropic + OpenAI surface; Claude-only thinking drops stay on Anthropic side |
-| `google-gemini` | Native Gemini replay validation, bootstrap sanitation, tagged reasoning output |
+| `google-gemini`           | Native Gemini replay validation, bootstrap sanitation, tagged reasoning output      |
 
 **How to wire:**
 
@@ -187,15 +188,15 @@ api.registerProvider({
 
 ## Priority / Precedence Summary
 
-| Stage | Mechanism | Runs in |
-|---|---|---|
-| Tool schema registration | `normalizeToolSchemas` | Provider init |
-| Model resolution | `contributeResolvedModelCompat` + `normalizeResolvedModel` | Provider init |
-| Transcript replay | `buildReplayPolicy` (replay family) | On replay |
-| LLM output (raw) | `llm_output` hook | Per message |
-| LLM output (stream) | `wrapStreamFn` | Per message |
-| Tool call execution | `before_tool_call` hook | Per tool call |
-| Tool result persist | `tool_result_persist` hook | Per tool result |
+| Stage                    | Mechanism                                                  | Runs in         |
+| ------------------------ | ---------------------------------------------------------- | --------------- |
+| Tool schema registration | `normalizeToolSchemas`                                     | Provider init   |
+| Model resolution         | `contributeResolvedModelCompat` + `normalizeResolvedModel` | Provider init   |
+| Transcript replay        | `buildReplayPolicy` (replay family)                        | On replay       |
+| LLM output (raw)         | `llm_output` hook                                          | Per message     |
+| LLM output (stream)      | `wrapStreamFn`                                             | Per message     |
+| Tool call execution      | `before_tool_call` hook                                    | Per tool call   |
+| Tool result persist      | `tool_result_persist` hook                                 | Per tool result |
 
 ---
 
@@ -247,50 +248,42 @@ contributeResolvedModelCompat: (ctx) => resolveXaiModelCompatPatch(),
 normalizeResolvedModel: (model) => applyModelCompatPatch(model, resolveXaiModelCompatPatch()),
 ```
 
-
 **Current compat flags and what they do:**
 
-
-| Flag | Extracted by | Effect |
-|---|---|---|
-| `toolSchemaProfile` | `hasToolSchemaProfile()` | Selects schema normalization profile (e.g. `"xai"` → strip xAI-unsupported keywords) |
-| `toolCallArgumentsEncoding` | `resolveToolCallArgumentsEncoding()` | Tells the embedded runner how to decode tool call args (e.g. `"html-entities"` → decode HTML entities before JSON-parsing) |
-| `unsupportedToolSchemaKeywords` | `resolveUnsupportedToolSchemaKeywords()` | Set of JSON Schema keywords to strip from tool schemas |
-| `nativeWebSearchTool` | `hasNativeWebSearchTool()` | Provider handles web search natively |
+| Flag                            | Extracted by                             | Effect                                                                                                                     |
+| ------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `toolSchemaProfile`             | `hasToolSchemaProfile()`                 | Selects schema normalization profile (e.g. `"xai"` → strip xAI-unsupported keywords)                                       |
+| `toolCallArgumentsEncoding`     | `resolveToolCallArgumentsEncoding()`     | Tells the embedded runner how to decode tool call args (e.g. `"html-entities"` → decode HTML entities before JSON-parsing) |
+| `unsupportedToolSchemaKeywords` | `resolveUnsupportedToolSchemaKeywords()` | Set of JSON Schema keywords to strip from tool schemas                                                                     |
+| `nativeWebSearchTool`           | `hasNativeWebSearchTool()`               | Provider handles web search natively                                                                                       |
 
 The compat extraction is in `src/plugins/provider-model-compat.ts` — it walks the model object hierarchy to find compat configs attached at any level.
 
-
 ---
-
 
 ### How Tool Call IDs Are Sanitized
 
 File: `src/agents/tool-call-id.ts`
-
 
 `sanitizeToolCallId(id, mode)` rewrites tool call IDs to match provider requirements:
 
 - **`"strict"` (default):** strips anything not `[a-zA-Z0-9]`. Empty result → `"sanitizedtoolid"`
 - **`"strict9"`:** alphanumeric-only, truncated/padded to exactly 9 chars (Mistral requirement)
 
-
 The mode is set via `toolCallIdMode: "strict" | "strict9"` in the replay policy. The OpenAI-compatible replay family sets `toolCallIdMode: "strict"` because many OpenAI-compatible proxies reject non-alphanumeric IDs.
 
 **What calls it:** `repairToolUseResultPairing` in `session-transcript-repair.ts` — when a tool result's `toolCallId`/`toolUseId` is missing or invalid, it sanitizes the ID before inserting synthetic tool results.
 
-
 ---
-
 
 ### How Tool Use Result Pairing Works
 
 File: `src/agents/session-transcript-repair.ts`
 
 `repairToolUseResultPairing` ensures that every `assistant` tool call is **immediately followed** by its matching `toolResult`. This matters because:
+
 - **Anthropic, Cloud Code Assist, MiniMax** reject entire requests if tool results are displaced or missing
 - Session history can accumulate tool results out of order (e.g., after later user turns) or duplicated
-
 
 **Algorithm:**
 
@@ -305,11 +298,9 @@ File: `src/agents/session-transcript-repair.ts`
 
 ---
 
-
 ### How the Replay Policy System Integrates
 
 File: `src/plugins/provider-replay-helpers.ts` + `src/agents/transcript-policy.ts`
-
 
 **Policy resolution chain:**
 
@@ -321,25 +312,22 @@ resolveTranscriptPolicy(model)
      → merges policy flags into DEFAULT_TRANSCRIPT_POLICY
 ```
 
-
 **ProviderReplayPolicy flags and their effects:**
 
-
-| Flag | Effect |
-|---|---|
-| `sanitizeMode: "full"` | Full sanitize mode (vs `"images-only"` default). Enables aggressive cleanup. |
-| `sanitizeToolCallIds: true` | Run `sanitizeToolCallId()` on all tool call IDs |
-| `toolCallIdMode: "strict"\|"strict9"` | Which sanitization mode to apply |
-| `preserveNativeAnthropicToolUseIds: true` | Skip sanitization for IDs matching `toolu_[A-Za-z0-9_]+` |
-| `repairToolUseResultPairing: true` | Run `repairToolUseResultPairing()` on replay history |
-| `preserveSignatures: true` | Keep native provider-specific message signatures (Anthropic) |
-| `validateGeminiTurns: true` | Validate Gemini turn structure after replay |
-| `validateAnthropicTurns: true` | Validate Anthropic message structure after replay |
-| `applyAssistantFirstOrderingFix: true` | Fix Google-assistant-first turn ordering issues |
-| `dropThinkingBlocks: true` | Strip thinking blocks from Claude messages on replay |
-| `sanitizeThoughtSignatures` | Strip Gemini thought signatures from replay |
-| `allowSyntheticToolResults: true` | Allow insertion of synthetic error tool results |
-
+| Flag                                      | Effect                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| `sanitizeMode: "full"`                    | Full sanitize mode (vs `"images-only"` default). Enables aggressive cleanup. |
+| `sanitizeToolCallIds: true`               | Run `sanitizeToolCallId()` on all tool call IDs                              |
+| `toolCallIdMode: "strict"\|"strict9"`     | Which sanitization mode to apply                                             |
+| `preserveNativeAnthropicToolUseIds: true` | Skip sanitization for IDs matching `toolu_[A-Za-z0-9_]+`                     |
+| `repairToolUseResultPairing: true`        | Run `repairToolUseResultPairing()` on replay history                         |
+| `preserveSignatures: true`                | Keep native provider-specific message signatures (Anthropic)                 |
+| `validateGeminiTurns: true`               | Validate Gemini turn structure after replay                                  |
+| `validateAnthropicTurns: true`            | Validate Anthropic message structure after replay                            |
+| `applyAssistantFirstOrderingFix: true`    | Fix Google-assistant-first turn ordering issues                              |
+| `dropThinkingBlocks: true`                | Strip thinking blocks from Claude messages on replay                         |
+| `sanitizeThoughtSignatures`               | Strip Gemini thought signatures from replay                                  |
+| `allowSyntheticToolResults: true`         | Allow insertion of synthetic error tool results                              |
 
 **Built-in replay families:**
 
@@ -373,11 +361,9 @@ buildPassthroughGeminiSanitizingReplayPolicy(modelId)
 
 ---
 
-
 ### How xAI Handles HTML-Entity Encoded Tool Call Arguments
 
 **Problem:** xAI's API returns tool call `arguments` as HTML-encoded JSON strings (e.g. `\&quot;name\&quot;` instead of `"`). Naive JSON parsing fails.
-
 
 **Solution (xAI compat path):**
 
@@ -386,6 +372,7 @@ buildPassthroughGeminiSanitizingReplayPolicy(modelId)
 3. Before JSON-parsing, the raw arguments string is HTML-entity decoded → then JSON-parsed
 
 **The actual decoding in the embedded runner:**
+
 ```typescript
 // Reads toolCallArgumentsEncoding from model.compat
 const encoding = resolveToolCallArgumentsEncoding(model);
@@ -397,29 +384,26 @@ const parsed = JSON.parse(args);
 
 The compat flag propagates from `resolveXaiModelCompatPatch()` → `contributeResolvedModelCompat` → `normalizeResolvedModel` → embedded runner at tool call parse time.
 
-
 ---
 
 ### How Schema Profiles Work (Gemini / xAI)
 
-
 **Gemini profile** — via `buildProviderToolCompatFamilyHooks("gemini")`:
+
 - `normalizeGeminiToolSchemas`: strips `GEMINI_UNSUPPORTED_SCHEMA_KEYWORDS` from all tool schemas recursively (`minLength`, `maxLength`, `minItems`, `maxItems`, `minContains`, `maxContains`, `contentEncoding`, `contentSchema`)
 - `inspectGeminiToolSchemas`: finds violations and returns `ProviderToolSchemaDiagnostic[]`
 
-
 **xAI profile** — via `stripXaiUnsupportedKeywords`:
+
 - Uses `XAI_UNSUPPORTED_SCHEMA_KEYWORDS` (a superset including `minLength`, `maxLength`, etc.)
 - Recursively strips these keywords from the full schema tree
 - Applied via `normalizeToolSchemas` when `toolSchemaProfile === "xai"`
-
 
 ---
 
 ### How wrapStreamFn Rewrites Tool Calls in Flight
 
 `wrapStreamFn` is the provider's stream interceptor. It wraps the transport layer around the LLM's raw response stream.
-
 
 ```typescript
 wrapStreamFn: (ctx: ProviderCreateStreamFnContext) => {
@@ -436,30 +420,30 @@ wrapStreamFn: (ctx: ProviderCreateStreamFnContext) => {
       },
     });
   };
-}
+};
 ```
 
 Real examples:
+
 - **Moonshot:** transforms thinking payloads (binary format → structured thinking block)
 - **OpenRouter:** injects reasoning into the stream
 - **MiniMax:** rewrites fast-mode model output in stream
 
 ---
 
-
 ## Key Source Files (Deep Dive)
 
-| File | Purpose |
-|---|---|
-| `src/plugin-sdk/provider-tools.ts` | `resolveXaiModelCompatPatch`, `buildProviderToolCompatFamilyHooks`, `stripUnsupportedSchemaKeywords`, HTML entity encoding constant |
-| `src/plugins/provider-model-compat.ts` | `hasToolSchemaProfile`, `resolveToolCallArgumentsEncoding`, `applyModelCompatPatch` |
-| `src/plugins/provider-replay-helpers.ts` | All `build*ReplayPolicy` helpers, `sanitizeGoogleGeminiReplayHistory` |
-| `src/agents/transcript-policy.ts` | `resolveTranscriptPolicy`, `mergeTranscriptPolicy`, policy resolution |
-| `src/agents/session-transcript-repair.ts` | `repairToolUseResultPairing`, `repairToolCallInputs`, `sanitizeToolCallInputs` |
-| `src/agents/tool-call-id.ts` | `sanitizeToolCallId`, `extractToolCallsFromAssistant`, `extractToolResultId`, modes |
-| `src/plugins/types.ts` | `ProviderReplayPolicy`, `ProviderNormalizeToolSchemasContext`, all provider hook types |
-| `src/plugins/provider-runtime.ts` | `applyProviderResolvedModelCompatWithPlugins`, `normalizeResolvedModelWithPlugin`, `inspectProviderToolSchemasWithPlugin` |
-| `src/agents/pi-embedded-helpers/google.js` | Google-specific model detection |
+| File                                       | Purpose                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `src/plugin-sdk/provider-tools.ts`         | `resolveXaiModelCompatPatch`, `buildProviderToolCompatFamilyHooks`, `stripUnsupportedSchemaKeywords`, HTML entity encoding constant |
+| `src/plugins/provider-model-compat.ts`     | `hasToolSchemaProfile`, `resolveToolCallArgumentsEncoding`, `applyModelCompatPatch`                                                 |
+| `src/plugins/provider-replay-helpers.ts`   | All `build*ReplayPolicy` helpers, `sanitizeGoogleGeminiReplayHistory`                                                               |
+| `src/agents/transcript-policy.ts`          | `resolveTranscriptPolicy`, `mergeTranscriptPolicy`, policy resolution                                                               |
+| `src/agents/session-transcript-repair.ts`  | `repairToolUseResultPairing`, `repairToolCallInputs`, `sanitizeToolCallInputs`                                                      |
+| `src/agents/tool-call-id.ts`               | `sanitizeToolCallId`, `extractToolCallsFromAssistant`, `extractToolResultId`, modes                                                 |
+| `src/plugins/types.ts`                     | `ProviderReplayPolicy`, `ProviderNormalizeToolSchemasContext`, all provider hook types                                              |
+| `src/plugins/provider-runtime.ts`          | `applyProviderResolvedModelCompatWithPlugins`, `normalizeResolvedModelWithPlugin`, `inspectProviderToolSchemasWithPlugin`           |
+| `src/agents/pi-embedded-helpers/google.js` | Google-specific model detection                                                                                                     |
 
 ## See Also
 

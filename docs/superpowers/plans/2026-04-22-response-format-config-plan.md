@@ -12,20 +12,21 @@
 
 ## File Map
 
-| File | Change |
-|------|--------|
-| `models.ts` | Add `NanoGptResponseFormat` type and `responseFormat` to `NanoGptPluginConfig` |
-| `runtime/config.ts` | Read `responseFormat` from plugin config |
-| `index.ts` | Pass `resolvedConfig.responseFormat` to `wrapNanoGptStreamFn` |
-| `provider/stream-hooks.ts` | Accept `responseFormat` param; guard injection behind config check; support all three modes |
-| `provider/stream-hooks.test.ts` | Add test for each config mode |
-| `README.md` | Document new option |
+| File                            | Change                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `models.ts`                     | Add `NanoGptResponseFormat` type and `responseFormat` to `NanoGptPluginConfig`              |
+| `runtime/config.ts`             | Read `responseFormat` from plugin config                                                    |
+| `index.ts`                      | Pass `resolvedConfig.responseFormat` to `wrapNanoGptStreamFn`                               |
+| `provider/stream-hooks.ts`      | Accept `responseFormat` param; guard injection behind config check; support all three modes |
+| `provider/stream-hooks.test.ts` | Add test for each config mode                                                               |
+| `README.md`                     | Document new option                                                                         |
 
 ---
 
 ## Task 1: Add type to `models.ts`
 
 **Files:**
+
 - Modify: `models.ts` (after line 26)
 
 - [ ] **Step 1: Add the type and update the interface**
@@ -62,6 +63,7 @@ git commit -m "feat: add NanoGptResponseFormat type and responseFormat config fi
 ## Task 2: Wire config through `runtime/config.ts`
 
 **Files:**
+
 - Modify: `runtime/config.ts` (after line 39)
 
 - [ ] **Step 1: Add to the resolved config return**
@@ -94,6 +96,7 @@ git commit -m "feat: read responseFormat from plugin config"
 ## Task 3: Thread config through `index.ts` into `wrapNanoGptStreamFn`
 
 **Files:**
+
 - Modify: `index.ts` (around line 89)
 
 - [ ] **Step 1: Pass `responseFormat` to `wrapNanoGptStreamFn`**
@@ -133,6 +136,7 @@ git commit -m "feat: thread responseFormat config through to wrapStreamFn"
 ## Task 4: Guard injection behind config check in `wrapNanoGptStreamFn`
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts` (around lines 553-562)
 - Modify: `provider/stream-hooks.test.ts`
 
@@ -256,7 +260,10 @@ if (responseFormat && hasTools) {
   const existing = (basePayload as Record<string, unknown>).response_format;
   if (!existing) {
     if (responseFormat === "json_object") {
-      return { ...(basePayload as Record<string, unknown>), response_format: { type: "json_object" } };
+      return {
+        ...(basePayload as Record<string, unknown>),
+        response_format: { type: "json_object" },
+      };
     }
     if (typeof responseFormat === "object" && responseFormat.type === "json_schema") {
       const schema = responseFormat.schema;
@@ -300,6 +307,7 @@ git commit -m "feat: guard response_format injection behind config"
 ## Task 5: Update README
 
 **Files:**
+
 - Modify: `README.md` (around line 186, after the Options list)
 
 - [ ] **Step 1: Add to the Options list**

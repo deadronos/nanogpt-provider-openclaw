@@ -3,10 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
-import {
-  getRegisteredProvider,
-  getRegisteredProviderWithAuth,
-} from "./provider/test-harness.js";
+import { getRegisteredProvider, getRegisteredProviderWithAuth } from "./provider/test-harness.js";
 
 describe("nanogpt plugin entry", () => {
   it("exports the expected plugin metadata", () => {
@@ -64,12 +61,13 @@ describe("nanogpt plugin entry", () => {
     expect((providers[0] as { validateReplayTurns?: unknown }).validateReplayTurns).toEqual(
       expect.any(Function),
     );
-    expect((providers[0] as { resolveReasoningOutputMode?: unknown }).resolveReasoningOutputMode).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { applyNativeStreamingUsageCompat?: unknown }).applyNativeStreamingUsageCompat).toEqual(
-      expect.any(Function),
-    );
+    expect(
+      (providers[0] as { resolveReasoningOutputMode?: unknown }).resolveReasoningOutputMode,
+    ).toEqual(expect.any(Function));
+    expect(
+      (providers[0] as { applyNativeStreamingUsageCompat?: unknown })
+        .applyNativeStreamingUsageCompat,
+    ).toEqual(expect.any(Function));
   });
 
   it("registers replay and reasoning hooks on the model provider surface", () => {
@@ -102,7 +100,9 @@ describe("nanogpt plugin entry", () => {
         ],
       },
     }) as {
-      models: Array<{ compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean } }>;
+      models: Array<{
+        compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean };
+      }>;
     } | null;
 
     expect(result).toBeTruthy();
@@ -510,7 +510,9 @@ describe("nanogpt plugin entry", () => {
         },
       },
     });
-    expect((result as { agents?: { defaults?: { model?: unknown } } })?.agents?.defaults?.model).toBeUndefined();
+    expect(
+      (result as { agents?: { defaults?: { model?: unknown } } })?.agents?.defaults?.model,
+    ).toBeUndefined();
   });
 
   it("mirrors interactive NanoGPT auth into the web search credential path", async () => {
@@ -606,9 +608,6 @@ describe("nanogpt plugin entry", () => {
       },
     });
   });
-
-
-
 
   it("recovers from fs errors when reading models.json and deletes cache", async () => {
     const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-err-"));
@@ -728,5 +727,4 @@ describe("nanogpt plugin entry", () => {
       },
     ]);
   });
-
 });

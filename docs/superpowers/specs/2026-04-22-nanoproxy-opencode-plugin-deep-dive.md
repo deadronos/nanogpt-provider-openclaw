@@ -58,12 +58,14 @@ Asks the model to return **exactly one JSON object** per turn:
 ```
 
 Fields:
+
 - `v`: protocol version (must be 1)
 - `mode`: `"tool"` | `"final"` | `"clarify"`
 - `message`: user-facing assistant text
 - `tool_calls`: array of tool call objects, required when `mode` is `"tool"`
 
 The system prompt is built by `buildObjectBridgeSystemMessage()` in `object_bridge.js`. It:
+
 - Lists all available tools with their schemas
 - Explains the required JSON output contract in detail
 - Emphasizes that **any prose outside the JSON object makes the response invalid**
@@ -71,6 +73,7 @@ The system prompt is built by `buildObjectBridgeSystemMessage()` in `object_brid
 - Preserves any inherited system text
 
 **Request transformation** (`transformRequestForObjectBridge`):
+
 1. Normalizes the tools array to a simpler internal format
 2. Builds the bridge system message
 3. Translates conversation history: assistant tool calls become JSON strings, tool results become plain text
@@ -89,17 +92,20 @@ Asks the model to emit tool calls as **XML tags** inside normal content:
 ```
 
 Where:
+
 - `<open>...</open>` carries visible user-facing text
 - `<toolname>` emits a tool call for the named tool
 - Tool arguments are child tags inside the tool tag
 
 **System prompt** (`buildXmlBridgeSystemMessage`):
+
 - Explains XML tool call format with examples
 - Emphasizes the CRITICAL rules (exact XML format, no JSON tool calls, no markdown code fences)
 - Includes concrete examples for each tool
 - Includes a **batched example** when `parallel_tool_calls` is allowed
 
 **Request transformation** (`transformRequestForXmlBridge`):
+
 1. Normalizes tools
 2. Builds XML bridge system message
 3. Translates history: assistant tool calls become XML blocks, tool results become `[TOOL EXECUTION RESULT]` text
@@ -137,11 +143,13 @@ globalThis.fetch = async function nanoproxyFetch(input, init, ...rest) {
 ### 4.2 Native-first fallback detection
 
 `acceptNativeSSE(status, streamText)` — examines SSE stream:
+
 - Returns `true` if stream contains `tool_calls` in delta chunks
 - Returns `true` if content doesn't look like XML tool payload or empty
 - Otherwise falls back to bridge
 
 `acceptNativeJson(status, payload)` — examines non-streaming JSON response:
+
 - Returns `true` if `tool_calls` array present and non-empty
 - Returns `true` if content is non-empty and doesn't look like an XML tool payload
 - Otherwise falls back to bridge
@@ -161,6 +169,7 @@ The streaming path (`processStreamingResponse`) is the most complex part:
 ### 4.4 Non-streaming response handling
 
 For non-streaming JSON responses:
+
 1. Parses the full response with `buildAggregateFromChatCompletion`
 2. Calls `buildBridgeResultFromText` which calls the appropriate bridge parser
 3. If the result is `invalid` (empty tool turn), retries with modified system message
@@ -174,6 +183,7 @@ For non-streaming JSON responses:
 `StreamingObjectParser` is a state machine for incrementally parsing JSON turn objects during SSE streaming:
 
 **State:**
+
 - `buffer`: accumulated text from SSE chunks
 - `mode`: `"tool"` | `"final"` | `"clarify"` | null
 - `toolIndex`: next tool call index
@@ -183,6 +193,7 @@ For non-streaming JSON responses:
 - `objectClosed`: whether the top-level `}` has been seen
 
 **`_scanHeader()`** — after each buffer append:
+
 - Checks first non-whitespace char is `{`
 - Finds and validates `v` field (must be `1`)
 - Finds and validates `mode` field (must be `"tool"`, `"final"`, or `"clarify"`)
@@ -190,6 +201,7 @@ For non-streaming JSON responses:
 - If mode is `"tool"`, finds the start of the `tool_calls` array
 
 **`_scanToolCalls()`** — after header scanned:
+
 - Skips whitespace and commas
 - Reads each `{...}` tool call object with `tryReadJsonObject`
 - Normalizes the tool call with `normalizeObjectToolCall`
@@ -222,6 +234,7 @@ Both bridges use a normalized internal tool format:
 ```
 
 This is derived from the OpenAI `tools[]` format by `normalizeTools()`:
+
 - Converts `tool.function.parameters` → flat `args[]` array
 - Handles both `type: "function"` wrapped format and flat `{ name, description, parameters }` format
 - Preserves schema, type, description, required list
@@ -246,11 +259,11 @@ If the retry also fails, NanoProxy gives up and returns an error notice to the c
 
 ## 8. Key Files Summary
 
-| File | Role |
-|------|------|
-| `src/plugin.mjs` | OpenCode plugin entry — patches `globalThis.fetch`, routes requests through bridge, handles streaming/non-streaming responses |
-| `src/core.js` | Request transformation, tool normalization, XML bridge parser, SSE helpers, bridge result builders |
-| `src/object_bridge.js` | Object bridge system message builder, request/response transform, streaming JSON parser (`StreamingObjectParser`) |
+| File                   | Role                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `src/plugin.mjs`       | OpenCode plugin entry — patches `globalThis.fetch`, routes requests through bridge, handles streaming/non-streaming responses |
+| `src/core.js`          | Request transformation, tool normalization, XML bridge parser, SSE helpers, bridge result builders                            |
+| `src/object_bridge.js` | Object bridge system message builder, request/response transform, streaming JSON parser (`StreamingObjectParser`)             |
 
 ---
 
@@ -269,16 +282,19 @@ If the retry also fails, NanoProxy gives up and returns an error notice to the c
 ## 10. How It Differs from a Provider Plugin Approach
 
 NanoProxy operates **below** the OpenAI API level — it's a network proxy that:
+
 - Intercepts `fetch` calls at the network layer
 - Rewrites request/response bodies
 - Rewrites SSE streams byte by byte
 
 This is fundamentally different from an OpenClaw provider plugin, which:
+
 - Receives structured request objects (already parsed from the OpenClaw runner)
 - Returns structured response objects (already assembled for the OpenClaw runner)
 - Operates at the hook/handler level, not the network layer
 
 The equivalent functionality in an OpenClaw provider plugin would need to:
+
 - Use `wrapStreamFn` to intercept and rewrite streaming SSE responses
 - Use a request-modifying hook (not currently exposed) to rewrite the request body before it reaches the transport
 - Or use `createStreamFn` to provide a fully custom transport implementation

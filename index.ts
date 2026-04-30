@@ -4,10 +4,7 @@ import { NANOGPT_PROVIDER_ID } from "./models.js";
 import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { resolveNanoGptPluginConfigFromProviderCatalogContext } from "./provider-catalog.js";
 import { getNanoGptConfig } from "./runtime/config.js";
-import {
-  fetchNanoGptUsageSnapshot,
-  resolveNanoGptUsageAuth,
-} from "./runtime/usage.js";
+import { fetchNanoGptUsageSnapshot, resolveNanoGptUsageAuth } from "./runtime/usage.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
 import { createNanoGptApiKeyAuthMethod } from "./provider/auth.js";
 import {
@@ -24,9 +21,7 @@ import {
 } from "./provider/tool-schema-hooks.js";
 import { wrapNanoGptStreamFn } from "./provider/stream-hooks.js";
 import { createNanoGptLogger } from "./provider/nanogpt-logger.js";
-import type {
-  ProviderCatalogContext,
-} from "openclaw/plugin-sdk/plugin-entry";
+import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
 
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
@@ -55,11 +50,13 @@ export default definePluginEntry({
           }`,
         );
       });
-    const { matchesContextOverflowError: matchesContextOverflowErrorHook, classifyFailoverReason: classifyFailoverReasonHook } =
-      createNanoGptErrorSurfaceHooks({
-        logger,
-        resolvedNanoGptConfig,
-      });
+    const {
+      matchesContextOverflowError: matchesContextOverflowErrorHook,
+      classifyFailoverReason: classifyFailoverReasonHook,
+    } = createNanoGptErrorSurfaceHooks({
+      logger,
+      resolvedNanoGptConfig,
+    });
     const replayHooks = createNanoGptReplayHooks({ logger });
 
     api.registerProvider({

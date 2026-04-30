@@ -145,7 +145,13 @@ describe("resolveNanoGptAgentDir", () => {
   let envSnapshot: Record<string, string | undefined>;
 
   beforeEach(() => {
-    envSnapshot = snapshotEnv(["OPENCLAW_AGENT_DIR", "PI_CODING_AGENT_DIR", "OPENCLAW_STATE_DIR", "OPENCLAW_HOME", "HOME"]);
+    envSnapshot = snapshotEnv([
+      "OPENCLAW_AGENT_DIR",
+      "PI_CODING_AGENT_DIR",
+      "OPENCLAW_STATE_DIR",
+      "OPENCLAW_HOME",
+      "HOME",
+    ]);
   });
 
   afterEach(() => {
@@ -159,28 +165,40 @@ describe("resolveNanoGptAgentDir", () => {
   });
 
   it("prefers OPENCLAW_AGENT_DIR from env over other options", () => {
-    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_AGENT_DIR: "/env/agent/dir" })).toBe("/env/agent/dir");
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_AGENT_DIR: "/env/agent/dir" })).toBe(
+      "/env/agent/dir",
+    );
   });
 
   it("falls back to PI_CODING_AGENT_DIR if OPENCLAW_AGENT_DIR is missing", () => {
-    expect(resolveNanoGptAgentDir(undefined, { PI_CODING_AGENT_DIR: "/pi/agent/dir" })).toBe("/pi/agent/dir");
+    expect(resolveNanoGptAgentDir(undefined, { PI_CODING_AGENT_DIR: "/pi/agent/dir" })).toBe(
+      "/pi/agent/dir",
+    );
   });
 
   it("uses OPENCLAW_STATE_DIR to build path if agent dirs are missing", () => {
-    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_STATE_DIR: "/state/dir" })).toBe(path.join("/state/dir", "agents", "default", "agent"));
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_STATE_DIR: "/state/dir" })).toBe(
+      path.join("/state/dir", "agents", "default", "agent"),
+    );
   });
 
   it("uses OPENCLAW_HOME to build path if state dir is missing", () => {
-    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_HOME: "/claw/home" })).toBe(path.join("/claw/home", ".openclaw", "agents", "default", "agent"));
+    expect(resolveNanoGptAgentDir(undefined, { OPENCLAW_HOME: "/claw/home" })).toBe(
+      path.join("/claw/home", ".openclaw", "agents", "default", "agent"),
+    );
   });
 
   it("uses HOME to build path if OPENCLAW_HOME is missing", () => {
-    expect(resolveNanoGptAgentDir(undefined, { HOME: "/user/home" })).toBe(path.join("/user/home", ".openclaw", "agents", "default", "agent"));
+    expect(resolveNanoGptAgentDir(undefined, { HOME: "/user/home" })).toBe(
+      path.join("/user/home", ".openclaw", "agents", "default", "agent"),
+    );
   });
 
   it("uses os.homedir() to build path if HOME is missing", () => {
-    vi.spyOn(os, 'homedir').mockReturnValue('/mock/os/home');
-    expect(resolveNanoGptAgentDir(undefined, {})).toBe(path.join("/mock/os/home", ".openclaw", "agents", "default", "agent"));
+    vi.spyOn(os, "homedir").mockReturnValue("/mock/os/home");
+    expect(resolveNanoGptAgentDir(undefined, {})).toBe(
+      path.join("/mock/os/home", ".openclaw", "agents", "default", "agent"),
+    );
   });
 
   it("uses process.env by default if env is not provided", () => {

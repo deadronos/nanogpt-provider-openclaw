@@ -16,7 +16,10 @@ type ProviderCatalogHook = {
       apiKey: string | undefined;
       discoveryApiKey?: string;
     };
-    resolveProviderAuth: (providerId?: string, options?: { oauthMarker?: string }) => {
+    resolveProviderAuth: (
+      providerId?: string,
+      options?: { oauthMarker?: string },
+    ) => {
       apiKey: string | undefined;
       discoveryApiKey?: string;
       mode: "api_key" | "oauth" | "token" | "none";
@@ -108,7 +111,9 @@ function normalizePluginDiscoveryResult(params: {
   }
 
   const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries((result as { providers?: Record<string, unknown> }).providers ?? {})) {
+  for (const [key, value] of Object.entries(
+    (result as { providers?: Record<string, unknown> }).providers ?? {},
+  )) {
     const normalizedKey = normalizeProviderId(key);
     if (!normalizedKey || !value) {
       continue;
@@ -129,7 +134,10 @@ function runProviderCatalog(params: {
     apiKey: string | undefined;
     discoveryApiKey?: string;
   };
-  resolveProviderAuth: (providerId?: string, options?: { oauthMarker?: string }) => {
+  resolveProviderAuth: (
+    providerId?: string,
+    options?: { oauthMarker?: string },
+  ) => {
     apiKey: string | undefined;
     discoveryApiKey?: string;
     mode: "api_key" | "oauth" | "token" | "none";
@@ -139,17 +147,19 @@ function runProviderCatalog(params: {
 }): Promise<unknown> {
   return Promise.resolve(
     resolveProviderCatalogHook(params.provider)?.run({
-    config: params.config,
-    agentDir: params.agentDir,
-    workspaceDir: params.workspaceDir,
-    env: params.env,
-    resolveProviderApiKey: params.resolveProviderApiKey,
-    resolveProviderAuth: params.resolveProviderAuth,
+      config: params.config,
+      agentDir: params.agentDir,
+      workspaceDir: params.workspaceDir,
+      env: params.env,
+      resolveProviderApiKey: params.resolveProviderApiKey,
+      resolveProviderAuth: params.resolveProviderAuth,
     }),
   );
 }
 
-async function loadNanoGptCatalogProvider(workspaceDir: string): Promise<ProviderPlugin | undefined> {
+async function loadNanoGptCatalogProvider(
+  workspaceDir: string,
+): Promise<ProviderPlugin | undefined> {
   nanoGptCatalogProviderPromise ??= resolvePluginDiscoveryProviders({
     config: {
       plugins: {
@@ -206,113 +216,109 @@ async function loadNanoGptCatalogProviderWithPluginConfig(
 }
 
 describe("NanoGPT OpenClaw discovery integration", () => {
-  it(
-    "returns discovered NanoGPT models through the OpenClaw provider catalog hook",
-    async () => {
-      const { workspaceDir, packageDir } = stageNanoGptWorkspace();
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ subscribed: true }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            object: "list",
-            data: [
-              {
-                id: "moonshotai/kimi-k2.5:thinking",
-                displayName: "Kimi K2.5 Thinking",
-                capabilities: {
-                  reasoning: true,
-                  vision: true,
-                  tool_calling: true,
-                },
-                context_length: 262144,
-                max_output_tokens: 8192,
-                pricing: {
-                  prompt: 1.5,
-                  completion: 4.5,
-                  unit: "per_million_tokens",
-                },
+  it("returns discovered NanoGPT models through the OpenClaw provider catalog hook", async () => {
+    const { workspaceDir, packageDir } = stageNanoGptWorkspace();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ subscribed: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "moonshotai/kimi-k2.5:thinking",
+              displayName: "Kimi K2.5 Thinking",
+              capabilities: {
+                reasoning: true,
+                vision: true,
+                tool_calling: true,
               },
-            ],
-          }),
-        });
-      vi.stubGlobal("fetch", fetchMock);
+              context_length: 262144,
+              max_output_tokens: 8192,
+              pricing: {
+                prompt: 1.5,
+                completion: 4.5,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
 
-      const provider = await loadNanoGptCatalogProvider(workspaceDir);
-      expect(provider).toBeDefined();
+    const provider = await loadNanoGptCatalogProvider(workspaceDir);
+    expect(provider).toBeDefined();
 
-      const result = await runProviderCatalog({
-        provider: provider!,
-        config: {
-          plugins: {
-            allow: ["nanogpt"],
-            entries: {
-              nanogpt: {
-                enabled: true,
-                config: {
-                  routingMode: "auto",
-                  catalogSource: "auto",
-                },
+    const result = await runProviderCatalog({
+      provider: provider!,
+      config: {
+        plugins: {
+          allow: ["nanogpt"],
+          entries: {
+            nanogpt: {
+              enabled: true,
+              config: {
+                routingMode: "auto",
+                catalogSource: "auto",
               },
             },
           },
         },
-        agentDir: packageDir,
-        workspaceDir,
-        env: mergeProcessEnv({
-          OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
-          VITEST: "1",
-          NODE_ENV: "test",
+      },
+      agentDir: packageDir,
+      workspaceDir,
+      env: mergeProcessEnv({
+        OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: "nanogpt",
+        VITEST: "1",
+        NODE_ENV: "test",
+      }),
+      resolveProviderApiKey: () => ({ apiKey: "test-key" }),
+      resolveProviderAuth: () => ({
+        apiKey: "test-key",
+        discoveryApiKey: "test-key",
+        mode: "api_key",
+        source: "env",
+      }),
+    });
+
+    const providers = normalizePluginDiscoveryResult({
+      provider: provider!,
+      result,
+    });
+
+    expect(providers.nanogpt).toMatchObject({
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      models: [
+        expect.objectContaining({
+          id: "moonshotai/kimi-k2.5:thinking",
+          name: "Kimi K2.5 Thinking",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 262144,
+          maxTokens: 8192,
+          cost: {
+            input: 1.5,
+            output: 4.5,
+            cacheRead: 0,
+            cacheWrite: 0,
+          },
         }),
-        resolveProviderApiKey: () => ({ apiKey: "test-key" }),
-        resolveProviderAuth: () => ({
-          apiKey: "test-key",
-          discoveryApiKey: "test-key",
-          mode: "api_key",
-          source: "env",
-        }),
-      });
+      ],
+    });
 
-      const providers = normalizePluginDiscoveryResult({
-        provider: provider!,
-        result,
-      });
-
-      expect(providers.nanogpt).toMatchObject({
-        api: "openai-completions",
-        baseUrl: "https://nano-gpt.com/api/subscription/v1",
-        models: [
-          expect.objectContaining({
-            id: "moonshotai/kimi-k2.5:thinking",
-            name: "Kimi K2.5 Thinking",
-            reasoning: true,
-            input: ["text", "image"],
-            contextWindow: 262144,
-            maxTokens: 8192,
-            cost: {
-              input: 1.5,
-              output: 4.5,
-              cacheRead: 0,
-              cacheWrite: 0,
-            },
-          }),
-        ],
-      });
-
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-        "https://nano-gpt.com/api/subscription/v1/usage",
-      );
-      expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
-        "https://nano-gpt.com/api/subscription/v1/models?detailed=true",
-      );
-    },
-    30_000,
-  );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://nano-gpt.com/api/subscription/v1/usage",
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      "https://nano-gpt.com/api/subscription/v1/models?detailed=true",
+    );
+  }, 30_000);
 
   it("does not serialize a placeholder Authorization header through the discovery hook result", async () => {
     const { workspaceDir, packageDir } = stageNanoGptWorkspace();

@@ -4,9 +4,7 @@ import type {
   ProviderToolSchemaDiagnostic,
 } from "openclaw/plugin-sdk/plugin-entry";
 import { isRecord } from "../shared/guards.js";
-import {
-  resolveNanoGptModelIdentity,
-} from "./anomaly-types.js";
+import { resolveNanoGptModelIdentity } from "./anomaly-types.js";
 
 const NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER = "NanoGPT GLM tip:";
 const NANOGPT_GLM_TOOL_SCHEMA_HINT =
@@ -43,7 +41,11 @@ function shouldAnnotateNanoGptGlmToolSchema(tool: AnyAgentTool): boolean {
   }
 
   const fields = new Set([...required, ...properties]);
-  if ([...fields].some((field) => ["ref", "selector", "fields", "inputRef", "element"].includes(field))) {
+  if (
+    [...fields].some((field) =>
+      ["ref", "selector", "fields", "inputRef", "element"].includes(field),
+    )
+  ) {
     return true;
   }
 
@@ -55,7 +57,10 @@ function shouldAnnotateNanoGptGlmToolSchema(tool: AnyAgentTool): boolean {
 }
 
 function appendNanoGptGlmToolSchemaHint(description: string | undefined): string {
-  if (typeof description === "string" && description.includes(NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER)) {
+  if (
+    typeof description === "string" &&
+    description.includes(NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER)
+  ) {
     return description;
   }
 
@@ -87,7 +92,10 @@ function appendNanoGptQwenToolSchemaHint(tool: AnyAgentTool): string {
 
   const primaryField = resolveNanoGptQwenPrimarySchemaField(tool);
   const { required, properties } = getNanoGptToolSchemaSummary(tool);
-  const hintedKeys = [...new Set([...(required.length > 0 ? required : []), ...properties])].slice(0, 4);
+  const hintedKeys = [...new Set([...(required.length > 0 ? required : []), ...properties])].slice(
+    0,
+    4,
+  );
   const argumentHint = primaryField
     ? ` Pass a JSON object like {"${primaryField}":"..."} when calling it.`
     : hintedKeys.length > 0
@@ -178,9 +186,7 @@ export function inspectNanoGptToolSchemas(
 
   const diagnostics = ctx.tools
     .map((tool, toolIndex) => inspectNanoGptQwenToolSchema(tool, toolIndex))
-    .filter(
-      (diagnostic): diagnostic is ProviderToolSchemaDiagnostic => diagnostic !== null,
-    );
+    .filter((diagnostic): diagnostic is ProviderToolSchemaDiagnostic => diagnostic !== null);
 
   return diagnostics.length > 0 ? diagnostics : null;
 }

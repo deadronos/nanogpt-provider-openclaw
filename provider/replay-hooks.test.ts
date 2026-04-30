@@ -1,6 +1,10 @@
 import type { AssistantMessage, ToolResultMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi } from "vitest";
-import { buildReplayPolicy, createNanoGptReplayHooks, resolveReasoningOutputMode } from "./replay-hooks.js";
+import {
+  buildReplayPolicy,
+  createNanoGptReplayHooks,
+  resolveReasoningOutputMode,
+} from "./replay-hooks.js";
 
 const MODEL_ID = "moonshotai/kimi-k2.5:thinking";
 
@@ -150,14 +154,16 @@ describe("nanoGPT replay hooks", () => {
         },
       ],
     });
-    const originalMessages = JSON.parse(JSON.stringify([
-      {
-        role: "user",
-        content: "hello",
-        timestamp: userTimestamp,
-      },
-      assistant,
-    ])) as Array<Record<string, unknown>>;
+    const originalMessages = JSON.parse(
+      JSON.stringify([
+        {
+          role: "user",
+          content: "hello",
+          timestamp: userTimestamp,
+        },
+        assistant,
+      ]),
+    ) as Array<Record<string, unknown>>;
 
     const context = {
       provider: "nanogpt",
@@ -179,8 +185,12 @@ describe("nanoGPT replay hooks", () => {
     expect(context.messages).toEqual(originalMessages);
 
     const messages = extractWarnMessages(warn);
-    expect(messages.some((message) => message.includes("replay_contains_reasoning_leak"))).toBe(true);
-    expect(messages.some((message) => message.includes("replay_contains_tool_like_text"))).toBe(true);
+    expect(messages.some((message) => message.includes("replay_contains_reasoning_leak"))).toBe(
+      true,
+    );
+    expect(messages.some((message) => message.includes("replay_contains_tool_like_text"))).toBe(
+      true,
+    );
     expect(messages.some((message) => message.includes(`model=${MODEL_ID}`))).toBe(true);
     expect(messages.some((message) => message.includes("family=kimi"))).toBe(true);
     expect(messages.some((message) => message.includes("plan"))).toBe(false);
@@ -233,7 +243,9 @@ describe("nanoGPT replay hooks", () => {
         },
       ],
     };
-    const originalMessages = JSON.parse(JSON.stringify(context.messages)) as Array<Record<string, unknown>>;
+    const originalMessages = JSON.parse(JSON.stringify(context.messages)) as Array<
+      Record<string, unknown>
+    >;
 
     const result = validateReplayTurns(context as any);
 
@@ -241,9 +253,15 @@ describe("nanoGPT replay hooks", () => {
     expect(context.messages).toEqual(originalMessages);
 
     const messages = extractWarnMessages(warn);
-    expect(messages.some((message) => message.includes("replay_has_missing_tool_call_id"))).toBe(true);
-    expect(messages.some((message) => message.includes("replay_has_invalid_tool_ordering"))).toBe(true);
-    expect(messages.some((message) => message.includes("replay_has_inconsistent_assistant_tool_state"))).toBe(true);
+    expect(messages.some((message) => message.includes("replay_has_missing_tool_call_id"))).toBe(
+      true,
+    );
+    expect(messages.some((message) => message.includes("replay_has_invalid_tool_ordering"))).toBe(
+      true,
+    );
+    expect(
+      messages.some((message) => message.includes("replay_has_inconsistent_assistant_tool_state")),
+    ).toBe(true);
     expect(messages.some((message) => message.includes("secret.txt"))).toBe(false);
     expect(messages.some((message) => message.includes("hidden"))).toBe(false);
     expect(messages.some((message) => message.includes("interrupt"))).toBe(false);
@@ -271,16 +289,16 @@ describe("nanoGPT replay hooks", () => {
       ],
     };
     const validateContext = JSON.parse(JSON.stringify(sanitizeContext)) as typeof sanitizeContext;
-    const sanitizeOriginalMessages = JSON.parse(JSON.stringify(sanitizeContext.messages)) as Array<Record<string, unknown>>;
-    const validateOriginalMessages = JSON.parse(JSON.stringify(validateContext.messages)) as Array<Record<string, unknown>>;
+    const sanitizeOriginalMessages = JSON.parse(JSON.stringify(sanitizeContext.messages)) as Array<
+      Record<string, unknown>
+    >;
+    const validateOriginalMessages = JSON.parse(JSON.stringify(validateContext.messages)) as Array<
+      Record<string, unknown>
+    >;
 
-    expect(
-      sanitizeReplayHistory(sanitizeContext as any),
-    ).toBeUndefined();
+    expect(sanitizeReplayHistory(sanitizeContext as any)).toBeUndefined();
 
-    expect(
-      validateReplayTurns(validateContext as any),
-    ).toBeUndefined();
+    expect(validateReplayTurns(validateContext as any)).toBeUndefined();
 
     expect(sanitizeContext.messages).toEqual(sanitizeOriginalMessages);
     expect(validateContext.messages).toEqual(validateOriginalMessages);

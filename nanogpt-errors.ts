@@ -265,10 +265,7 @@ function parseUnknownNanoGptStructuredError(raw: string): NanoGptUnknownStructur
     status: readStatus(record.status) ?? readStatus(nested?.status) ?? statusFromLeadingText,
     type: readString(nested?.type) ?? readString(record.type),
     code: readString(nested?.code) ?? readString(record.code),
-    message:
-      readString(nested?.message) ??
-      readString(record.message) ??
-      readString(record.error),
+    message: readString(nested?.message) ?? readString(record.message) ?? readString(record.error),
     jsonKeys: Object.keys(record).sort(),
     raw,
   };
@@ -278,11 +275,7 @@ function includesAnyHint(value: string, hints: readonly string[]): boolean {
   return hints.some((hint) => value.includes(hint));
 }
 
-function hasBillingSignal(error: {
-  code?: string;
-  message?: string;
-  status?: number;
-}): boolean {
+function hasBillingSignal(error: { code?: string; message?: string; status?: number }): boolean {
   const normalizedCode = normalizeNanoGptErrorToken(error.code);
   if (normalizedCode && BILLING_ERROR_CODES.has(normalizedCode)) {
     return true;
@@ -296,11 +289,7 @@ function hasBillingSignal(error: {
   return error.status === 402 && normalizedMessage === "insufficient balance";
 }
 
-function hasRateLimitSignal(error: {
-  code?: string;
-  message?: string;
-  status?: number;
-}): boolean {
+function hasRateLimitSignal(error: { code?: string; message?: string; status?: number }): boolean {
   const normalizedCode = normalizeNanoGptErrorToken(error.code);
   if (normalizedCode && RATE_LIMIT_ERROR_CODES.has(normalizedCode)) {
     return true;

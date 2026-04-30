@@ -49,12 +49,12 @@
 
 ## Route selection
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| NanoGPT usage probe | subscription-active | payload included `active: true`, `state: "active"` |
-| Plugin-like direct route | subscription Chat Completions | matches the current completions-routing behavior for active subscription keys |
-| Direct endpoint used | `POST https://nano-gpt.com/api/subscription/v1/chat/completions` | same model as the OpenClaw agent run |
-| Agent transport | `openclaw agent` via gateway | not `openclaw infer model run`, not embedded `--local` |
+| Check                    | Result                                                           | Notes                                                                         |
+| ------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| NanoGPT usage probe      | subscription-active                                              | payload included `active: true`, `state: "active"`                            |
+| Plugin-like direct route | subscription Chat Completions                                    | matches the current completions-routing behavior for active subscription keys |
+| Direct endpoint used     | `POST https://nano-gpt.com/api/subscription/v1/chat/completions` | same model as the OpenClaw agent run                                          |
+| Agent transport          | `openclaw agent` via gateway                                     | not `openclaw infer model run`, not embedded `--local`                        |
 
 ---
 
@@ -62,11 +62,11 @@
 
 ### OpenClaw agent
 
-| Trial | TTFT | Total | Outcome |
-| --- | ---: | ---: | --- |
-| 1 | 48.3s | 48.3s | `PING` |
-| 2 | 32.6s | 32.7s | `PING` |
-| 3 | 32.2s | 32.2s | `PING` |
+| Trial |  TTFT | Total | Outcome |
+| ----- | ----: | ----: | ------- |
+| 1     | 48.3s | 48.3s | `PING`  |
+| 2     | 32.6s | 32.7s | `PING`  |
+| 3     | 32.2s | 32.2s | `PING`  |
 
 Observed behavior:
 
@@ -76,11 +76,11 @@ Observed behavior:
 
 ### Direct NanoGPT call
 
-| Trial | First reasoning delta | First content delta | Total | Output |
-| --- | ---: | ---: | ---: | --- |
-| 1 | 5.1s | 5.5s | 5.6s | `PING` |
-| 2 | 1.1s | 9.0s | 9.0s | reasoning-like visible content instead of a clean short `PING` |
-| 3 | 1.4s | 3.8s | 4.3s | `PING` |
+| Trial | First reasoning delta | First content delta | Total | Output                                                         |
+| ----- | --------------------: | ------------------: | ----: | -------------------------------------------------------------- |
+| 1     |                  5.1s |                5.5s |  5.6s | `PING`                                                         |
+| 2     |                  1.1s |                9.0s |  9.0s | reasoning-like visible content instead of a clean short `PING` |
+| 3     |                  1.4s |                3.8s |  4.3s | `PING`                                                         |
 
 Observed behavior:
 
@@ -92,13 +92,13 @@ Observed behavior:
 
 ## Aggregates
 
-| Metric | OpenClaw agent | Direct NanoGPT |
-| --- | ---: | ---: |
-| Mean TTFT | 37.7s | 6.1s |
-| Median TTFT | 32.6s | 5.5s |
-| Mean total latency | 37.7s | 6.3s |
-| Median total latency | 32.7s | 5.6s |
-| Median first reasoning delta | — | 1.4s |
+| Metric                       | OpenClaw agent | Direct NanoGPT |
+| ---------------------------- | -------------: | -------------: |
+| Mean TTFT                    |          37.7s |           6.1s |
+| Median TTFT                  |          32.6s |           5.5s |
+| Mean total latency           |          37.7s |           6.3s |
+| Median total latency         |          32.7s |           5.6s |
+| Median first reasoning delta |              — |           1.4s |
 
 Using the median values:
 

@@ -21,7 +21,10 @@ const NOOP_LOGGER: NanoGptLogger = {
 let _stream: ReturnType<typeof createWriteStream> | null = null;
 let _streamPromise: Promise<void> | null = null;
 
-function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; ready: Promise<void> } | null {
+function getOrCreateStream(): {
+  stream: ReturnType<typeof createWriteStream>;
+  ready: Promise<void>;
+} | null {
   if (_stream) {
     return { stream: _stream, ready: _streamPromise ?? Promise.resolve() };
   }
@@ -62,7 +65,12 @@ function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
+function formatLogLine(
+  level: NanoGptLogLevel,
+  module: string,
+  message: string,
+  meta?: Record<string, unknown>,
+): string {
   const timestamp = formatTimestamp();
   const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;

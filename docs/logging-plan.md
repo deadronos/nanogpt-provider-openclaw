@@ -12,11 +12,11 @@ This enables targeted observability: filter nanogpt noise out of OpenClaw logs, 
 
 ## Log Level Conventions
 
-| Condition | Level |
-|-----------|-------|
-| Normal flows, state transitions, successful operations | `info` |
-| Anomaly detected (unexpected but handled) | `warn` |
-| Hard / unrecoverable errors | `error` |
+| Condition                                              | Level   |
+| ------------------------------------------------------ | ------- |
+| Normal flows, state transitions, successful operations | `info`  |
+| Anomaly detected (unexpected but handled)              | `warn`  |
+| Hard / unrecoverable errors                            | `error` |
 
 ---
 
@@ -44,6 +44,7 @@ In code, resolve via `os.homedir()` + `/.openclaw/logs/nanogpt/`. Create the dir
 ```
 
 Example:
+
 ```
 2026-04-23T08:30:00.000Z [info] [stream-hooks] stream result received modelId=kimi-max-longtext family=kimi
 2026-04-23T08:30:01.000Z [warn] [anomaly] tool_enabled_turn_without_tool_call model=kimi-max-longtext stage=stream_result
@@ -56,23 +57,23 @@ Example:
 
 Each module below gets a logger instance. Log calls replace or augment existing anomaly/warn uses of the OpenClaw plugin logger.
 
-| Module | File | What's logged |
-|--------|------|--------------|
-| **Logger setup** | `provider/nanogpt-logger.ts` | Logger factory (new) |
-| **Plugin entry** | `index.ts` | Provider registered, config resolved |
-| **Stream hooks** | `provider/stream-hooks.ts` | Stream result received, anomaly detections |
-| **Error hooks** | `provider/error-hooks.ts` | Error surface detections, failover reason classification |
-| **Replay hooks** | `provider/replay-hooks.ts` | Replay policy built, sanitize/validate results |
-| **Tool schema hooks** | `provider/tool-schema-hooks.ts` | Schema normalization decisions |
-| **Catalog hooks** | `provider/catalog-hooks.ts` | Catalog augmentation |
-| **Routing** | `runtime/routing.ts` | Routing mode, subscription probe result |
-| **Discovery** | `runtime/discovery.ts` | Model discovery results |
-| **Usage** | `runtime/usage.ts` | Usage snapshot fetch |
-| **Auth** | `provider/auth.ts` | Auth method setup |
-| **Web search** | `web-search.ts` | Web search request/response |
-| **Image gen** | `image-generation-provider.ts` | Image generation request/response |
-| **Bridge** | `provider/bridge/*.ts` | Bridge system message injection, retry attempts |
-| **Errors** | `nanogpt-errors.ts` | Error surface inspection results |
+| Module                | File                            | What's logged                                            |
+| --------------------- | ------------------------------- | -------------------------------------------------------- |
+| **Logger setup**      | `provider/nanogpt-logger.ts`    | Logger factory (new)                                     |
+| **Plugin entry**      | `index.ts`                      | Provider registered, config resolved                     |
+| **Stream hooks**      | `provider/stream-hooks.ts`      | Stream result received, anomaly detections               |
+| **Error hooks**       | `provider/error-hooks.ts`       | Error surface detections, failover reason classification |
+| **Replay hooks**      | `provider/replay-hooks.ts`      | Replay policy built, sanitize/validate results           |
+| **Tool schema hooks** | `provider/tool-schema-hooks.ts` | Schema normalization decisions                           |
+| **Catalog hooks**     | `provider/catalog-hooks.ts`     | Catalog augmentation                                     |
+| **Routing**           | `runtime/routing.ts`            | Routing mode, subscription probe result                  |
+| **Discovery**         | `runtime/discovery.ts`          | Model discovery results                                  |
+| **Usage**             | `runtime/usage.ts`              | Usage snapshot fetch                                     |
+| **Auth**              | `provider/auth.ts`              | Auth method setup                                        |
+| **Web search**        | `web-search.ts`                 | Web search request/response                              |
+| **Image gen**         | `image-generation-provider.ts`  | Image generation request/response                        |
+| **Bridge**            | `provider/bridge/*.ts`          | Bridge system message injection, retry attempts          |
+| **Errors**            | `nanogpt-errors.ts`             | Error surface inspection results                         |
 
 ---
 
@@ -81,6 +82,7 @@ Each module below gets a logger instance. Log calls replace or augment existing 
 ### Step 1 — Logger utility (`provider/nanogpt-logger.ts`)
 
 Create a module that:
+
 1. Derives `~/.openclaw/logs/nanogpt/` using `os.homedir()`
 2. Creates the directory with `fs.mkdirSync(..., { recursive: true })`
 3. Opens a file handle in append mode

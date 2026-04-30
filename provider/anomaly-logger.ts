@@ -91,7 +91,10 @@ function normalizeNanoGptNumberList(values: readonly number[] | undefined): numb
   return [...normalizedValues];
 }
 
-function summarizeNanoGptNameList(label: string, values: readonly string[] | undefined): string | undefined {
+function summarizeNanoGptNameList(
+  label: string,
+  values: readonly string[] | undefined,
+): string | undefined {
   const normalizedLabel = normalizeNanoGptSafeText(label);
   if (!normalizedLabel) {
     return undefined;
@@ -105,7 +108,10 @@ function summarizeNanoGptNameList(label: string, values: readonly string[] | und
   return `${normalizedLabel}=${normalizedValues.join(",")}`;
 }
 
-function summarizeNanoGptNumberList(label: string, values: readonly number[] | undefined): string | undefined {
+function summarizeNanoGptNumberList(
+  label: string,
+  values: readonly number[] | undefined,
+): string | undefined {
   const normalizedLabel = normalizeNanoGptSafeText(label);
   if (!normalizedLabel) {
     return undefined;

@@ -2,23 +2,22 @@
   "name": "@deadronos/nanogpt-provider-openclaw",
   "version": "0.1.0",
   "description": "OpenClaw NanoGPT provider plugin",
-  "type": "module",
   "keywords": [
+    "llm",
+    "nanogpt",
     "openclaw",
     "plugin",
-    "provider",
-    "nanogpt",
-    "llm"
+    "provider"
   ],
   "homepage": "https://github.com/deadronos/nanogpt-provider-openclaw#readme",
   "bugs": {
     "url": "https://github.com/deadronos/nanogpt-provider-openclaw/issues"
   },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deadronos/nanogpt-provider-openclaw.git"
   },
-  "license": "MIT",
   "files": [
     "index.ts",
     "api.ts",
@@ -67,6 +66,10 @@
     "README.md",
     "LICENSE.md"
   ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -80,25 +83,28 @@
     "lint:all": "oxlint --type-aware --type-check",
     "lint:fix": "oxlint --fix && npm run format"
   },
-  "peerDependencies": {
-    "openclaw": ">=2026.4.22"
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.69.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "openclaw": "2026.4.22",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.4",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
-    "oxlint-tsgolint": "^0.21.1"
+    "oxlint-tsgolint": "^0.21.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.4.22"
   },
   "overrides": {
     "axios": "1.15.0",
+    "fast-xml-parser": "5.7.0",
     "hono": "4.12.14",
     "protobufjs": "7.5.5",
     "tar": "7.5.13",
-    "fast-xml-parser": "5.7.0",
     "uuid": "14.0.0"
   },
   "pnpm": {
@@ -121,9 +127,6 @@
       "sharp"
     ]
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "openclaw": {
     "extensions": [
       "./index.ts"
@@ -139,8 +142,5 @@
       "openclawVersion": "2026.4.22",
       "pluginSdkVersion": "2026.4.22"
     }
-  },
-  "dependencies": {
-    "@mariozechner/pi-ai": "^0.69.0"
   }
 }

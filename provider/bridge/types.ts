@@ -38,7 +38,9 @@ export type NanoGptBridgeParseResult =
       };
     };
 
-export function normalizeNanoGptBridgeTools(tools: readonly AnyAgentTool[] | undefined): NanoGptBridgeTool[] {
+export function normalizeNanoGptBridgeTools(
+  tools: readonly AnyAgentTool[] | undefined,
+): NanoGptBridgeTool[] {
   const normalized: NanoGptBridgeTool[] = [];
 
   for (const tool of tools ?? []) {
@@ -54,12 +56,15 @@ export function normalizeNanoGptBridgeTools(tools: readonly AnyAgentTool[] | und
     const parameters = isRecord(tool.parameters) ? tool.parameters : undefined;
     const properties = isRecord(parameters?.properties) ? parameters.properties : undefined;
     const required = Array.isArray(parameters?.required)
-      ? parameters.required.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      ? parameters.required.filter(
+          (value): value is string => typeof value === "string" && value.trim().length > 0,
+        )
       : [];
 
     const args = Object.entries(properties ?? {}).map(([argName, schemaValue]) => {
       const schema = isRecord(schemaValue) ? { ...schemaValue } : {};
-      const type = typeof schema.type === "string" && schema.type.trim().length > 0 ? schema.type : "string";
+      const type =
+        typeof schema.type === "string" && schema.type.trim().length > 0 ? schema.type : "string";
       const description = typeof schema.description === "string" ? schema.description : "";
       return {
         name: argName,

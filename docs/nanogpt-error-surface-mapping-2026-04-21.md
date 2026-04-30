@@ -102,29 +102,29 @@ NanoGPT documents three common shapes:
 
 ### Documented status meanings
 
-| HTTP | NanoGPT meaning | Retry guidance from docs |
-| --- | --- | --- |
-| `400` | Invalid request / validation failed | No |
-| `401` | Missing or invalid API key | No |
-| `402` | Insufficient balance | No |
-| `403` | Authenticated but not permitted | No |
-| `404` | Resource not found | No |
-| `408` / `504` | Timeout | Yes |
-| `409` | Conflict | No |
-| `413` | Payload too large | No |
-| `429` | Rate limited | Yes; use `Retry-After` if present |
-| `500` | Server error | Yes |
-| `503` | Temporarily unavailable | Yes |
+| HTTP          | NanoGPT meaning                     | Retry guidance from docs          |
+| ------------- | ----------------------------------- | --------------------------------- |
+| `400`         | Invalid request / validation failed | No                                |
+| `401`         | Missing or invalid API key          | No                                |
+| `402`         | Insufficient balance                | No                                |
+| `403`         | Authenticated but not permitted     | No                                |
+| `404`         | Resource not found                  | No                                |
+| `408` / `504` | Timeout                             | Yes                               |
+| `409`         | Conflict                            | No                                |
+| `413`         | Payload too large                   | No                                |
+| `429`         | Rate limited                        | Yes; use `Retry-After` if present |
+| `500`         | Server error                        | Yes                               |
+| `503`         | Temporarily unavailable             | Yes                               |
 
 ### Documented error types
 
-| Type | Typical HTTP |
-| --- | --- |
-| `invalid_request_error` | `400` |
-| `authentication_error` | `401` |
-| `permission_denied_error` / `permission_error` | `403` |
-| `not_found_error` | `404` |
-| `rate_limit_error` | `429` |
+| Type                                                 | Typical HTTP  |
+| ---------------------------------------------------- | ------------- |
+| `invalid_request_error`                              | `400`         |
+| `authentication_error`                               | `401`         |
+| `permission_denied_error` / `permission_error`       | `403`         |
+| `not_found_error`                                    | `404`         |
+| `rate_limit_error`                                   | `429`         |
 | `server_error` / `service_unavailable` / `api_error` | `500` / `503` |
 
 ### Documented error codes
@@ -206,14 +206,14 @@ OpenClaw's failover reason union is:
 
 OpenClaw's model-auth probe collapses those reasons to:
 
-| Failover reason | Probe status |
-| --- | --- |
-| `auth`, `auth_permanent` | `auth` |
-| `rate_limit`, `overloaded` | `rate_limit` |
-| `billing` | `billing` |
-| `timeout` | `timeout` |
-| `model_not_found`, `format` | `format` |
-| `unknown` / unset | `unknown` |
+| Failover reason             | Probe status |
+| --------------------------- | ------------ |
+| `auth`, `auth_permanent`    | `auth`       |
+| `rate_limit`, `overloaded`  | `rate_limit` |
+| `billing`                   | `billing`    |
+| `timeout`                   | `timeout`    |
+| `model_not_found`, `format` | `format`     |
+| `unknown` / unset           | `unknown`    |
 
 ### Why the exact mapping matters
 
@@ -275,26 +275,26 @@ from the NanoGPT surface itself.
 
 ### Status/type/code to OpenClaw reason
 
-| NanoGPT signal | Recommended OpenClaw mapping | Notes |
-| --- | --- | --- |
-| `401` / `authentication_error` | `auth` | Generic OpenClaw already does this well. |
-| `403` + generic permission/auth failure | `auth` | Good default for actual credential/scope failures. |
-| `403` + `model_not_allowed` | `model_not_found` | Better than `auth` for "this model is not usable, try another model". |
-| `404` / `not_found_error` / `model_not_found` | `model_not_found` | Generic OpenClaw already supports this. |
-| `402` + `Insufficient balance` / `insufficient_quota` / `*_balance_required` | `billing` | Real paid-balance failure. |
-| `429` / `rate_limit_error` / `rate_limit_exceeded` | `rate_limit` | Should log `Retry-After` when visible. |
-| `429` / `daily_rpd_limit_exceeded` / `daily_usd_limit_exceeded` | `rate_limit` | Daily limits are documented as `429`, not `402`. |
-| `500` + transient `api_error` / `server_error` | `timeout` | Matches OpenClaw's current generic treatment. |
-| `503` / `service_unavailable` | `overloaded` | Better fit than billing; may already classify generically from message text. |
-| `408` / `504` | `timeout` | Retryable. |
-| `400` / `422` validation codes | `format` | Request needs fixing, not provider cooldown. |
-| `content_policy_violation` | `format` | Non-retryable request/content failure; should never look like billing. |
-| `context_length_exceeded` | `matchesContextOverflowError = true` | Prefer the dedicated context-overflow hook over a failover reason. |
-| `empty_response` | `format` | Best current fit in SDK; importantly, not `billing`. |
-| `model_not_available` | `model_not_found` | Closest existing bucket; suggests switching models. |
-| `all_fallbacks_failed` | `unknown` | Routing umbrella code; log it explicitly rather than guessing. |
-| `no_fallback_available` | `format` | Request/config-driven routing constraint, not provider billing. |
-| `fallback_blocked_for_cache_consistency` | `format` | Also request/config-driven, not billing. |
+| NanoGPT signal                                                               | Recommended OpenClaw mapping         | Notes                                                                        |
+| ---------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
+| `401` / `authentication_error`                                               | `auth`                               | Generic OpenClaw already does this well.                                     |
+| `403` + generic permission/auth failure                                      | `auth`                               | Good default for actual credential/scope failures.                           |
+| `403` + `model_not_allowed`                                                  | `model_not_found`                    | Better than `auth` for "this model is not usable, try another model".        |
+| `404` / `not_found_error` / `model_not_found`                                | `model_not_found`                    | Generic OpenClaw already supports this.                                      |
+| `402` + `Insufficient balance` / `insufficient_quota` / `*_balance_required` | `billing`                            | Real paid-balance failure.                                                   |
+| `429` / `rate_limit_error` / `rate_limit_exceeded`                           | `rate_limit`                         | Should log `Retry-After` when visible.                                       |
+| `429` / `daily_rpd_limit_exceeded` / `daily_usd_limit_exceeded`              | `rate_limit`                         | Daily limits are documented as `429`, not `402`.                             |
+| `500` + transient `api_error` / `server_error`                               | `timeout`                            | Matches OpenClaw's current generic treatment.                                |
+| `503` / `service_unavailable`                                                | `overloaded`                         | Better fit than billing; may already classify generically from message text. |
+| `408` / `504`                                                                | `timeout`                            | Retryable.                                                                   |
+| `400` / `422` validation codes                                               | `format`                             | Request needs fixing, not provider cooldown.                                 |
+| `content_policy_violation`                                                   | `format`                             | Non-retryable request/content failure; should never look like billing.       |
+| `context_length_exceeded`                                                    | `matchesContextOverflowError = true` | Prefer the dedicated context-overflow hook over a failover reason.           |
+| `empty_response`                                                             | `format`                             | Best current fit in SDK; importantly, not `billing`.                         |
+| `model_not_available`                                                        | `model_not_found`                    | Closest existing bucket; suggests switching models.                          |
+| `all_fallbacks_failed`                                                       | `unknown`                            | Routing umbrella code; log it explicitly rather than guessing.               |
+| `no_fallback_available`                                                      | `format`                             | Request/config-driven routing constraint, not provider billing.              |
+| `fallback_blocked_for_cache_consistency`                                     | `format`                             | Also request/config-driven, not billing.                                     |
 
 ### Extra note on `402`
 

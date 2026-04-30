@@ -184,7 +184,9 @@ export function detectNanoGptModelFamily(modelId: string): NanoGptModelFamily {
   return resolveNanoGptModelFamily(modelId);
 }
 
-export function resolveNanoGptModelIdentity(source: NanoGptModelIdentitySource): NanoGptModelIdentity {
+export function resolveNanoGptModelIdentity(
+  source: NanoGptModelIdentitySource,
+): NanoGptModelIdentity {
   const modelId = resolveNanoGptModelId(source);
   return {
     modelId,

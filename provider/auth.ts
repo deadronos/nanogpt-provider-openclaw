@@ -12,7 +12,9 @@ type NanoGptApiKeyNonInteractiveContext = Parameters<
   NonNullable<NanoGptApiKeyAuthMethod["runNonInteractive"]>
 >[0];
 
-function resolveNanoGptApiKeyOptionValue(ctx: NanoGptApiKeyNonInteractiveContext): string | undefined {
+function resolveNanoGptApiKeyOptionValue(
+  ctx: NanoGptApiKeyNonInteractiveContext,
+): string | undefined {
   const opts = ctx.opts as Record<string, unknown> | undefined;
   return typeof opts?.[NANOGPT_API_KEY_OPTION_KEY] === "string"
     ? opts[NANOGPT_API_KEY_OPTION_KEY]

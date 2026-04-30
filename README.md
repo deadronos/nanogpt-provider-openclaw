@@ -150,11 +150,11 @@ The plugin config controls NanoGPT text-model discovery and transport behavior:
           routingMode: "paygo",
           catalogSource: "canonical",
           requestApi: "completions",
-          provider: "openrouter"
-        }
-      }
-    }
-  }
+          provider: "openrouter",
+        },
+      },
+    },
+  },
 }
 ```
 
@@ -244,7 +244,7 @@ For example:
   intentionally off by default, and the native `tools` array still remains in the request
   because the current hook surface cannot remove it.
 - `bridgeProtocol: "object"` asks NanoGPT for a single JSON turn object with `{ v, mode,
-  message, tool_calls }`; `"xml"` asks for XML tool-call tags with optional `<open>`
+message, tool_calls }`; `"xml"` asks for XML tool-call tags with optional `<open>`
   status text. Both bridged modes retry one invalid empty turn once with a corrective
   system message.
 

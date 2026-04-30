@@ -4,10 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 function isPathInside(rootPath, targetPath) {
   const relativePath = path.relative(rootPath, targetPath);
-  return (
-    relativePath === "" ||
-    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
-  );
+  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
 export function readPackageManifest(repoRoot) {
@@ -39,7 +36,8 @@ function copySurfaceEntry(sourcePath, targetPath) {
 }
 
 export function stagePackageDir(params = {}) {
-  const repoRoot = params.repoRoot ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const repoRoot =
+    params.repoRoot ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const outputDir = params.outputDir ?? path.join(repoRoot, "dist", "package");
   const manifest = params.manifest ?? readPackageManifest(repoRoot);
   const surfaceEntries = params.surfaceEntries ?? resolvePackageSurfaceEntries(manifest);

@@ -73,7 +73,7 @@ describe("api", () => {
       "resolveCatalogSource",
       "resolveNanoGptRoutingMode",
       "resolveRequestBaseUrl",
-      "resolveNanoGptUsageAuth"
+      "resolveNanoGptUsageAuth",
     ];
 
     const actualExports = Object.keys(api);

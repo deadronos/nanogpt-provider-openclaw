@@ -9,10 +9,7 @@ import {
   toDataUrl,
   validateNanoGptImageSize,
 } from "./image/request.js";
-import {
-  buildUnsupportedModelGuidance,
-  parseNanoGptImageResponse,
-} from "./image/response.js";
+import { buildUnsupportedModelGuidance, parseNanoGptImageResponse } from "./image/response.js";
 import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
 import {
   resolveProviderHttpRequestConfig,
@@ -34,10 +31,11 @@ function getImageLogger(): NanoGptLogger {
 export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
   return {
     id: NANOGPT_PROVIDER_ID,
-    isConfigured: ({ agentDir }) => isProviderApiKeyConfigured({
-      provider: NANOGPT_PROVIDER_ID,
-      agentDir,
-    }),
+    isConfigured: ({ agentDir }) =>
+      isProviderApiKeyConfigured({
+        provider: NANOGPT_PROVIDER_ID,
+        agentDir,
+      }),
     label: "NanoGPT",
     defaultModel: NANOGPT_DEFAULT_IMAGE_MODEL,
     models: [...NANOGPT_IMAGE_MODELS],
@@ -62,7 +60,11 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
     },
     async generateImage(req) {
       const logger = getImageLogger();
-      logger.info("image generation request", { model: req.model, count: req.count, size: req.size });
+      logger.info("image generation request", {
+        model: req.model,
+        count: req.count,
+        size: req.size,
+      });
       const auth = await resolveApiKeyForProvider({
         provider: NANOGPT_PROVIDER_ID,
         cfg: req.cfg,
@@ -108,18 +110,19 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
         );
       }
 
-      const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveProviderHttpRequestConfig({
-        baseUrl: NANOGPT_IMAGE_BASE_URL,
-        defaultBaseUrl: NANOGPT_IMAGE_BASE_URL,
-        allowPrivateNetwork: false,
-        defaultHeaders: {
-          Authorization: `Bearer ${sanitizeApiKey(auth.apiKey)}`,
-          "Content-Type": "application/json",
-        },
-        provider: NANOGPT_PROVIDER_ID,
-        capability: "image",
-        transport: "http",
-      });
+      const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } =
+        resolveProviderHttpRequestConfig({
+          baseUrl: NANOGPT_IMAGE_BASE_URL,
+          defaultBaseUrl: NANOGPT_IMAGE_BASE_URL,
+          allowPrivateNetwork: false,
+          defaultHeaders: {
+            Authorization: `Bearer ${sanitizeApiKey(auth.apiKey)}`,
+            "Content-Type": "application/json",
+          },
+          provider: NANOGPT_PROVIDER_ID,
+          capability: "image",
+          transport: "http",
+        });
 
       const { response, release } = await postJsonRequest({
         url: `${baseUrl}/v1/images/generations`,
@@ -139,10 +142,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
             status: response.status,
             detail: detail.slice(0, 100),
           });
-          if (
-            response.status === 400 &&
-            /unknown model|invalid model|model/i.test(detail)
-          ) {
+          if (response.status === 400 && /unknown model|invalid model|model/i.test(detail)) {
             throw new Error(
               `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detail}`,
             );

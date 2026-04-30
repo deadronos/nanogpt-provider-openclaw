@@ -44,9 +44,14 @@ function resolveNanoGptUsageWindow(params: {
   fallbackResetAt?: unknown;
 }): UsageWindow | null {
   const record = isRecord(params.window) ? params.window : {};
-  const limit = parseFiniteNumber(params.limit) ?? parseFiniteNumber(record.limit) ?? parseFiniteNumber(record.total);
+  const limit =
+    parseFiniteNumber(params.limit) ??
+    parseFiniteNumber(record.limit) ??
+    parseFiniteNumber(record.total);
   const used =
-    parseFiniteNumber(record.used) ?? parseFiniteNumber(record.usage) ?? parseFiniteNumber(record.consumed);
+    parseFiniteNumber(record.used) ??
+    parseFiniteNumber(record.usage) ??
+    parseFiniteNumber(record.consumed);
   const remaining =
     parseFiniteNumber(record.remaining) ??
     parseFiniteNumber(record.remain) ??

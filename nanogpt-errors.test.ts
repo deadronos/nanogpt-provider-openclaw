@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatNanoGptErrorSurfaceDetails,
-  inspectNanoGptErrorSurface,
-} from "./nanogpt-errors.js";
+import { formatNanoGptErrorSurfaceDetails, inspectNanoGptErrorSurface } from "./nanogpt-errors.js";
 
 describe("inspectNanoGptErrorSurface", () => {
   it("maps structured NanoGPT rate limit errors to OpenClaw rate_limit", () => {

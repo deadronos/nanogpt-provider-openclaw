@@ -12,22 +12,23 @@
 
 ## File Map
 
-| File | Action |
-|------|--------|
-| `provider/markers.ts` | **CREATE** — shared marker constants + count helper |
-| `provider/inspection.ts` | **CREATE** — shared stream marker inspection helper |
-| `provider/replay-hooks.ts` | **MODIFY** — import from markers.ts + inspection.ts; remove local copies |
-| `provider/stream-hooks.ts` | **MODIFY** — import from markers.ts + inspection.ts; remove local copies |
-| `runtime/subscription.ts` | **CREATE** — shared subscription state helpers |
-| `runtime/routing.ts` | **MODIFY** — import from subscription.ts; remove local copies |
-| `runtime/usage.ts` | **MODIFY** — import from subscription.ts; remove local copies |
-| `nanogpt-errors.ts` | **MODIFY** — replace local `isRecord` with import from `shared/guards.ts` |
+| File                       | Action                                                                    |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `provider/markers.ts`      | **CREATE** — shared marker constants + count helper                       |
+| `provider/inspection.ts`   | **CREATE** — shared stream marker inspection helper                       |
+| `provider/replay-hooks.ts` | **MODIFY** — import from markers.ts + inspection.ts; remove local copies  |
+| `provider/stream-hooks.ts` | **MODIFY** — import from markers.ts + inspection.ts; remove local copies  |
+| `runtime/subscription.ts`  | **CREATE** — shared subscription state helpers                            |
+| `runtime/routing.ts`       | **MODIFY** — import from subscription.ts; remove local copies             |
+| `runtime/usage.ts`         | **MODIFY** — import from subscription.ts; remove local copies             |
+| `nanogpt-errors.ts`        | **MODIFY** — replace local `isRecord` with import from `shared/guards.ts` |
 
 ---
 
 ## Task 1: Create `provider/markers.ts`
 
 **Files:**
+
 - Create: `provider/markers.ts`
 - Read: `provider/replay-hooks.ts:62-97` (constants to extract)
 - Read: `provider/stream-hooks.ts:62-97` (identical constants)
@@ -42,7 +43,11 @@ import {
   countNanoGptSubstringOccurrences,
 } from "./markers.js";
 
-export { NANO_GPT_REASONING_TAG_PAIRS, NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS, NANO_GPT_FUNCTION_CALL_MARKERS };
+export {
+  NANO_GPT_REASONING_TAG_PAIRS,
+  NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS,
+  NANO_GPT_FUNCTION_CALL_MARKERS,
+};
 export { countNanoGptSubstringOccurrences };
 ```
 
@@ -106,6 +111,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 2: Update `provider/stream-hooks.ts`
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts`
 - Read: `provider/stream-hooks.ts:1-97` (imports + constants)
 - Read: `provider/markers.ts` (new home for constants)
@@ -126,6 +132,7 @@ import {
 - [ ] **Step 2: Remove local constant definitions (lines 62-79)**
 
 Delete the local definitions of:
+
 - `NANO_GPT_REASONING_TAG_PAIRS` (lines 62-66)
 - `NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS` (lines 68-77)
 - `NANO_GPT_FUNCTION_CALL_MARKERS` (line 79)
@@ -153,6 +160,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 3: Update `provider/replay-hooks.ts`
 
 **Files:**
+
 - Modify: `provider/replay-hooks.ts`
 - Read: `provider/replay-hooks.ts:79-119` (constants to extract)
 
@@ -172,6 +180,7 @@ import {
 - [ ] **Step 2: Remove local constant definitions (lines 79-96)**
 
 Delete:
+
 - `NANO_GPT_REASONING_TAG_PAIRS` (lines 79-83)
 - `NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS` (lines 85-93)
 - `NANO_GPT_FUNCTION_CALL_MARKERS` (line 96)
@@ -205,6 +214,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 4: Create `provider/inspection.ts`
 
 **Files:**
+
 - Create: `provider/inspection.ts`
 - Read: `provider/stream-hooks.ts:169-202` (`collectNanoGptStreamMarkerInspection` to extract)
 - Read: `provider/replay-hooks.ts:169-258` (`collectNanoGptReplayAssistantInspection` — replay-specific, not extracted)
@@ -229,7 +239,9 @@ export type NanoGptStreamMarkerInspection = Readonly<{
   toolLikeMarkers: readonly string[];
 }>;
 
-export function collectNanoGptStreamMarkerInspection(visibleText: string): NanoGptStreamMarkerInspection {
+export function collectNanoGptStreamMarkerInspection(
+  visibleText: string,
+): NanoGptStreamMarkerInspection {
   const normalizedVisibleText = visibleText.toLowerCase();
   const reasoningMarkerNames = new Set<string>();
   let reasoningIsUnbalanced = false;
@@ -284,6 +296,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 5: Update `provider/stream-hooks.ts` to use `provider/inspection.ts`
 
 **Files:**
+
 - Modify: `provider/stream-hooks.ts`
 
 - [ ] **Step 1: Add import from inspection.ts**
@@ -331,6 +344,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 6: Update `provider/replay-hooks.ts` to use `provider/inspection.ts`
 
 **Files:**
+
 - Modify: `provider/replay-hooks.ts`
 - Read: `provider/replay-hooks.ts:217-258` (the reasoning marker counting portion)
 
@@ -347,6 +361,7 @@ import { collectNanoGptStreamMarkerInspection } from "./inspection.js";
 The `collectNanoGptReplayAssistantInspection` function contains its own inline implementation of reasoning marker inspection. This block computes `reasoningMarkerNames`, `reasoningIsUnbalanced`, `xmlLikeToolWrapperMarkers`, `functionCallMarkers`, and `toolLikeMarkers` — which is now in `collectNanoGptStreamMarkerInspection`.
 
 The call site in `collectNanoGptReplayAssistantInspection` looks like:
+
 ```ts
 const normalizedVisibleText = visibleText.toLowerCase();
 const reasoningMarkerNames = new Set<string>();
@@ -354,7 +369,10 @@ let reasoningIsUnbalanced = false;
 
 for (const tagPair of NANO_GPT_REASONING_TAG_PAIRS) {
   const openTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.open);
-  const closeTagCount = countNanoGptReplaySubstringOccurrences(normalizedVisibleText, tagPair.close);
+  const closeTagCount = countNanoGptReplaySubstringOccurrences(
+    normalizedVisibleText,
+    tagPair.close,
+  );
   if (openTagCount === 0 && closeTagCount === 0) {
     continue;
   }
@@ -375,6 +393,7 @@ const functionCallMarkers = NANO_GPT_FUNCTION_CALL_MARKERS.filter((marker) =>
 ```
 
 Replace this block with:
+
 ```ts
 const markerInspection = collectNanoGptStreamMarkerInspection(visibleText);
 const reasoningMarkerNames = markerInspection.reasoningMarkerNames;
@@ -409,6 +428,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 7: Create `runtime/subscription.ts`
 
 **Files:**
+
 - Create: `runtime/subscription.ts`
 - Read: `runtime/routing.ts:25-91` (subscription helpers to extract)
 - Read: `runtime/usage.ts:99-159` (identical helpers)
@@ -514,6 +534,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 8: Update `runtime/routing.ts`
 
 **Files:**
+
 - Modify: `runtime/routing.ts`
 
 - [ ] **Step 1: Add import from subscription.ts**
@@ -532,6 +553,7 @@ import {
 - [ ] **Step 2: Remove local definitions**
 
 Delete from `runtime/routing.ts`:
+
 - `NanoGptSubscriptionPayload` type (lines 17-23)
 - `resolveNanoGptSubscriptionState` function (lines 25-58)
 - `hasNanoGptFutureGracePeriod` function (lines 61-70)
@@ -560,6 +582,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 9: Update `runtime/usage.ts`
 
 **Files:**
+
 - Modify: `runtime/usage.ts`
 
 - [ ] **Step 1: Add import from subscription.ts**
@@ -579,6 +602,7 @@ Also import `NanoGptSubscriptionPayload` if needed — it's already defined in `
 - [ ] **Step 2: Remove local function definitions**
 
 Delete from `runtime/usage.ts`:
+
 - `resolveNanoGptSubscriptionState` function (lines 99-133)
 - `hasNanoGptFutureGracePeriod` function (lines 135-138)
 - `resolveNanoGptSubscriptionActive` function (lines 140-159)
@@ -607,6 +631,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ## Task 10: Fix `nanogpt-errors.ts` isRecord import
 
 **Files:**
+
 - Modify: `nanogpt-errors.ts`
 
 - [ ] **Step 1: Add import from shared/guards**

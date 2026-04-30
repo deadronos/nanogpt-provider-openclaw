@@ -33,7 +33,9 @@ describe("provider error hooks", () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("classified as rate_limit"));
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("model moonshotai/kimi-k2.5:thinking"));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("model moonshotai/kimi-k2.5:thinking"),
+    );
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("family=kimi"));
   });
 
@@ -78,7 +80,9 @@ describe("provider error hooks", () => {
     ).toBeUndefined();
 
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Unknown NanoGPT API error envelope"));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Unknown NanoGPT API error envelope"),
+    );
   });
 
   it("routes NanoGPT context length errors through the context overflow hook", () => {

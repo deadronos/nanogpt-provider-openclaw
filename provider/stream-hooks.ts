@@ -19,8 +19,10 @@ import {
 import { isRecord } from "../shared/guards.js";
 import {
   collectNanoGptStreamMarkerInspection,
+  collectNanoGptContentBlocksInspection,
   type NanoGptStreamMarkerInspection,
 } from "./inspection.js";
+
 import { parseObjectBridgeAssistantText } from "./bridge/object-parser.js";
 import { buildNanoGptBridgeRetrySystemMessage } from "./bridge/retry.js";
 import {
@@ -99,45 +101,21 @@ function collectNanoGptRequestToolMetadata(context: unknown): NanoGptRequestTool
   };
 }
 
-function collectNanoGptStreamContentInspection(finalMessage: unknown): NanoGptStreamContentInspection | null {
+function collectNanoGptStreamContentInspection(
+  finalMessage: unknown,
+): NanoGptStreamContentInspection | null {
   if (!isRecord(finalMessage) || !Array.isArray(finalMessage.content)) {
     return null;
   }
 
-  let visibleText = "";
-  let textBlockCount = 0;
-  let toolCallCount = 0;
-  let thinkingBlockCount = 0;
-
-  for (const contentBlock of finalMessage.content) {
-    if (!isRecord(contentBlock) || typeof contentBlock.type !== "string") {
-      continue;
-    }
-
-    if (contentBlock.type === "text") {
-      textBlockCount += 1;
-      if (typeof contentBlock.text === "string") {
-        visibleText += contentBlock.text;
-      }
-      continue;
-    }
-
-    if (contentBlock.type === "toolCall") {
-      toolCallCount += 1;
-      continue;
-    }
-
-    if (contentBlock.type === "thinking") {
-      thinkingBlockCount += 1;
-    }
-  }
+  const blocksInspection = collectNanoGptContentBlocksInspection(finalMessage.content);
 
   return {
-    visibleText,
-    visibleTextLength: visibleText.trim().length,
-    textBlockCount,
-    toolCallCount,
-    thinkingBlockCount,
+    visibleText: blocksInspection.visibleText,
+    visibleTextLength: blocksInspection.visibleText.trim().length,
+    textBlockCount: blocksInspection.textBlockCount,
+    toolCallCount: blocksInspection.toolCallCount,
+    thinkingBlockCount: blocksInspection.thinkingBlockCount,
   };
 }
 
@@ -161,7 +139,9 @@ function createNanoGptStreamAnomalyLogger(logger?: NanoGptPluginLogger) {
   return warnOnceLogger;
 }
 
-function buildNanoGptExpectedToolRequestShapeSummary(requestToolMetadata: NanoGptRequestToolMetadata) {
+function buildNanoGptExpectedToolRequestShapeSummary(
+  requestToolMetadata: NanoGptRequestToolMetadata,
+) {
   return buildNanoGptExpectedShapeSummary({
     headline: requestToolMetadata.toolEnabled ? "tool-enabled request" : "tool-free request",
     counts: {
@@ -227,7 +207,9 @@ function shouldWarnNanoGptToolEnabledTurnWithoutToolCall(params: {
   inspection: NanoGptStreamContentInspection;
   markerInspection: NanoGptStreamMarkerInspection;
 }): boolean {
-  return params.inspection.visibleTextLength === 0 || params.markerInspection.toolLikeMarkers.length > 0;
+  return (
+    params.inspection.visibleTextLength === 0 || params.markerInspection.toolLikeMarkers.length > 0
+  );
 }
 
 function scheduleNanoGptStreamResultWarnings(params: {
@@ -278,9 +260,10 @@ function scheduleNanoGptStreamResultWarnings(params: {
       }
 
       const markerInspection = collectNanoGptStreamMarkerInspection(inspection.visibleText);
-      const finishReason = isRecord(finalMessage) && typeof finalMessage.stopReason === "string"
-        ? finalMessage.stopReason
-        : undefined;
+      const finishReason =
+        isRecord(finalMessage) && typeof finalMessage.stopReason === "string"
+          ? finalMessage.stopReason
+          : undefined;
 
       if (
         params.requestToolMetadata.toolEnabled &&
@@ -507,7 +490,9 @@ function ensureIncludeUsageInStreamingPayload(
     return { requested: false };
   }
 
-  const existingStreamOptions = isRecord(payload.stream_options) ? payload.stream_options : undefined;
+  const existingStreamOptions = isRecord(payload.stream_options)
+    ? payload.stream_options
+    : undefined;
   const existingIncludeUsage = existingStreamOptions?.include_usage;
   if (existingIncludeUsage === true) {
     return { requested: true };
@@ -536,9 +521,7 @@ function hasParsedToolCalls(finalMessage: unknown): boolean {
   return Boolean(collectNanoGptStreamContentInspection(finalMessage)?.toolCallCount);
 }
 
-function resolveNanoGptBridgeProtocol(
-  config: NanoGptPluginConfig | undefined,
-): "object" | "xml" {
+function resolveNanoGptBridgeProtocol(config: NanoGptPluginConfig | undefined): "object" | "xml" {
   return config?.bridgeProtocol === "xml" ? "xml" : "object";
 }
 
@@ -549,7 +532,9 @@ function shouldApplyNanoGptBridge(
   return config?.bridgeMode === "always" && requestToolMetadata.toolEnabled;
 }
 
-function resolveNanoGptReplayStopReason(stopReason: AssistantMessage["stopReason"]): "stop" | "length" | "toolUse" {
+function resolveNanoGptReplayStopReason(
+  stopReason: AssistantMessage["stopReason"],
+): "stop" | "length" | "toolUse" {
   if (stopReason === "toolUse") {
     return "toolUse";
   }
@@ -637,7 +622,10 @@ function buildNanoGptBridgeFailureMessage(finalMessage: AssistantMessage): Assis
   };
 }
 
-function buildNanoGptBridgeToolCall(toolCall: { name: string; arguments: Record<string, unknown> }): ToolCall {
+function buildNanoGptBridgeToolCall(toolCall: {
+  name: string;
+  arguments: Record<string, unknown>;
+}): ToolCall {
   return {
     type: "toolCall",
     id: `call_${randomUUID().slice(0, 8)}`,
@@ -676,7 +664,9 @@ function rewriteNanoGptBridgeMessage(params: {
     return params.finalMessage;
   }
 
-  const content: AssistantMessage["content"] = params.finalMessage.content.filter((block) => block.type === "thinking");
+  const content: AssistantMessage["content"] = params.finalMessage.content.filter(
+    (block) => block.type === "thinking",
+  );
   if (parsed.content) {
     content.push({ type: "text", text: parsed.content });
   }
@@ -779,13 +769,17 @@ export function wrapNanoGptStreamFn(
     });
 
     const modelCompat = ctx.model?.compat;
-    const shouldForceIncludeUsage = !(isRecord(modelCompat) && modelCompat.supportsUsageInStreaming === false);
+    const shouldForceIncludeUsage = !(
+      isRecord(modelCompat) && modelCompat.supportsUsageInStreaming === false
+    );
 
     return async (model, context, options) => {
       let requestedIncludeUsage = false;
       const upstreamOnPayload = options?.onPayload;
       const requestToolMetadata = collectNanoGptRequestToolMetadata(context);
-      const requestTools = Array.isArray((context as any)?.tools) ? ((context as any).tools as AnyAgentTool[]) : [];
+      const requestTools = Array.isArray((context as any)?.tools)
+        ? ((context as any).tools as AnyAgentTool[])
+        : [];
       const bridgeEnabled = shouldApplyNanoGptBridge(resolvedConfig, requestToolMetadata);
       const bridgeProtocol = resolveNanoGptBridgeProtocol(resolvedConfig);
 
@@ -798,7 +792,10 @@ export function wrapNanoGptStreamFn(
                 ? ((await upstreamOnPayload(payload, payloadModel as never)) ?? payload)
                 : payload;
 
-            const ensured = ensureIncludeUsageInStreamingPayload(upstreamPayload, shouldForceIncludeUsage);
+            const ensured = ensureIncludeUsageInStreamingPayload(
+              upstreamPayload,
+              shouldForceIncludeUsage,
+            );
             if (ensured.requested) {
               requestedIncludeUsage = true;
             }
@@ -843,7 +840,9 @@ export function wrapNanoGptStreamFn(
             protocol: bridgeProtocol,
             tools: requestTools,
           });
-          stream = replayNanoGptAssistantMessage(rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage));
+          stream = replayNanoGptAssistantMessage(
+            rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage),
+          );
         } else if (rewrittenMessage !== finalMessage) {
           stream = replayNanoGptAssistantMessage(rewrittenMessage);
         } else {

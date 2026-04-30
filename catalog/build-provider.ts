@@ -7,10 +7,7 @@ import {
   resolveRequestBaseUrl,
 } from "../runtime/routing.js";
 import { discoverNanoGptModels } from "../runtime/discovery.js";
-import {
-  getNanoGptConfig,
-  resolveNanoGptRequestApi,
-} from "../runtime/config.js";
+import { getNanoGptConfig, resolveNanoGptRequestApi } from "../runtime/config.js";
 import { NANOGPT_PROVIDER_ID, type NanoGptPluginConfig } from "../models.js";
 
 export async function buildNanoGptProvider(params: {

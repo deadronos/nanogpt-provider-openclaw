@@ -37,11 +37,15 @@ const nanoGptModelsJsonCache = new Map<
 >();
 
 function resolveNanoGptModelsJsonCacheTtlMs(env?: Record<string, string | undefined>): number {
-  return parseFinitePositiveNumber(env?.[NANOGPT_MODELS_JSON_CACHE_TTL_ENV])
-    ?? DEFAULT_NANOGPT_MODELS_JSON_CACHE_TTL_MS;
+  return (
+    parseFinitePositiveNumber(env?.[NANOGPT_MODELS_JSON_CACHE_TTL_ENV]) ??
+    DEFAULT_NANOGPT_MODELS_JSON_CACHE_TTL_MS
+  );
 }
 
-function normalizeNanoGptCatalogInput(value: unknown): Array<"text" | "image" | "document"> | undefined {
+function normalizeNanoGptCatalogInput(
+  value: unknown,
+): Array<"text" | "image" | "document"> | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -129,9 +133,10 @@ export function readNanoGptModelsJsonSnapshot(
 
     const parsed = JSON.parse(fs.readFileSync(modelsPath, "utf8")) as unknown;
     const providers = isRecord(parsed) && isRecord(parsed.providers) ? parsed.providers : undefined;
-    const provider = providers && isRecord(providers[NANOGPT_PROVIDER_ID])
-      ? providers[NANOGPT_PROVIDER_ID]
-      : undefined;
+    const provider =
+      providers && isRecord(providers[NANOGPT_PROVIDER_ID])
+        ? providers[NANOGPT_PROVIDER_ID]
+        : undefined;
     const models = provider && Array.isArray(provider.models) ? provider.models : [];
 
     const catalogEntries: NanoGptCatalogEntry[] = [];

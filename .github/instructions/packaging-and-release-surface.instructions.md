@@ -10,6 +10,7 @@ applyTo:
   - "**/package-files.test.ts"
   - "**/install-preflight.test.ts"
 ---
+
 # Packaging and release surface
 
 - Treat the shipped package surface as a contract. If you change what should be installed or published, update `package.json` `files` and keep the staged output expectations in sync.

@@ -4,7 +4,10 @@ export function buildSseKeepaliveChunk(): Uint8Array {
   return new TextEncoder().encode(SSE_KEEPALIVE_CHUNK);
 }
 
-export function createKeepaliveTimer(callback: () => void, intervalMs = 15_000): {
+export function createKeepaliveTimer(
+  callback: () => void,
+  intervalMs = 15_000,
+): {
   start: () => void;
   stop: () => void;
 } {

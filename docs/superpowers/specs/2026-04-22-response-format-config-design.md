@@ -18,10 +18,10 @@ Add `responseFormat` to `NanoGptPluginConfig` to control whether the plugin inje
 responseFormat?: false | "json_object" | { type: "json_schema"; schema?: Record<string, unknown> }
 ```
 
-| Value | Injection |
-|-------|-----------|
-| `false` (default) | None |
-| `"json_object"` | `response_format: { type: "json_object" }` |
+| Value                             | Injection                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `false` (default)                 | None                                                                                                                                  |
+| `"json_object"`                   | `response_format: { type: "json_object" }`                                                                                            |
 | `{ type: "json_schema", schema }` | `response_format: { type: "json_schema", json_schema: { schema } }` — schema defaults to the first tool's parameter schema if omitted |
 
 ---
@@ -36,13 +36,13 @@ responseFormat?: false | "json_object" | { type: "json_schema"; schema?: Record<
 
 ## File Changes
 
-| File | Change |
-|------|--------|
-| `models.ts` | Add `responseFormat` to `NanoGptPluginConfig` interface |
-| `runtime/config.ts` | Read and validate `responseFormat` from plugin config |
-| `index.ts` | Pass `resolvedConfig.responseFormat` through to `wrapNanoGptStreamFn` |
-| `provider/stream-hooks.ts` | Guard injection behind config check; support all three modes |
-| `README.md` | Document new option under Text provider configuration |
+| File                       | Change                                                                |
+| -------------------------- | --------------------------------------------------------------------- |
+| `models.ts`                | Add `responseFormat` to `NanoGptPluginConfig` interface               |
+| `runtime/config.ts`        | Read and validate `responseFormat` from plugin config                 |
+| `index.ts`                 | Pass `resolvedConfig.responseFormat` through to `wrapNanoGptStreamFn` |
+| `provider/stream-hooks.ts` | Guard injection behind config check; support all three modes          |
+| `README.md`                | Document new option under Text provider configuration                 |
 
 ---
 

@@ -37,7 +37,9 @@ describe("buildNanoGptProvider", () => {
       "fetch",
       vi.fn(async () => ({
         ok: true,
-        json: async () => ({ data: [{ id: "moonshotai/kimi-k2.5:thinking", displayName: "Kimi K2.5 Thinking" }] }),
+        json: async () => ({
+          data: [{ id: "moonshotai/kimi-k2.5:thinking", displayName: "Kimi K2.5 Thinking" }],
+        }),
       })),
     );
 
@@ -410,7 +412,9 @@ describe("buildNanoGptProvider", () => {
 
     expect(provider.api).toBe("openai-responses");
     expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
-    expect(provider.models.map((model) => model.id)).toEqual(NANOGPT_FALLBACK_MODELS.map((model) => model.id));
+    expect(provider.models.map((model) => model.id)).toEqual(
+      NANOGPT_FALLBACK_MODELS.map((model) => model.id),
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

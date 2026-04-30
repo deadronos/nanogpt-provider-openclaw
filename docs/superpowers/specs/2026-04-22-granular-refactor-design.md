@@ -10,13 +10,13 @@ Refactor the NanoGPT provider plugin into smaller, single-responsibility files a
 
 ### Files in scope (high-priority candidates)
 
-| File | Lines | Concern |
-|------|-------|---------|
-| `provider/replay-hooks.ts` | 812 | Replay policy, sanitation, validation |
-| `provider/stream-hooks.ts` | 644 | Stream response hooks, anomaly detection |
-| `runtime/routing.ts` | 202 | Routing logic, subscription probing |
-| `runtime/usage.ts` | 226 | Usage snapshot fetching and parsing |
-| `nanogpt-errors.ts` | 458 | Error shaping and parsing |
+| File                       | Lines | Concern                                  |
+| -------------------------- | ----- | ---------------------------------------- |
+| `provider/replay-hooks.ts` | 812   | Replay policy, sanitation, validation    |
+| `provider/stream-hooks.ts` | 644   | Stream response hooks, anomaly detection |
+| `runtime/routing.ts`       | 202   | Routing logic, subscription probing      |
+| `runtime/usage.ts`         | 226   | Usage snapshot fetching and parsing      |
+| `nanogpt-errors.ts`        | 458   | Error shaping and parsing                |
 
 ### Out of scope for this pass
 
@@ -32,11 +32,13 @@ Refactor the NanoGPT provider plugin into smaller, single-responsibility files a
 **Duplicated across:** `provider/replay-hooks.ts` and `provider/stream-hooks.ts`
 
 Constants:
+
 - `NANO_GPT_REASONING_TAG_PAIRS`
 - `NANO_GPT_XML_LIKE_TOOL_WRAPPER_MARKERS`
 - `NANO_GPT_FUNCTION_CALL_MARKERS`
 
 Helpers:
+
 - `countNanoGptSubstringOccurrences` (identical in both files)
 
 **Resolution:** Extract into `provider/markers.ts`
@@ -59,6 +61,7 @@ Both `provider/replay-hooks.ts` and `provider/stream-hooks.ts` import from `prov
 **Duplicated across:** `provider/replay-hooks.ts` and `provider/stream-hooks.ts`
 
 Both files have near-identical `collect*MarkerInspection` functions that:
+
 - scan visible text for reasoning tag pairs and check balance
 - filter for XML-like tool wrapper markers
 - filter for function-call markers

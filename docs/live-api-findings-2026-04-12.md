@@ -25,10 +25,10 @@ Key findings:
 
 ### Catalog discovery
 
-| Endpoint | Result | Notes |
-| --- | ---: | --- |
-| `GET https://nano-gpt.com/api/v1/models?detailed=true` | `200` | Returned ~276 models; included `moonshotai/kimi-k2.5:thinking` |
-| `GET https://nano-gpt.com/api/subscription/v1/models?detailed=true` | `200` | Returned ~276 models; included `moonshotai/kimi-k2.5:thinking` |
+| Endpoint                                                            | Result | Notes                                                          |
+| ------------------------------------------------------------------- | -----: | -------------------------------------------------------------- |
+| `GET https://nano-gpt.com/api/v1/models?detailed=true`              |  `200` | Returned ~276 models; included `moonshotai/kimi-k2.5:thinking` |
+| `GET https://nano-gpt.com/api/subscription/v1/models?detailed=true` |  `200` | Returned ~276 models; included `moonshotai/kimi-k2.5:thinking` |
 
 Observed catalog facts:
 
@@ -38,12 +38,12 @@ Observed catalog facts:
 
 ### Inference endpoints
 
-| Endpoint | Transport | Result | Notes |
-| --- | --- | ---: | --- |
-| `POST https://nano-gpt.com/api/v1/chat/completions` | Chat Completions | `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
-| `POST https://nano-gpt.com/api/subscription/v1/chat/completions` | Chat Completions | `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
-| `POST https://nano-gpt.com/api/v1/responses` | Responses | `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
-| `POST https://nano-gpt.com/api/subscription/v1/responses` | Responses | `404` | Returned non-JSON HTML body |
+| Endpoint                                                         | Transport        | Result | Notes                                    |
+| ---------------------------------------------------------------- | ---------------- | -----: | ---------------------------------------- |
+| `POST https://nano-gpt.com/api/v1/chat/completions`              | Chat Completions |  `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
+| `POST https://nano-gpt.com/api/subscription/v1/chat/completions` | Chat Completions |  `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
+| `POST https://nano-gpt.com/api/v1/responses`                     | Responses        |  `200` | Accepted `moonshotai/kimi-k2.5:thinking` |
+| `POST https://nano-gpt.com/api/subscription/v1/responses`        | Responses        |  `404` | Returned non-JSON HTML body              |
 
 ### Responses API nuance
 

@@ -51,7 +51,7 @@ function decodeJsonStyleEscapes(value: string): string {
       index += 1;
       continue;
     }
-    if (next === "\\" || next === "\"" || next === "/") {
+    if (next === "\\" || next === '"' || next === "/") {
       decoded += next;
       index += 1;
       continue;
@@ -97,7 +97,14 @@ function parseXmlAttributes(raw: string): Record<string, string> {
 
 function extractToolBlocks(text: string, tools: readonly AnyAgentTool[] | undefined) {
   const normalizedTools = normalizeNanoGptBridgeTools(tools);
-  const matches: Array<{ toolName: string; toolArgNames: string[]; fullMatch: string; toolBody: string; start: number; end: number }> = [];
+  const matches: Array<{
+    toolName: string;
+    toolArgNames: string[];
+    fullMatch: string;
+    toolBody: string;
+    start: number;
+    end: number;
+  }> = [];
 
   for (const tool of normalizedTools) {
     const escaped = tool.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -118,7 +125,9 @@ function extractToolBlocks(text: string, tools: readonly AnyAgentTool[] | undefi
   return matches.sort((left, right) => left.start - right.start);
 }
 
-function buildToolCallFromBlock(block: ReturnType<typeof extractToolBlocks>[number]): NanoGptBridgeToolCall {
+function buildToolCallFromBlock(
+  block: ReturnType<typeof extractToolBlocks>[number],
+): NanoGptBridgeToolCall {
   const attrs = parseXmlAttributes(block.fullMatch.match(/^<[^>]+>/)?.[0] ?? "");
   const args: Record<string, unknown> = {};
   const childRegex = /<([A-Za-z_][\w.-]*)(?:\s+[^>]*)?>([\s\S]*?)<\/\1\s*>/g;
@@ -131,8 +140,16 @@ function buildToolCallFromBlock(block: ReturnType<typeof extractToolBlocks>[numb
       args[key] = normalizeStringArgValue(block.toolName, key, value);
     }
   }
-  if (Object.keys(args).length === 0 && block.toolArgNames.length === 1 && block.toolBody.length > 0) {
-    args[block.toolArgNames[0]] = normalizeStringArgValue(block.toolName, block.toolArgNames[0], block.toolBody);
+  if (
+    Object.keys(args).length === 0 &&
+    block.toolArgNames.length === 1 &&
+    block.toolBody.length > 0
+  ) {
+    args[block.toolArgNames[0]] = normalizeStringArgValue(
+      block.toolName,
+      block.toolArgNames[0],
+      block.toolBody,
+    );
   }
   return { name: block.toolName, arguments: args };
 }
@@ -232,7 +249,10 @@ export class StreamingXmlParser {
       this.buffer += char;
       const activeName = this.activeTool?.name;
       if (activeName && this.buffer.endsWith(`</${activeName}>`)) {
-        const parsed = parseXmlBridgeAssistantText(this.buffer, this.activeTool ? [this.activeTool] : []);
+        const parsed = parseXmlBridgeAssistantText(
+          this.buffer,
+          this.activeTool ? [this.activeTool] : [],
+        );
         if (parsed.kind === "tool_calls" && parsed.toolCalls[0]) {
           this.completedCalls.push(parsed.toolCalls[0]);
           this.callbacks.onToolCall?.(parsed.toolCalls[0], this.toolIndex);

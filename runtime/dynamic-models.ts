@@ -1,7 +1,4 @@
-import {
-  NANOGPT_BASE_URL,
-  NANOGPT_DEFAULT_COST,
-} from "../models.js";
+import { NANOGPT_BASE_URL, NANOGPT_DEFAULT_COST } from "../models.js";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import type {
   ProviderResolveDynamicModelContext,
@@ -54,7 +51,8 @@ export function resolveNanoGptDynamicModel(
 
   const template = resolveNanoGptDynamicModelTemplate(modelId, ctx.providerConfig?.models);
   const reasoning = /:(thinking|reasoning)$/i.test(modelId) || template?.reasoning === true;
-  const input = Array.isArray(template?.input) && template.input.length > 0 ? [...template.input] : ["text"];
+  const input =
+    Array.isArray(template?.input) && template.input.length > 0 ? [...template.input] : ["text"];
   const compat = template?.compat ? { ...template.compat } : undefined;
   const supportsTools = compat?.supportsTools;
 

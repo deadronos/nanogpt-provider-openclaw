@@ -4,7 +4,10 @@ import type {
   ProviderRuntimeModel,
 } from "openclaw/plugin-sdk/plugin-entry";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
-import { readNanoGptModelsJsonSnapshot, type NanoGptCatalogEntry } from "../catalog/models-json-snapshot.js";
+import {
+  readNanoGptModelsJsonSnapshot,
+  type NanoGptCatalogEntry,
+} from "../catalog/models-json-snapshot.js";
 import { resolveNanoGptDynamicModel } from "../runtime/dynamic-models.js";
 import { NANOGPT_PROVIDER_ID } from "../models.js";
 
@@ -34,15 +37,18 @@ export function readNanoGptAugmentedCatalogEntries(params: {
   return mergeNanoGptCatalogEntries(
     readNanoGptModelsJsonSnapshot(params.agentDir, params.env).catalogEntries,
     readConfiguredProviderCatalogEntries({
-      config: params.config as import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig | undefined,
+      config: params.config as
+        | import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig
+        | undefined,
       providerId: NANOGPT_PROVIDER_ID,
     }),
   );
 }
 
-export function normalizeNanoGptResolvedModel(
-  ctx: { agentDir?: string; model: ProviderRuntimeModel },
-): ProviderRuntimeModel | undefined {
+export function normalizeNanoGptResolvedModel(ctx: {
+  agentDir?: string;
+  model: ProviderRuntimeModel;
+}): ProviderRuntimeModel | undefined {
   const definition = readNanoGptModelsJsonSnapshot(ctx.agentDir).modelDefinitions.get(ctx.model.id);
   if (!definition) {
     return undefined;
@@ -85,7 +91,9 @@ export function normalizeNanoGptResolvedModel(
 export function resolveNanoGptDynamicModelWithSnapshot(
   ctx: ProviderResolveDynamicModelContext & { env?: Record<string, string | undefined> },
 ): ProviderRuntimeModel | undefined {
-  const snapshotModels = [...readNanoGptModelsJsonSnapshot(ctx.agentDir, ctx.env).modelDefinitions.values()];
+  const snapshotModels = [
+    ...readNanoGptModelsJsonSnapshot(ctx.agentDir, ctx.env).modelDefinitions.values(),
+  ];
 
   return resolveNanoGptDynamicModel({
     ...ctx,

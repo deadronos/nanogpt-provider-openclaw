@@ -7,9 +7,7 @@ type NanoGptWebSearchResult = {
   description?: string;
 };
 
-function normalizeNanoGptWebSearchResult(
-  entry: NanoGptWebSearchResult,
-): {
+function normalizeNanoGptWebSearchResult(entry: NanoGptWebSearchResult): {
   title: string;
   url: string;
   snippet: string;

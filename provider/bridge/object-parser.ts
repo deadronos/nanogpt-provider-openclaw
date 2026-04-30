@@ -39,7 +39,11 @@ function contentValueToText(value: unknown): string {
         if (typeof item === "string") {
           return item;
         }
-        if (item && typeof item === "object" && typeof (item as Record<string, unknown>).text === "string") {
+        if (
+          item &&
+          typeof item === "object" &&
+          typeof (item as Record<string, unknown>).text === "string"
+        ) {
           return String((item as Record<string, unknown>).text);
         }
         return "";
@@ -71,7 +75,10 @@ function firstDefined(record: Record<string, unknown>, keys: string[]): unknown 
 }
 
 function canonicalizeToolName(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function buildKnownToolNameMaps(tools: readonly AnyAgentTool[] | undefined): {
@@ -99,7 +106,10 @@ function buildKnownToolNameMaps(tools: readonly AnyAgentTool[] | undefined): {
   return { exact, canonical };
 }
 
-function resolveKnownToolName(name: string, knownToolMaps: ReturnType<typeof buildKnownToolNameMaps>): string {
+function resolveKnownToolName(
+  name: string,
+  knownToolMaps: ReturnType<typeof buildKnownToolNameMaps>,
+): string {
   const trimmed = name.trim();
   if (!trimmed) {
     return trimmed;
@@ -133,13 +143,19 @@ function normalizeToolArguments(value: unknown): Record<string, unknown> {
 
 function normalizeBridgeMode(mode: unknown, hasToolCalls: boolean): "tool" | "final" | "clarify" {
   const normalized = typeof mode === "string" ? mode.trim().toLowerCase() : "";
-  if (["tool", "tools", "tool_call", "tool_calls", "action", "actions", "call", "calls"].includes(normalized)) {
+  if (
+    ["tool", "tools", "tool_call", "tool_calls", "action", "actions", "call", "calls"].includes(
+      normalized,
+    )
+  ) {
     return "tool";
   }
   if (["clarify", "question", "ask", "needs_input", "input_required"].includes(normalized)) {
     return "clarify";
   }
-  if (["final", "done", "complete", "completed", "response", "answer", "stop"].includes(normalized)) {
+  if (
+    ["final", "done", "complete", "completed", "response", "answer", "stop"].includes(normalized)
+  ) {
     return "final";
   }
   return hasToolCalls ? "tool" : "final";
@@ -157,7 +173,13 @@ function normalizeToolCallsContainer(value: unknown): unknown[] {
     return value;
   }
   if (typeof value === "object") {
-    const nested = firstDefined(value as Record<string, unknown>, ["tool_calls", "toolCalls", "calls", "actions", "items"]);
+    const nested = firstDefined(value as Record<string, unknown>, [
+      "tool_calls",
+      "toolCalls",
+      "calls",
+      "actions",
+      "items",
+    ]);
     if (nested !== undefined && nested !== value) {
       return normalizeToolCallsContainer(nested);
     }
@@ -188,13 +210,24 @@ function normalizeBridgeTurnPayload(value: unknown, depth = 0): Record<string, u
   }
 
   const record = value as Record<string, unknown>;
-  for (const key of ["assistant", "response", "turn", "result", "output", "data", "payload", "bridge"]) {
+  for (const key of [
+    "assistant",
+    "response",
+    "turn",
+    "result",
+    "output",
+    "data",
+    "payload",
+    "bridge",
+  ]) {
     if (!Object.prototype.hasOwnProperty.call(record, key)) {
       continue;
     }
     const nested = normalizeBridgeTurnPayload(record[key], depth + 1);
     if (nested) {
-      const outerMessage = contentValueToText(firstDefined(record, ["message", "content", "text", "reply", "visible"])).trim();
+      const outerMessage = contentValueToText(
+        firstDefined(record, ["message", "content", "text", "reply", "visible"]),
+      ).trim();
       if (outerMessage && !nested.message) {
         nested.message = outerMessage;
       }
@@ -202,13 +235,18 @@ function normalizeBridgeTurnPayload(value: unknown, depth = 0): Record<string, u
     }
   }
 
-  const toolCalls = normalizeToolCallsContainer(firstDefined(record, ["tool_calls", "toolCalls", "tools", "calls", "actions"]));
-  const directToolLike = typeof record.name === "string" || !!(record.function && typeof record.function === "object");
+  const toolCalls = normalizeToolCallsContainer(
+    firstDefined(record, ["tool_calls", "toolCalls", "tools", "calls", "actions"]),
+  );
+  const directToolLike =
+    typeof record.name === "string" || !!(record.function && typeof record.function === "object");
   if (toolCalls.length === 0 && directToolLike) {
     toolCalls.push(record);
   }
 
-  const message = contentValueToText(firstDefined(record, ["message", "content", "text", "reply", "visible"])).trim();
+  const message = contentValueToText(
+    firstDefined(record, ["message", "content", "text", "reply", "visible"]),
+  ).trim();
   if (toolCalls.length === 0 && !message) {
     return null;
   }
@@ -344,7 +382,12 @@ function splitMalformedToolCallChunks(arrayText: string | null): string[] {
   for (let i = 0; i < starts.length; i += 1) {
     const start = starts[i];
     const end = i + 1 < starts.length ? starts[i + 1] : source.length;
-    const chunk = source.slice(start, end).trim().replace(/,\s*$/, "").replace(/\s*\]+\s*$/, "").trim();
+    const chunk = source
+      .slice(start, end)
+      .trim()
+      .replace(/,\s*$/, "")
+      .replace(/\s*\]+\s*$/, "")
+      .trim();
     if (chunk) {
       chunks.push(chunk);
     }
@@ -383,9 +426,10 @@ function normalizeObjectToolCall(
   }
 
   const record = candidate as Record<string, unknown>;
-  const fn = record.function && typeof record.function === "object" && !Array.isArray(record.function)
-    ? (record.function as Record<string, unknown>)
-    : null;
+  const fn =
+    record.function && typeof record.function === "object" && !Array.isArray(record.function)
+      ? (record.function as Record<string, unknown>)
+      : null;
   const rawName =
     firstDefined(record, ["name", "tool_name", "toolName", "tool", "call_name"]) ??
     (fn ? firstDefined(fn, ["name", "tool_name", "toolName"]) : undefined);
@@ -393,7 +437,24 @@ function normalizeObjectToolCall(
     return { ok: false, error: "Tool call name must be a non-empty string." };
   }
 
-  const skipKeys = new Set(["name", "tool_name", "toolName", "tool", "call_name", "arguments", "args", "parameters", "params", "input", "inputs", "payload", "data", "function", "type", "id"]);
+  const skipKeys = new Set([
+    "name",
+    "tool_name",
+    "toolName",
+    "tool",
+    "call_name",
+    "arguments",
+    "args",
+    "parameters",
+    "params",
+    "input",
+    "inputs",
+    "payload",
+    "data",
+    "function",
+    "type",
+    "id",
+  ]);
   const flatArgs: Record<string, unknown> = {};
   for (const [key, entryValue] of Object.entries(record)) {
     if (!skipKeys.has(key)) {
@@ -409,8 +470,28 @@ function normalizeObjectToolCall(
   }
 
   const argsSource =
-    firstDefined(record, ["arguments", "args", "parameters", "params", "input", "inputs", "payload", "data"]) ??
-    (fn ? firstDefined(fn, ["arguments", "args", "parameters", "params", "input", "inputs", "payload", "data"]) : undefined);
+    firstDefined(record, [
+      "arguments",
+      "args",
+      "parameters",
+      "params",
+      "input",
+      "inputs",
+      "payload",
+      "data",
+    ]) ??
+    (fn
+      ? firstDefined(fn, [
+          "arguments",
+          "args",
+          "parameters",
+          "params",
+          "input",
+          "inputs",
+          "payload",
+          "data",
+        ])
+      : undefined);
   const argsObject = normalizeToolArguments(argsSource);
   for (const [key, entryValue] of Object.entries(flatArgs)) {
     if (!Object.prototype.hasOwnProperty.call(argsObject, key)) {
@@ -466,7 +547,10 @@ function salvageMalformedToolTurn(
   source: string,
   knownToolMaps: ReturnType<typeof buildKnownToolNameMaps>,
 ): NanoGptBridgeParseResult | null {
-  const messageMatch = /"message"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:tool_calls|toolCalls|tools|calls|actions)"/i.exec(source);
+  const messageMatch =
+    /"message"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:tool_calls|toolCalls|tools|calls|actions)"/i.exec(
+      source,
+    );
   const content = messageMatch ? decodeLooseBridgeString(messageMatch[1]).trim() : "";
   const chunks = splitMalformedToolCallChunks(extractMalformedToolCallsText(source));
   const toolCalls = chunks
@@ -501,7 +585,12 @@ export function parseObjectBridgeAssistantText(
   }
 
   const parsed = tryParseJson(normalizedSource);
-  if (!parsed.ok || !parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+  if (
+    !parsed.ok ||
+    !parsed.value ||
+    typeof parsed.value !== "object" ||
+    Array.isArray(parsed.value)
+  ) {
     return (
       salvageMalformedToolTurn(text, knownToolMaps) ?? {
         kind: "invalid",
@@ -550,7 +639,10 @@ export function parseObjectBridgeAssistantText(
   };
 }
 
-export function tryReadJsonString(buffer: string, start: number): { end: number; value: string } | { error: string } | null {
+export function tryReadJsonString(
+  buffer: string,
+  start: number,
+): { end: number; value: string } | { error: string } | null {
   if (buffer[start] !== '"') {
     return { error: "expected_string" };
   }
@@ -588,7 +680,10 @@ export function tryReadJsonString(buffer: string, start: number): { end: number;
   return null;
 }
 
-export function tryReadJsonObject(buffer: string, start: number): { end: number; value: Record<string, unknown> } | { error: string } | null {
+export function tryReadJsonObject(
+  buffer: string,
+  start: number,
+): { end: number; value: Record<string, unknown> } | { error: string } | null {
   if (buffer[start] !== "{") {
     return { error: "expected_object" };
   }
@@ -617,7 +712,12 @@ export function tryReadJsonObject(buffer: string, start: number): { end: number;
       depth -= 1;
       if (depth === 0) {
         const parsed = tryParseJson(buffer.slice(start, index + 1));
-        if (!parsed.ok || !parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+        if (
+          !parsed.ok ||
+          !parsed.value ||
+          typeof parsed.value !== "object" ||
+          Array.isArray(parsed.value)
+        ) {
           return { error: "invalid_object" };
         }
         return { end: index + 1, value: parsed.value as Record<string, unknown> };
@@ -661,7 +761,10 @@ export class StreamingObjectParser {
     return this.buffer.indexOf(`"${key}"`, fromIndex);
   }
 
-  private findValueStartAfterKey(key: string, fromIndex = 0): { start: number } | { error: string } | null {
+  private findValueStartAfterKey(
+    key: string,
+    fromIndex = 0,
+  ): { start: number } | { error: string } | null {
     const keyStart = this.findKeyStart(key, fromIndex);
     if (keyStart < 0) {
       return null;

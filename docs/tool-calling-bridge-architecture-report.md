@@ -22,6 +22,7 @@ NanoGPT's native `tools`/`tool_choice` parameter support is notoriously unreliab
 - Inconsistent behavior across model families (GLM vs Kimi K2.5 vs Qwen)
 
 **NanoProxy** (nanogpt-community/NanoProxy, MIT license) was built to solve this by acting as a local proxy that:
+
 1. Intercepts tool-enabled requests
 2. Rewrites them into a stricter bridge protocol (JSON object or XML)
 3. Passes the bridge protocol to NanoGPT upstream
@@ -69,14 +70,14 @@ I will inspect the relevant files now.
 
 #### Key NanoProxy Behaviors
 
-| Behavior | Detail |
-|----------|--------|
-| Bridge activation | Only for tool-enabled requests; passthrough for non-tool requests |
-| Streaming | Preserves SSE streaming for visible content and reasoning; incrementally parses bridge output |
-| Retry | One automatic retry for the specific "empty turn" failure (no content + no tool call) |
-| Native fallback | `BRIDGE_MODELS=""` env var enables native-first mode with fallback to bridge |
-| Keepalive | Idle bridged SSE streams send comment frames to prevent client timeout |
-| Logging | Structured session logs; raw request/response artifacts on demand |
+| Behavior          | Detail                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Bridge activation | Only for tool-enabled requests; passthrough for non-tool requests                             |
+| Streaming         | Preserves SSE streaming for visible content and reasoning; incrementally parses bridge output |
+| Retry             | One automatic retry for the specific "empty turn" failure (no content + no tool call)         |
+| Native fallback   | `BRIDGE_MODELS=""` env var enables native-first mode with fallback to bridge                  |
+| Keepalive         | Idle bridged SSE streams send comment frames to prevent client timeout                        |
+| Logging           | Structured session logs; raw request/response artifacts on demand                             |
 
 #### Source Files (MIT Licensed)
 
@@ -146,23 +147,23 @@ The parser (`parseKimiTaggedToolCalls`) extracts these into structured `KimiTool
 
 #### Kimi Coding Tool-Call Tags
 
-| Tag | Meaning |
-|-----|---------|
-| `<|tool_calls_section_begin|>` | Start of tool-call section |
-| `<|tool_calls_section_end|>` | End of tool-call section |
-| `<|tool_call_begin>` | Start of individual tool call (name:id follows) |
-| `<|tool_call_argument_begin|>` | Start of JSON arguments |
-| `<|tool_call_end|>` | End of tool call |
+| Tag | Meaning                  |
+| --- | ------------------------ | ----------------------------------------------- | -------------------------- |
+| `<  | tool_calls_section_begin | >`                                              | Start of tool-call section |
+| `<  | tool_calls_section_end   | >`                                              | End of tool-call section   |
+| `<  | tool_call_begin>`        | Start of individual tool call (name:id follows) |
+| `<  | tool_call_argument_begin | >`                                              | Start of JSON arguments    |
+| `<  | tool_call_end            | >`                                              | End of tool call           |
 
 #### Key Differences from NanoProxy
 
-| Aspect | NanoProxy | kimi-coding |
-|--------|----------|-------------|
-| Scope | External proxy (separate process) | In-process via OpenClaw plugin hooks |
-| Protocol | JSON object bridge or XML | Kimi's native tagged markup format |
-| Request modification | Rewrites upstream request entirely | Injects `thinking` param only |
-| Response parsing | Incremental SSE parsing + retry | Stream message object rewriting |
-| Deployment | Standalone server + OpenCode plugin | OpenClaw built-in extension |
+| Aspect               | NanoProxy                           | kimi-coding                          |
+| -------------------- | ----------------------------------- | ------------------------------------ |
+| Scope                | External proxy (separate process)   | In-process via OpenClaw plugin hooks |
+| Protocol             | JSON object bridge or XML           | Kimi's native tagged markup format   |
+| Request modification | Rewrites upstream request entirely  | Injects `thinking` param only        |
+| Response parsing     | Incremental SSE parsing + retry     | Stream message object rewriting      |
+| Deployment           | Standalone server + OpenCode plugin | OpenClaw built-in extension          |
 
 ---
 
@@ -183,11 +184,13 @@ The `nanogpt-provider-openclaw` extension already has the hook infrastructure in
 4. Handles the empty-turn retry case
 
 **Signature:**
+
 ```typescript
-wrapStreamFn: (ctx: ProviderWrapStreamFnContext) => StreamFn | undefined
+wrapStreamFn: (ctx: ProviderWrapStreamFnContext) => StreamFn | undefined;
 ```
 
 **NanoProxy pattern to adapt:**
+
 - `StreamingObjectParser` from `src/object_bridge.js`
 - `buildBridgeResultFromObjectText()` — converts parsed bridge text to `tool_calls`
 - `buildSSEFromObjectBridge()` — builds SSE stream from bridge chunks
@@ -203,6 +206,7 @@ wrapStreamFn: (ctx: ProviderWrapStreamFnContext) => StreamFn | undefined
 `provider/tool-schema-hooks.ts` — could return an additional `systemMessage` contribution that injects the bridge protocol instructions.
 
 **NanoProxy pattern to adapt:**
+
 - `buildObjectBridgeSystemMessage()` from `src/object_bridge.js` — generates the system prompt instructing NanoGPT to emit bridge format
 
 ---
@@ -241,6 +245,7 @@ Implement `createNanoGptToolBridgeWrapper()` in `provider/stream-hooks.ts`:
 6. Wire into `wrapStreamFn` under the config flag
 
 **New files:**
+
 - `provider/bridge/object-bridge.ts` — adapted from NanoProxy's `object_bridge.js`
 - `provider/bridge/xml-bridge.ts` — adapted from NanoProxy's XML handling in `core.js`
 
@@ -251,6 +256,7 @@ Implement `buildNanoGptBridgeSystemMessage()` and call it from `normalizeToolSch
 ### Phase 3: Debug Logging (Low Effort)
 
 Mirror NanoProxy's structured logging:
+
 - Session log per run in `~/.openclaw/extensions/nanogpt/Logs/`
 - Raw request/response artifacts subdirectory
 - `NANOGPT_DEBUG=1` env var + `.debug-logging` flag file support
@@ -258,6 +264,7 @@ Mirror NanoProxy's structured logging:
 ### Phase 4: Self-Test Suite (Low Effort)
 
 Mirror NanoProxy's `selftest.js`:
+
 - `node --check` on all compiled output
 - API connectivity dry-run (`/models` endpoint)
 - Auth config validation
@@ -266,19 +273,19 @@ Mirror NanoProxy's `selftest.js`:
 
 ## Comparison Table
 
-| Feature | NanoProxy | kimi-coding | NanoGPT Bridge (Proposed) |
-|---------|-----------|-------------|--------------------------|
-| Runs in-process | ❌ (separate server) | ✅ | ✅ |
-| OpenClaw native | ❌ | ✅ | ✅ |
-| JSON object bridge | ✅ | ❌ | ✅ (adapt from NanoProxy) |
-| XML bridge | ✅ | ❌ | ✅ (adapt from NanoProxy) |
-| Tagged markup parsing | ❌ | ✅ | ❌ |
-| Incremental SSE parsing | ✅ | ✅ | ✅ |
-| Retry on empty turn | ✅ | ❌ | ✅ |
-| Native-first fallback | ✅ | N/A | ✅ |
-| Debug logging | ✅ | Limited | ✅ |
-| Self-test suite | ✅ | ❌ | ✅ |
-| Docker support | ✅ | N/A | Optional |
+| Feature                 | NanoProxy            | kimi-coding | NanoGPT Bridge (Proposed) |
+| ----------------------- | -------------------- | ----------- | ------------------------- |
+| Runs in-process         | ❌ (separate server) | ✅          | ✅                        |
+| OpenClaw native         | ❌                   | ✅          | ✅                        |
+| JSON object bridge      | ✅                   | ❌          | ✅ (adapt from NanoProxy) |
+| XML bridge              | ✅                   | ❌          | ✅ (adapt from NanoProxy) |
+| Tagged markup parsing   | ❌                   | ✅          | ❌                        |
+| Incremental SSE parsing | ✅                   | ✅          | ✅                        |
+| Retry on empty turn     | ✅                   | ❌          | ✅                        |
+| Native-first fallback   | ✅                   | N/A         | ✅                        |
+| Debug logging           | ✅                   | Limited     | ✅                        |
+| Self-test suite         | ✅                   | ❌          | ✅                        |
+| Docker support          | ✅                   | N/A         | Optional                  |
 
 ---
 
@@ -297,6 +304,7 @@ NanoProxy is MIT licensed. The following components can be studied and adapted:
 ## Files Referenced
 
 ### NanoProxy (External)
+
 - `src/core.js` — Bridge decision logic, XML bridge, SSE parsing utilities
 - `src/object_bridge.js` — Object bridge protocol, system message builder, streaming parser
 - `src/plugin.mjs` — OpenCode plugin entry, fetch patch, retry logic
@@ -304,10 +312,12 @@ NanoProxy is MIT licensed. The following components can be studied and adapted:
 - `selftest.js` — Self-test suite
 
 ### kimi-coding (OpenClaw Built-in)
+
 - `extensions/kimi-coding/index.ts` — Plugin entry, `wrapKimiProviderStream`
 - `extensions/kimi-coding/stream.ts` — `createKimiToolCallMarkupWrapper`, `createKimiThinkingWrapper`
 
 ### nanogpt-provider-openclaw (This Extension)
+
 - `index.ts` — Plugin entry, hook registration
 - `provider/tool-schema-hooks.ts` — `normalizeToolSchemas`, `inspectToolSchemas`
 - `provider/stream-hooks.ts` — `wrapNanoGptStreamFn` (currently pass-through)
@@ -322,6 +332,6 @@ The recommended approach is to start with Phase 1: implement the bridge stream w
 
 ---
 
-*Report generated by Nova 🦊 — Research Agent*  
-*Extension: nanogpt-provider-openclaw*  
-*OpenClaw repo: ~/Github/openclaw*
+_Report generated by Nova 🦊 — Research Agent_
+_Extension: nanogpt-provider-openclaw_
+_OpenClaw repo: ~/Github/openclaw_

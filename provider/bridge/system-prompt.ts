@@ -24,7 +24,10 @@ function buildObjectToolManifest(normalizedTools: readonly NanoGptBridgeTool[]) 
 }
 
 function canonicalizeToolName(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function toolExists(normalizedTools: readonly NanoGptBridgeTool[], name: string): boolean {
@@ -75,7 +78,9 @@ function buildXmlExampleForTool(tool: NanoGptBridgeTool, index: number, introTex
 }
 
 function selectToolsForBatchedExample(tools: readonly NanoGptBridgeTool[]): NanoGptBridgeTool[] {
-  const lightweight = tools.filter((tool) => /read|glob|grep|search|find|list|ls|fetch|web|open/i.test(tool.name));
+  const lightweight = tools.filter((tool) =>
+    /read|glob|grep|search|find|list|ls|fetch|web|open/i.test(tool.name),
+  );
   if (lightweight.length >= 2) {
     return lightweight.slice(0, 2);
   }
@@ -144,27 +149,41 @@ export function buildNanoGptObjectBridgeSystemMessage(
       : '- Use mode "final" for a plain successful completion when no more tools are needed.',
     '- Prefer each tool call object to use "name" and an "arguments" object. Flattened argument fields are also accepted when needed.',
     parallelAllowed
-      ? '- You may batch multiple tool calls only when they are clearly independent. Keep batches sensible; do not try to complete an entire task in one oversized turn.'
+      ? "- You may batch multiple tool calls only when they are clearly independent. Keep batches sensible; do not try to complete an entire task in one oversized turn."
       : '- Emit exactly one tool call when mode is "tool".',
     "",
     "Examples:",
-    JSON.stringify({
-      v: 1,
-      mode: "tool",
-      message: "I will inspect the file now.",
-      tool_calls: exampleTool
-        ? [{ name: exampleTool.name, arguments: exampleArgs }]
-        : [{ name: "read", arguments: { path: "example" } }],
-    }, null, 2),
+    JSON.stringify(
+      {
+        v: 1,
+        mode: "tool",
+        message: "I will inspect the file now.",
+        tool_calls: exampleTool
+          ? [{ name: exampleTool.name, arguments: exampleArgs }]
+          : [{ name: "read", arguments: { path: "example" } }],
+      },
+      null,
+      2,
+    ),
     completionToolRequired
-      ? JSON.stringify({
-          v: 1,
-          mode: "tool",
-          message: "The task is complete. I will submit the final result now.",
-          tool_calls: [{ name: "attempt_completion", arguments: { result: "Done. The task is complete." } }],
-        }, null, 2)
+      ? JSON.stringify(
+          {
+            v: 1,
+            mode: "tool",
+            message: "The task is complete. I will submit the final result now.",
+            tool_calls: [
+              { name: "attempt_completion", arguments: { result: "Done. The task is complete." } },
+            ],
+          },
+          null,
+          2,
+        )
       : JSON.stringify({ v: 1, mode: "final", message: "Done. The task is complete." }, null, 2),
-    JSON.stringify({ v: 1, mode: "clarify", message: "Which file do you want me to update?" }, null, 2),
+    JSON.stringify(
+      { v: 1, mode: "clarify", message: "Which file do you want me to update?" },
+      null,
+      2,
+    ),
     "",
     "Tool manifest:",
     manifest,
@@ -186,7 +205,10 @@ export function buildNanoGptXmlBridgeSystemMessage(
   if (normalizedTools.length > 0) {
     let exampleIndex = 1;
     if (parallelAllowed && normalizedTools.length >= 2) {
-      examples += buildBatchedXmlExample(selectToolsForBatchedExample(normalizedTools), exampleIndex++);
+      examples += buildBatchedXmlExample(
+        selectToolsForBatchedExample(normalizedTools),
+        exampleIndex++,
+      );
     }
     for (const tool of normalizedTools.slice(0, Math.min(3, normalizedTools.length))) {
       examples += buildXmlExampleForTool(tool, exampleIndex++, `I will use ${tool.name} now.`);

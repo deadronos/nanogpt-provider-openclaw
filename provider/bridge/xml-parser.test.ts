@@ -17,7 +17,9 @@ describe("xml bridge parser", () => {
   ] as any;
 
   it("extracts tool calls and open text", () => {
-    expect(parseXmlBridgeAssistantText("<open>reading</open><read><path>a.js</path></read>", tools)).toMatchObject({
+    expect(
+      parseXmlBridgeAssistantText("<open>reading</open><read><path>a.js</path></read>", tools),
+    ).toMatchObject({
       kind: "tool_calls",
       content: "reading",
       toolCalls: [{ name: "read", arguments: { path: "a.js" } }],

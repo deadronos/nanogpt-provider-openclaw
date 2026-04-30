@@ -29,24 +29,26 @@ When the model was instructed to explain first, then call a tool, the non-stream
 
 ```json
 {
-  "choices": [{
-    "message": {
-      "role": "assistant",
-      "content": "I will use the `read` function to access the contents...",
-      "reasoning": "Okay, the user wants me to read the file...",
-      "tool_calls": [
-        {
-          "id": "call_588ba06c052c437ca34696",
-          "type": "function",
-          "function": {
-            "name": "read",
-            "arguments": " {\"path\": \"/tmp/test.txt\"}"
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "I will use the `read` function to access the contents...",
+        "reasoning": "Okay, the user wants me to read the file...",
+        "tool_calls": [
+          {
+            "id": "call_588ba06c052c437ca34696",
+            "type": "function",
+            "function": {
+              "name": "read",
+              "arguments": " {\"path\": \"/tmp/test.txt\"}"
+            }
           }
-        }
-      ]
-    },
-    "finish_reason": "tool_calls"
-  }]
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
 }
 ```
 
@@ -99,6 +101,7 @@ This is a separate field from `content`. OpenClaw's `buildAssistantMessage` may 
 ### Issue 2: Content Before Tool Calls
 
 When the model was instructed to "explain what you're going to do first, then do it", the response had:
+
 - `content`: "I will use the read function..."
 - `tool_calls`: structured tool call
 - `finish_reason`: "tool_calls"
@@ -108,6 +111,7 @@ If OpenClaw processes `content` first and considers the turn "done", it may not 
 ### Issue 3: XML-Style Tool Calls Not Observed
 
 During testing, we did **not** observe Qwen outputting tool calls as:
+
 - `<tool_call>...</tool_call>` XML tags
 - `<invoke>...</invoke>` tags
 - `<tools>...</tools>` tags
@@ -115,9 +119,11 @@ During testing, we did **not** observe Qwen outputting tool calls as:
 All observed responses were properly structured JSON in `tool_calls`.
 
 However, issue #60601 from the OpenClaw repo describes cases where Qwen 2.5 Coder via llama.cpp outputs:
+
 - `<tools>{"name": "read", "arguments": {...}}</tools>` (wrong wrapper tag)
 
 This suggests the format may vary by:
+
 - Model variant (Qwen 2.5 Coder vs Qwen 3)
 - Backend (llama.cpp vs NanoGPT's API)
 

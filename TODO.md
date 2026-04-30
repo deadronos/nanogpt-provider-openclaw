@@ -5,6 +5,7 @@
 **What's deprecated:** `providerAuthEnvVars` in the plugin manifest. The warning tells us to mirror the env-var declarations into `setup.providers[].envVars` instead.
 
 **What the current manifest has:**
+
 ```json
 "providerAuthEnvVars": {
   "nanogpt": ["NANOGPT_API_KEY"]

@@ -41,7 +41,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
       if (
         rf === false ||
         rf === "json_object" ||
-        (typeof rf === "object" && rf !== null && (rf as Record<string, unknown>).type === "json_schema")
+        (typeof rf === "object" &&
+          rf !== null &&
+          (rf as Record<string, unknown>).type === "json_schema")
       ) {
         return { responseFormat: rf as NanoGptResponseFormat };
       }

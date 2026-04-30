@@ -79,7 +79,12 @@ function createWrappedStream(params: {
     const message = messages[Math.min(streamCallIndex, messages.length - 1)];
     streamCallIndex += 1;
     const stream = createAssistantMessageEventStream();
-    const reason = message.stopReason === "length" ? "length" : message.stopReason === "toolUse" ? "toolUse" : "stop";
+    const reason =
+      message.stopReason === "length"
+        ? "length"
+        : message.stopReason === "toolUse"
+          ? "toolUse"
+          : "stop";
     stream.push({ type: "done", reason, message });
     stream.end(message);
     return stream;
@@ -171,8 +176,12 @@ describe("nanoGPT stream hooks", () => {
 
     const messages = extractWarnMessages(warn);
     expect(messages).toHaveLength(2);
-    expect(messages.some((message) => message.includes("tool_enabled_turn_without_tool_call"))).toBe(true);
-    expect(messages.some((message) => message.includes("tool_enabled_turn_with_empty_visible_output"))).toBe(true);
+    expect(
+      messages.some((message) => message.includes("tool_enabled_turn_without_tool_call")),
+    ).toBe(true);
+    expect(
+      messages.some((message) => message.includes("tool_enabled_turn_with_empty_visible_output")),
+    ).toBe(true);
   });
 
   it("does not warn tool-enabled plain-text turns without tool-like output", async () => {
@@ -277,11 +286,23 @@ describe("nanoGPT stream hooks", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const messages = extractWarnMessages(warn);
-    expect(messages.some((message) => message.includes("tool_enabled_turn_without_tool_call"))).toBe(true);
-    expect(messages.some((message) => message.includes("tool_enabled_turn_with_tool_like_text"))).toBe(true);
-    expect(messages.some((message) => message.includes("visible_output_contains_reasoning_tags"))).toBe(true);
-    expect(messages.some((message) => message.includes("visible_output_contains_xml_like_tool_wrappers"))).toBe(true);
-    expect(messages.some((message) => message.includes("visible_output_contains_function_call_markers"))).toBe(true);
+    expect(
+      messages.some((message) => message.includes("tool_enabled_turn_without_tool_call")),
+    ).toBe(true);
+    expect(
+      messages.some((message) => message.includes("tool_enabled_turn_with_tool_like_text")),
+    ).toBe(true);
+    expect(
+      messages.some((message) => message.includes("visible_output_contains_reasoning_tags")),
+    ).toBe(true);
+    expect(
+      messages.some((message) =>
+        message.includes("visible_output_contains_xml_like_tool_wrappers"),
+      ),
+    ).toBe(true);
+    expect(
+      messages.some((message) => message.includes("visible_output_contains_function_call_markers")),
+    ).toBe(true);
     expect(messages.some((message) => message.includes(`model=${MODEL_ID}`))).toBe(true);
     expect(messages.some((message) => message.includes("family=kimi"))).toBe(true);
     expect(messages.some((message) => message.includes("plan"))).toBe(false);
@@ -373,12 +394,16 @@ describe("nanoGPT stream hooks", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(observedPayloads[0]).toEqual({ stream: true });
-    expect(extractWarnMessages(logger.warn).some((message) => message.includes("tool_enabled_turn_without_tool_call"))).toBe(
-      true,
-    );
-    expect(extractWarnMessages(logger.warn).some((message) => message.includes("requested stream_options.include_usage"))).toBe(
-      false,
-    );
+    expect(
+      extractWarnMessages(logger.warn).some((message) =>
+        message.includes("tool_enabled_turn_without_tool_call"),
+      ),
+    ).toBe(true);
+    expect(
+      extractWarnMessages(logger.warn).some((message) =>
+        message.includes("requested stream_options.include_usage"),
+      ),
+    ).toBe(false);
   });
 
   it("deduplicates identical anomaly warnings across requests that share the same logger", async () => {
@@ -418,8 +443,12 @@ describe("nanoGPT stream hooks", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const messages = extractWarnMessages(logger.warn);
-    expect(messages.filter((message) => message.includes("tool_enabled_turn_without_tool_call"))).toHaveLength(1);
-    expect(messages.filter((message) => message.includes("tool_enabled_turn_with_empty_visible_output"))).toHaveLength(1);
+    expect(
+      messages.filter((message) => message.includes("tool_enabled_turn_without_tool_call")),
+    ).toHaveLength(1);
+    expect(
+      messages.filter((message) => message.includes("tool_enabled_turn_with_empty_visible_output")),
+    ).toHaveLength(1);
     expect(messages).toHaveLength(2);
   });
 
@@ -439,15 +468,23 @@ describe("nanoGPT stream hooks", () => {
     await wrapped?.(
       {} as any,
       {
-        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: { type: "object", properties: { path: { type: "string" } } },
+          },
+        ],
       } as any,
       {},
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const payloadMessages = (observedPayloads[0] as Record<string, unknown>).messages as Array<Record<string, unknown>>;
-    expect(payloadMessages[0]?.content).toContain("\"v\"");
-    expect(payloadMessages[0]?.content).toContain("\"tool_calls\"");
+    const payloadMessages = (observedPayloads[0] as Record<string, unknown>).messages as Array<
+      Record<string, unknown>
+    >;
+    expect(payloadMessages[0]?.content).toContain('"v"');
+    expect(payloadMessages[0]?.content).toContain('"tool_calls"');
   });
 
   it("rewrites object bridge content into parsed tool calls", async () => {
@@ -455,7 +492,7 @@ describe("nanoGPT stream hooks", () => {
       content: [
         {
           type: "text",
-          text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"I will inspect the file now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"src/index.ts\"}}]}",
+          text: '{"v":1,"mode":"tool","message":"I will inspect the file now.","tool_calls":[{"name":"read","arguments":{"path":"src/index.ts"}}]}',
         },
       ],
       usageEmpty: false,
@@ -469,7 +506,13 @@ describe("nanoGPT stream hooks", () => {
     const stream = await wrapped?.(
       {} as any,
       {
-        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: { type: "object", properties: { path: { type: "string" } } },
+          },
+        ],
       } as any,
       {},
     );
@@ -484,12 +527,17 @@ describe("nanoGPT stream hooks", () => {
 
   it("retries one invalid empty bridged turn", async () => {
     const invalidMessage = buildAssistantMessage({
-      content: [{ type: "text", text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"\",\"tool_calls\":[]}" }],
+      content: [{ type: "text", text: '{"v":1,"mode":"tool","message":"","tool_calls":[]}' }],
       usageEmpty: false,
       stopReason: "stop",
     });
     const retryMessage = buildAssistantMessage({
-      content: [{ type: "text", text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"Retrying now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"retry.ts\"}}]}" }],
+      content: [
+        {
+          type: "text",
+          text: '{"v":1,"mode":"tool","message":"Retrying now.","tool_calls":[{"name":"read","arguments":{"path":"retry.ts"}}]}',
+        },
+      ],
       usageEmpty: false,
       stopReason: "stop",
     });
@@ -504,23 +552,40 @@ describe("nanoGPT stream hooks", () => {
     const stream = await wrapped?.(
       {} as any,
       {
-        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: { type: "object", properties: { path: { type: "string" } } },
+          },
+        ],
       } as any,
       {},
     );
     const result = await stream?.result();
 
     expect(baseStreamFn).toHaveBeenCalledTimes(2);
-    expect(((observedPayloads[1] as Record<string, unknown>).messages as Array<Record<string, string>>).at(-1)?.content).toContain(
-      "invalid because it contained no visible content or tool call",
-    );
+    expect(
+      (
+        (observedPayloads[1] as Record<string, unknown>).messages as Array<Record<string, string>>
+      ).at(-1)?.content,
+    ).toContain("invalid because it contained no visible content or tool call");
     expect(result?.stopReason).toBe("toolUse");
-    expect(result?.content[1]).toMatchObject({ type: "toolCall", name: "read", arguments: { path: "retry.ts" } });
+    expect(result?.content[1]).toMatchObject({
+      type: "toolCall",
+      name: "read",
+      arguments: { path: "retry.ts" },
+    });
   });
 
   it("supports the xml bridge protocol", async () => {
     const message = buildAssistantMessage({
-      content: [{ type: "text", text: "<open>I will inspect the file now.</open><read><path>src/index.ts</path></read>" }],
+      content: [
+        {
+          type: "text",
+          text: "<open>I will inspect the file now.</open><read><path>src/index.ts</path></read>",
+        },
+      ],
       usageEmpty: false,
       stopReason: "stop",
     });
@@ -532,7 +597,13 @@ describe("nanoGPT stream hooks", () => {
     const stream = await wrapped?.(
       {} as any,
       {
-        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: { type: "object", properties: { path: { type: "string" } } },
+          },
+        ],
       } as any,
       {},
     );

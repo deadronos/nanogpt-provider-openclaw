@@ -8,7 +8,11 @@ import type {
 } from "openclaw/plugin-sdk/plugin-entry";
 import { buildOpenAICompatibleReplayPolicy } from "openclaw/plugin-sdk/provider-model-shared";
 import { isRecord } from "../shared/guards.js";
-import { collectNanoGptStreamMarkerInspection } from "./inspection.js";
+import {
+  collectNanoGptStreamMarkerInspection,
+  collectNanoGptContentBlocksInspection,
+} from "./inspection.js";
+
 import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
@@ -73,10 +77,7 @@ type NanoGptReplayWarningContext = Readonly<{
   replayRoles?: readonly string[];
 }>;
 
-const NANO_GPT_REPLAY_WARNING_LOGGER_CACHE = new WeakMap<
-  NanoGptWarnLogger,
-  NanoGptReplayWarnFn
->();
+const NANO_GPT_REPLAY_WARNING_LOGGER_CACHE = new WeakMap<NanoGptWarnLogger, NanoGptReplayWarnFn>();
 
 function normalizeNanoGptReplayText(value: string | undefined): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
@@ -98,7 +99,9 @@ function isNanoGptToolResultReplayMessage(message: unknown): message is {
   return isRecord(message) && message.role === "toolResult";
 }
 
-function createNanoGptReplayAnomalyLogger(logger?: NanoGptWarnLogger): NanoGptReplayWarnFn | undefined {
+function createNanoGptReplayAnomalyLogger(
+  logger?: NanoGptWarnLogger,
+): NanoGptReplayWarnFn | undefined {
   if (!logger?.warn) {
     return undefined;
   }
@@ -125,68 +128,49 @@ function collectNanoGptReplayAssistantInspection(
     return null;
   }
 
-  let visibleText = "";
-  let textBlockCount = 0;
-  let thinkingBlockCount = 0;
-  let toolCallCount = 0;
   let missingToolCallIdCount = 0;
   let duplicateToolCallIdCount = 0;
   const toolCalls: NanoGptReplayAssistantToolCall[] = [];
   const toolCallIds = new Set<string>();
   const toolCallNames = new Set<string>();
 
+  const blocksInspection = collectNanoGptContentBlocksInspection(message.content);
+
   for (const contentBlock of message.content) {
-    if (!isRecord(contentBlock) || typeof contentBlock.type !== "string") {
+    if (!isRecord(contentBlock) || contentBlock.type !== "toolCall") {
       continue;
     }
 
-    if (contentBlock.type === "text") {
-      textBlockCount += 1;
-      if (typeof contentBlock.text === "string") {
-        visibleText += contentBlock.text;
-      }
-      continue;
+    const id = typeof contentBlock.id === "string" ? contentBlock.id.trim() : "";
+    const name = typeof contentBlock.name === "string" ? contentBlock.name.trim() : "";
+
+    if (id.length === 0) {
+      missingToolCallIdCount += 1;
+    } else if (toolCallIds.has(id)) {
+      duplicateToolCallIdCount += 1;
+    } else {
+      toolCallIds.add(id);
     }
 
-    if (contentBlock.type === "thinking") {
-      thinkingBlockCount += 1;
-      continue;
+    if (name.length > 0) {
+      toolCallNames.add(name);
     }
 
-    if (contentBlock.type === "toolCall") {
-      toolCallCount += 1;
-
-      const id = typeof contentBlock.id === "string" ? contentBlock.id.trim() : "";
-      const name = typeof contentBlock.name === "string" ? contentBlock.name.trim() : "";
-
-      if (id.length === 0) {
-        missingToolCallIdCount += 1;
-      } else if (toolCallIds.has(id)) {
-        duplicateToolCallIdCount += 1;
-      } else {
-        toolCallIds.add(id);
-      }
-
-      if (name.length > 0) {
-        toolCallNames.add(name);
-      }
-
-      toolCalls.push({
-        id,
-        name,
-        missingId: id.length === 0,
-      });
-    }
+    toolCalls.push({
+      id,
+      name,
+      missingId: id.length === 0,
+    });
   }
 
-  const markerInspection = collectNanoGptStreamMarkerInspection(visibleText);
+  const markerInspection = collectNanoGptStreamMarkerInspection(blocksInspection.visibleText);
 
   return {
-    visibleText,
-    visibleTextLength: normalizeNanoGptReplayText(visibleText)?.length ?? 0,
-    textBlockCount,
-    thinkingBlockCount,
-    toolCallCount,
+    visibleText: blocksInspection.visibleText,
+    visibleTextLength: normalizeNanoGptReplayText(blocksInspection.visibleText)?.length ?? 0,
+    textBlockCount: blocksInspection.textBlockCount,
+    thinkingBlockCount: blocksInspection.thinkingBlockCount,
+    toolCallCount: blocksInspection.toolCallCount,
     toolCalls,
     toolCallNames: [...toolCallNames],
     reasoningMarkerNames: markerInspection.reasoningMarkerNames,
@@ -217,7 +201,9 @@ function collectNanoGptReplayToolResultInspection(
   };
 }
 
-function resolveNanoGptReplayTransportApi(context: ProviderReplayPolicyContext): string | undefined {
+function resolveNanoGptReplayTransportApi(
+  context: ProviderReplayPolicyContext,
+): string | undefined {
   const transportApi = context.modelApi ?? context.model?.api;
   if (typeof transportApi !== "string") {
     return undefined;
@@ -599,14 +585,19 @@ export function validateReplayTurns(
             pendingToolCalls: 0,
             missingToolCallIds: toolResultInspection.missingToolCallId ? 1 : 0,
           },
-          observedToolNames: toolResultInspection.toolName ? [toolResultInspection.toolName] : undefined,
+          observedToolNames: toolResultInspection.toolName
+            ? [toolResultInspection.toolName]
+            : undefined,
         });
         return;
       }
 
-      const matchingIndex = toolResultInspection.toolCallId.length > 0
-        ? pendingToolCalls.findIndex((toolCall) => toolCall.id === toolResultInspection.toolCallId)
-        : -1;
+      const matchingIndex =
+        toolResultInspection.toolCallId.length > 0
+          ? pendingToolCalls.findIndex(
+              (toolCall) => toolCall.id === toolResultInspection.toolCallId,
+            )
+          : -1;
 
       if (matchingIndex > 0) {
         const matchedToolCall = pendingToolCalls.splice(matchingIndex, 1)[0];
@@ -626,7 +617,10 @@ export function validateReplayTurns(
           observedToolNames: matchedToolCall.name ? [matchedToolCall.name] : undefined,
         });
 
-        if (toolResultInspection.toolName.length > 0 && matchedToolCall.name !== toolResultInspection.toolName) {
+        if (
+          toolResultInspection.toolName.length > 0 &&
+          matchedToolCall.name !== toolResultInspection.toolName
+        ) {
           emitNanoGptReplayToolStateWarning({
             warnNanoGptAnomaly,
             modelId,
@@ -657,12 +651,20 @@ export function validateReplayTurns(
       };
       let hasToolStateMismatch = false;
 
-      if (toolResultInspection.toolCallId.length > 0 && expectedToolCall.id.length > 0 && toolResultInspection.toolCallId !== expectedToolCall.id) {
+      if (
+        toolResultInspection.toolCallId.length > 0 &&
+        expectedToolCall.id.length > 0 &&
+        toolResultInspection.toolCallId !== expectedToolCall.id
+      ) {
         counts.mismatchedToolCallIds = 1;
         hasToolStateMismatch = true;
       }
 
-      if (toolResultInspection.toolName.length > 0 && expectedToolCall.name.length > 0 && toolResultInspection.toolName !== expectedToolCall.name) {
+      if (
+        toolResultInspection.toolName.length > 0 &&
+        expectedToolCall.name.length > 0 &&
+        toolResultInspection.toolName !== expectedToolCall.name
+      ) {
         counts.mismatchedToolNames = 1;
         hasToolStateMismatch = true;
       }
@@ -702,7 +704,11 @@ export function validateReplayTurns(
         modelFamily,
         transportApi,
         turnIndex,
-        roles: [typeof (message as { role?: unknown }).role === "string" ? String((message as { role: string }).role) : "unknown"],
+        roles: [
+          typeof (message as { role?: unknown }).role === "string"
+            ? String((message as { role: string }).role)
+            : "unknown",
+        ],
         note: "non-tool replay turn appeared while tool results were still pending",
         observedCounts: {
           pendingToolCalls: pendingToolCalls.length,
@@ -724,7 +730,9 @@ export function validateReplayTurns(
       observedCounts: {
         pendingToolCalls: pendingToolCalls.length,
       },
-      observedToolNames: pendingToolCalls.map((toolCall) => toolCall.name).filter((toolName) => toolName.length > 0),
+      observedToolNames: pendingToolCalls
+        .map((toolCall) => toolCall.name)
+        .filter((toolName) => toolName.length > 0),
     });
   }
 

@@ -14,8 +14,12 @@ async function main() {
   // Register the provider manually using the plugin's register API.
   const providers: unknown[] = [];
   const mockLogger = {
-    warn: (message: string, _meta?: Record<string, unknown>) => { console.warn(message); },
-    info: (message: string, _meta?: Record<string, unknown>) => { console.log(message); },
+    warn: (message: string, _meta?: Record<string, unknown>) => {
+      console.warn(message);
+    },
+    info: (message: string, _meta?: Record<string, unknown>) => {
+      console.log(message);
+    },
   };
 
   plugin.register({
@@ -54,7 +58,7 @@ async function main() {
       if (typeof options?.onPayload === "function") {
         capturedPayloadRef.current = await options.onPayload(
           { stream: true, model: "test", messages: [{ role: "user", content: "test" }] },
-          {}
+          {},
         );
       }
       // Return a minimal stream-like object.
@@ -85,10 +89,20 @@ async function main() {
     const stream = await wrapped(
       { api: "openai-completions" },
       {
-        tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } }],
+        tools: [
+          {
+            name: "read",
+            description: "Read a file",
+            parameters: {
+              type: "object",
+              properties: { path: { type: "string" } },
+              required: ["path"],
+            },
+          },
+        ],
         messages: [{ role: "user", content: "read a file" }],
       },
-      {}
+      {},
     );
     await stream?.result();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -121,7 +135,7 @@ async function main() {
     const stream = await wrapped(
       { api: "openai-completions" },
       { messages: [{ role: "user", content: "hello" }] },
-      {}
+      {},
     );
     await stream?.result();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -152,7 +166,7 @@ async function main() {
             messages: [{ role: "user", content: "test" }],
             response_format: { type: "user_provided" },
           },
-          {}
+          {},
         );
       }
       return {
@@ -178,7 +192,7 @@ async function main() {
         tools: [{ name: "read", parameters: {} }],
         messages: [{ role: "user", content: "test" }],
       },
-      {}
+      {},
     );
     await stream?.result();
     await new Promise((resolve) => setTimeout(resolve, 0));

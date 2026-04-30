@@ -151,27 +151,25 @@ export function getRegisteredProviderHarness(overrideConfig: Record<string, unkn
   const warn = vi.fn();
   const info = vi.fn();
 
-  plugin.register(
-    {
-      pluginConfig: { enableRepair: false, ...overrideConfig },
-      runtime: {
-        logging: {
-          shouldLogVerbose() {
-            return false;
-          },
+  plugin.register({
+    pluginConfig: { enableRepair: false, ...overrideConfig },
+    runtime: {
+      logging: {
+        shouldLogVerbose() {
+          return false;
         },
       },
-      logger: {
-        warn,
-        info,
-      },
-      registerProvider(provider: unknown) {
-        providers.push(provider);
-      },
-      registerWebSearchProvider() {},
-      registerImageGenerationProvider() {},
-    } as never,
-  );
+    },
+    logger: {
+      warn,
+      info,
+    },
+    registerProvider(provider: unknown) {
+      providers.push(provider);
+    },
+    registerWebSearchProvider() {},
+    registerImageGenerationProvider() {},
+  } as never);
 
   return {
     warn,

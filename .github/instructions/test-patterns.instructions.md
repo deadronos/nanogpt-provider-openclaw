@@ -3,6 +3,7 @@ description: "Use when creating or editing Vitest tests in this repository. Cove
 name: "Test Patterns"
 applyTo: "**/*.test.ts"
 ---
+
 # Test patterns
 
 - Follow the existing Vitest style: focused `describe`/`it` coverage with tests placed beside the owning source module.

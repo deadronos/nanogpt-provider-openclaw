@@ -11,12 +11,7 @@ export const NANOGPT_DEFAULT_MODEL_ID = "gpt-5.4-mini";
 export const NANOGPT_DEFAULT_MODEL_REF = `${NANOGPT_PROVIDER_ID}/${NANOGPT_DEFAULT_MODEL_ID}`;
 
 export type NanoGptRoutingMode = "auto" | "subscription" | "paygo";
-export type NanoGptCatalogSource =
-  | "auto"
-  | "canonical"
-  | "subscription"
-  | "paid"
-  | "personalized";
+export type NanoGptCatalogSource = "auto" | "canonical" | "subscription" | "paid" | "personalized";
 
 export interface NanoGptRepairConfig {
   kimiRepair?: boolean;
@@ -91,7 +86,7 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
     name: "GPT-5.4 Mini",
     reasoning: true,
     input: ["text", "image"],
-    cost: { input: 0.15, output: 0.60, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 0.15, output: 0.6, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 32768,
   },
@@ -100,7 +95,7 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
     name: "GPT-5.4",
     reasoning: true,
     input: ["text", "image"],
-    cost: { input: 2.50, output: 10.00, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 2.5, output: 10.0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 32768,
   },
@@ -109,7 +104,7 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
     name: "Claude Sonnet 4.6",
     reasoning: true,
     input: ["text", "image"],
-    cost: { input: 3.00, output: 15.00, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 3.0, output: 15.0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 32768,
   },
@@ -130,7 +125,9 @@ function isNonNegativeNumber(value: unknown): value is number {
 function normalizeNanoGptComparableModelId(id: string): string {
   const normalized = id.trim().toLowerCase();
   const providerPrefix = `${NANOGPT_PROVIDER_ID}/`;
-  return normalized.startsWith(providerPrefix) ? normalized.slice(providerPrefix.length) : normalized;
+  return normalized.startsWith(providerPrefix)
+    ? normalized.slice(providerPrefix.length)
+    : normalized;
 }
 
 export function resolveNanoGptAgentDir(
@@ -155,8 +152,7 @@ export function resolveNanoGptAgentDir(
     return path.join(stateDir, "agents", "default", "agent");
   }
 
-  const homeDir =
-    resolvedEnv.OPENCLAW_HOME?.trim() || resolvedEnv.HOME?.trim() || os.homedir();
+  const homeDir = resolvedEnv.OPENCLAW_HOME?.trim() || resolvedEnv.HOME?.trim() || os.homedir();
   return homeDir ? path.join(homeDir, ".openclaw", "agents", "default", "agent") : undefined;
 }
 
@@ -165,7 +161,12 @@ export function shouldAliasNanoGptWebFetchTool(modelId: string): boolean {
 }
 
 function resolveNanoGptPricingUnit(pricing: NanoGptModelPricing): string {
-  return pricing.unit ?? (pricing.inputPer1kTokens !== undefined || pricing.outputPer1kTokens !== undefined ? "per_1k_tokens" : "per_million_tokens");
+  return (
+    pricing.unit ??
+    (pricing.inputPer1kTokens !== undefined || pricing.outputPer1kTokens !== undefined
+      ? "per_1k_tokens"
+      : "per_million_tokens")
+  );
 }
 
 function resolveNanoGptPricePerMillion(params: {
@@ -174,8 +175,8 @@ function resolveNanoGptPricePerMillion(params: {
 }): number | undefined {
   const value =
     params.kind === "input"
-      ? params.pricing.inputPer1kTokens ?? params.pricing.prompt
-      : params.pricing.outputPer1kTokens ?? params.pricing.completion;
+      ? (params.pricing.inputPer1kTokens ?? params.pricing.prompt)
+      : (params.pricing.outputPer1kTokens ?? params.pricing.completion);
   if (!isNonNegativeNumber(value)) {
     return undefined;
   }
@@ -183,7 +184,9 @@ function resolveNanoGptPricePerMillion(params: {
   return resolveNanoGptPricingUnit(params.pricing) === "per_1k_tokens" ? value * 1000 : value;
 }
 
-export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefinitionConfig | null {
+export function buildNanoGptModelDefinition(
+  entry: NanoGptModelEntry,
+): ModelDefinitionConfig | null {
   const id = String(entry.canonicalId ?? entry.id ?? "").trim();
   if (!id) {
     return null;

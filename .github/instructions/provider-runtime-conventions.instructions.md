@@ -12,6 +12,7 @@ applyTo:
   - "image-generation-provider.ts"
   - "onboard.ts"
 ---
+
 # Provider runtime conventions
 
 - Keep module boundaries clear:

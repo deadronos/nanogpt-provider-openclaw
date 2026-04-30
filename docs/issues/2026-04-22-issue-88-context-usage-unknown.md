@@ -54,7 +54,7 @@ This repo currently does not add a NanoGPT-specific SSE parser or a post-hoc usa
 
 ## What to check to confirm the root cause
 
-1) Inspect the generated provider snapshot:
+1. Inspect the generated provider snapshot:
 
 - `<agentDir>/models.json` (see `models.ts` → `resolveNanoGptAgentDir(...)` for how `agentDir` is inferred)
 
@@ -63,9 +63,9 @@ Verify for the `nanogpt` provider:
 - `api` is `openai-completions` (vs `openai-responses`)
 - the model entry for `openai/gpt-5.4-mini` does **not** set `compat.supportsUsageInStreaming: false`
 
-2) If `api` is `openai-responses`, confirm whether OpenClaw is emitting usage for Responses streaming at all, and whether NanoGPT forwards it.
+2. If `api` is `openai-responses`, confirm whether OpenClaw is emitting usage for Responses streaming at all, and whether NanoGPT forwards it.
 
-3) If `api` is `openai-completions` and `supportsUsageInStreaming` is true, capture one raw streamed response and check whether any SSE chunk contains a `usage` object.
+3. If `api` is `openai-completions` and `supportsUsageInStreaming` is true, capture one raw streamed response and check whether any SSE chunk contains a `usage` object.
 
 ## Notes / likely next steps
 

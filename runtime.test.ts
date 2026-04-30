@@ -97,7 +97,9 @@ describe("discoverNanoGptModels", () => {
     ]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe("https://nano-gpt.com/api/v1/models?detailed=true");
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      "https://nano-gpt.com/api/v1/models?detailed=true",
+    );
     expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
       headers: {
         Authorization: "Bearer test-key",

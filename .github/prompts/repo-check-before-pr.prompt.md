@@ -4,6 +4,7 @@ name: "Repo Check Before PR"
 argument-hint: "Optional focus area or changed files"
 agent: "agent"
 ---
+
 Review the current repository state before opening a pull request.
 
 Use the repo guidance in [`AGENTS.md`](../../AGENTS.md) and inspect the current uncommitted and committed changes in this branch.

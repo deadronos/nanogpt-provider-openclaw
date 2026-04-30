@@ -11,7 +11,7 @@ describe.skipIf(!process.env.NANOGPT_API_KEY)("NanoGPT Integration Tests", () =>
 
     expect(Array.isArray(models)).toBe(true);
     expect(models.length).toBeGreaterThan(0);
-    
+
     // Validate shape
     expect(models[0]).toHaveProperty("id");
     expect(models[0]).toHaveProperty("cost");

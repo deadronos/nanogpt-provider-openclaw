@@ -82,12 +82,8 @@ Create `package.json` with the initial package metadata and scripts:
     "@types/node": "^24.6.0"
   },
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "providers": [
-      "nanogpt"
-    ],
+    "extensions": ["./index.ts"],
+    "providers": ["nanogpt"],
     "compat": {
       "pluginApi": ">=2026.3.24-beta.2",
       "minGatewayVersion": "2026.3.24-beta.2"
@@ -276,16 +272,11 @@ export const NANOGPT_FALLBACK_MODELS: ModelDefinitionConfig[] = [
     cost: NANOGPT_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 32768,
-  }
+  },
 ];
 
 export type NanoGptRoutingMode = "auto" | "subscription" | "paygo";
-export type NanoGptCatalogSource =
-  | "auto"
-  | "canonical"
-  | "subscription"
-  | "paid"
-  | "personalized";
+export type NanoGptCatalogSource = "auto" | "canonical" | "subscription" | "paid" | "personalized";
 
 export interface NanoGptPluginConfig {
   routingMode?: NanoGptRoutingMode;
@@ -315,7 +306,9 @@ function toPerMillion(value: number | undefined): number {
   return value * 1000;
 }
 
-export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefinitionConfig | null {
+export function buildNanoGptModelDefinition(
+  entry: NanoGptModelEntry,
+): ModelDefinitionConfig | null {
   const id = String(entry.canonicalId ?? entry.id ?? "").trim();
   if (!id) {
     return null;
@@ -336,8 +329,7 @@ export function buildNanoGptModelDefinition(entry: NanoGptModelEntry): ModelDefi
       typeof entry.contextWindow === "number" && entry.contextWindow > 0
         ? entry.contextWindow
         : 200000,
-    maxTokens:
-      typeof entry.maxTokens === "number" && entry.maxTokens > 0 ? entry.maxTokens : 32768,
+    maxTokens: typeof entry.maxTokens === "number" && entry.maxTokens > 0 ? entry.maxTokens : 32768,
   };
 }
 ```
@@ -850,7 +842,10 @@ describe("runtime helpers", () => {
   });
 
   it("falls back to paygo when the subscription probe fails", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 500 })),
+    );
 
     await expect(
       resolveNanoGptRoutingMode({
@@ -880,7 +875,10 @@ describe("runtime helpers", () => {
   });
 
   it("falls back to static models when discovery fails", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 503 })),
+    );
 
     const models = await discoverNanoGptModels({
       apiKey: "test-key",
@@ -1008,7 +1006,7 @@ Expected:
 
 Create `README.md`:
 
-```md
+````md
 # NanoGPT Provider for OpenClaw
 
 NanoGPT provider plugin for OpenClaw with API-key auth, dynamic model discovery,
@@ -1019,6 +1017,7 @@ and automatic subscription or pay-as-you-go routing.
 ```bash
 openclaw plugins install @deadronos/openclaw-nanogpt-provider
 ```
+````
 
 ## Auth
 
@@ -1045,11 +1044,11 @@ openclaw onboard --nanogpt-api-key your_key_here
         config: {
           routingMode: "auto",
           catalogSource: "auto",
-          provider: "openrouter"
-        }
-      }
-    }
-  }
+          provider: "openrouter",
+        },
+      },
+    },
+  },
 }
 ```
 
@@ -1058,7 +1057,8 @@ openclaw onboard --nanogpt-api-key your_key_here
 - `routingMode`: `auto`, `subscription`, `paygo`
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `provider`: optional NanoGPT upstream provider id
-```
+
+````
 
 - [ ] **Step 23: Run the full local verification pass**
 
@@ -1067,7 +1067,7 @@ Run:
 ```bash
 npm test
 npm run typecheck
-```
+````
 
 Expected:
 

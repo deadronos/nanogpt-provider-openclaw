@@ -1,7 +1,6 @@
 Investigate Qwen tool-call failure
 No tasks in progress
 
-
 <exec>du -sh /Users/openclaw/.openclaw/workspace-teleclaw /Users/openclaw/.openclaw/workspace-shared 2>&1</exec>
 
 https://github.com/openclaw/openclaw/pull/64214
@@ -15,7 +14,6 @@ our issue right now is the qwen model is that openclaw might not receiver the re
 please investigate
 5:38 PM
 
-
 Worked for 5m 11s
 Yes. #62874 is probably the closer upstream match than #64214.
 
@@ -26,14 +24,9 @@ One more useful comparison: the OpenClaw build installed in this repo still prom
 
 I also checked the plugin tests: npm test -- repair.test.ts index.test.ts passes, but there is no explicit coverage yet for the exact tool_calls: [] plus content-only Qwen case from #62874. If you want, I can make that the next repro and patch target.
 
-
-
-
-
 5:44 PM
 yes try to do mitigation around those new findings and tests
 5:46 PM
-
 
 Worked for 5m 37s
 Implemented a targeted Qwen mitigation without forcing global tool use.
@@ -43,10 +36,6 @@ In repair.ts (line 809) and repair.ts (line 1210), the wrapper now does two new 
 Regression coverage was added in repair.test.ts (line 750) for the new exec({...}) salvage path and for the Qwen retry now carrying toolChoice: "required" on the second attempt (repair.test.ts (line 804)).
 
 Verified with npm test and npm run typecheck. I didn’t run npm run build because the shipped package surface didn’t change.
-
-
-
-
 
 5:52 PM
 3 files changed
@@ -62,17 +51,12 @@ Model changed from GPT-5.4 to GPT-5.4-Mini.
 please also make the qwen path trigger logs to openclaw when it detects and rewrites stuff
 5:53 PM
 
-
 Worked for 2m 18s
 Qwen rewrites now emit structured OpenClaw info logs, not just silent salvage. The repair path logs when it salvages leaked assistant text into tool calls, sanitizes leaked Qwen text, rewrites a wrong stopReason, and forces the retry to toolChoice: "required" for the empty-tool_calls case. The core hooks are in repair.ts (line 580), repair.ts (line 1583), repair.ts (line 1743), and repair.ts (line 1852). I also noted the behavior in README.md (line 217).
 
 The regression tests now assert those Qwen log events too, including salvage, sanitization, retry forcing, and stop-reason normalization in repair.test.ts (line 748), repair.test.ts (line 856), repair.test.ts (line 913), and repair.test.ts (line 1127). npm test and npm run typecheck both passed.
 
 If you want, I can also add a tiny dedicated event name map so these Qwen rewrite logs are easier to grep in OpenClaw logs later.
-
-
-
-
 
 5:56 PM
 3 files changed
@@ -88,18 +72,12 @@ yes make it surface with our plugin name "nanogpt" and "qwen" and do that event 
 do the same logging improvement for our "kimi" and "glm" paths too please
 5:59 PM
 
-
-
 Worked for 4m 57s
-Implemented the logging rollout for the repair layer. The structured reliability logger in repair.ts (line 594) now stamps every repair artifact with plugin: "nanogpt" and family, and it routes events through a small family map so the emitted names are prefixed like nanogpt_qwen_*, nanogpt_kimi_*, and nanogpt_glm_* (repair.ts (line 604), repair.ts (line 619)). That now covers the Qwen/Kimi salvage, sanitization, stop-reason rewrite, retry, malformed-tool-call, and GLM semantic-diagnostic paths (repair.ts (line 662), repair.ts (line 835), repair.ts (line 1632), repair.ts (line 1755), repair.ts (line 1869), repair.ts (line 2058)).
+Implemented the logging rollout for the repair layer. The structured reliability logger in repair.ts (line 594) now stamps every repair artifact with plugin: "nanogpt" and family, and it routes events through a small family map so the emitted names are prefixed like nanogpt*qwen*_, nanogpt*kimi*_, and nanogpt*glm*\* (repair.ts (line 604), repair.ts (line 619)). That now covers the Qwen/Kimi salvage, sanitization, stop-reason rewrite, retry, malformed-tool-call, and GLM semantic-diagnostic paths (repair.ts (line 662), repair.ts (line 835), repair.ts (line 1632), repair.ts (line 1755), repair.ts (line 1869), repair.ts (line 2058)).
 
 The tests now assert the new log shape across Kimi, Qwen, and GLM cases, including the plugin/family fields and the prefixed event names (repair.test.ts (line 261), repair.test.ts (line 642), repair.test.ts (line 773), repair.test.ts (line 1693), repair.test.ts (line 1850)). I also updated the README logging notes to match the new event naming and envelope (README.md (line 217), README.md (line 366)).
 
 npm test and npm run typecheck both pass.
-
-
-
-
 
 6:04 PM
 3 files changed
@@ -112,9 +90,6 @@ README.md
 repair.test.ts
 repair.ts
 
-
-
-
 Full access
 
 GPT-5.4-Mini
@@ -122,6 +97,5 @@ GPT-5.4-Mini
 Extra High
 
 IDE context
-
 
 Work locally

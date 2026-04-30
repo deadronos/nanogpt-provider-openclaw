@@ -5,10 +5,7 @@ import {
   summarizeNanoGptFreeformMessage,
 } from "./anomaly-logger.js";
 import { detectNanoGptModelFamily } from "./anomaly-types.js";
-import {
-  formatNanoGptErrorSurfaceDetails,
-  inspectNanoGptErrorSurface,
-} from "../nanogpt-errors.js";
+import { formatNanoGptErrorSurfaceDetails, inspectNanoGptErrorSurface } from "../nanogpt-errors.js";
 import type { ProviderFailoverErrorContext } from "openclaw/plugin-sdk/plugin-entry";
 
 type FailoverReason =
@@ -88,8 +85,10 @@ export function createNanoGptWarnOnceLogger(params: {
 }): NanoGptErrorSurfaceWarnFn {
   return createNanoGptSharedWarnOnceLogger({
     logger: params.logger,
-    buildSignature: (warning) => buildNanoGptErrorSurfaceSignature(params.resolvedNanoGptConfig, warning),
-    formatMessage: (warning) => formatNanoGptErrorSurfaceWarning(params.resolvedNanoGptConfig, warning),
+    buildSignature: (warning) =>
+      buildNanoGptErrorSurfaceSignature(params.resolvedNanoGptConfig, warning),
+    formatMessage: (warning) =>
+      formatNanoGptErrorSurfaceWarning(params.resolvedNanoGptConfig, warning),
   });
 }
 

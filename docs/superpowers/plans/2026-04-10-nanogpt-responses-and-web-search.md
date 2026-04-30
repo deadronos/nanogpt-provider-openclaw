@@ -18,6 +18,7 @@
 ### Task 1: Add Responses-transport coverage
 
 **Files:**
+
 - Modify: `provider-catalog.test.ts`
 - Modify: `runtime.test.ts`
 - Modify: `models.ts`
@@ -60,7 +61,7 @@ export function resolveNanoGptRequestApi(
 Use the new helper in `provider-catalog.ts` so the returned provider config sets:
 
 ```ts
-api: resolveNanoGptRequestApi(config)
+api: resolveNanoGptRequestApi(config);
 ```
 
 - [ ] **Step 6: Add unit coverage for config parsing**
@@ -75,6 +76,7 @@ Expected: PASS
 ### Task 2: Register a NanoGPT web search provider
 
 **Files:**
+
 - Create: `web-search.ts`
 - Create: `web-search.test.ts`
 - Modify: `index.ts`
@@ -157,6 +159,7 @@ Expected: PASS
 ### Task 3: Add registration coverage
 
 **Files:**
+
 - Modify: `index.test.ts`
 
 - [ ] **Step 1: Write a registration test for the web search provider**
@@ -183,6 +186,7 @@ Expected: PASS
 ### Task 4: Verify the branch end-to-end
 
 **Files:**
+
 - Modify: `README.md` if needed
 
 - [ ] **Step 1: Run the full test suite**

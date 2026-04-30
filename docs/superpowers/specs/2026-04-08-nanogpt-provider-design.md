@@ -42,11 +42,11 @@ The plugin will expose a compact config surface under
         config: {
           routingMode: "auto",
           catalogSource: "auto",
-          provider: undefined
-        }
-      }
-    }
-  }
+          provider: undefined,
+        },
+      },
+    },
+  },
 }
 ```
 

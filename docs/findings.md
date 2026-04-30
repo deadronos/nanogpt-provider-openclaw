@@ -75,13 +75,13 @@ Exported for tests but has no `export type`. Standard pattern in this codebase t
 
 ## Summary
 
-| Area | Status |
-| ---- | ------ |
-| Tests | 23/23 passing |
-| TypeScript | Clean (`tsc --noEmit`) |
-| Architecture | Well-separated |
-| Error handling | Graceful fallbacks |
-| Config safety | Strict validation |
-| Missing | Integration tests, quota tracking |
+| Area           | Status                            |
+| -------------- | --------------------------------- |
+| Tests          | 23/23 passing                     |
+| TypeScript     | Clean (`tsc --noEmit`)            |
+| Architecture   | Well-separated                    |
+| Error handling | Graceful fallbacks                |
+| Config safety  | Strict validation                 |
+| Missing        | Integration tests, quota tracking |
 
 Solid plugin — production-ready for the declared features. The main gap is the lack of subscription quota tracking (documented as a limitation) and the zero-cost fallback models that could mislead on pricing.

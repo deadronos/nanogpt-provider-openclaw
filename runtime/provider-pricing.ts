@@ -1,7 +1,4 @@
-import {
-  applyNanoGptProviderPricing,
-  type NanoGptModelPricing,
-} from "../models.js";
+import { applyNanoGptProviderPricing, type NanoGptModelPricing } from "../models.js";
 import { isRecord } from "../shared/guards.js";
 import { sanitizeApiKey } from "../shared/http.js";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
@@ -47,7 +44,9 @@ function createDeferred<T>(): {
   return { promise, resolve };
 }
 
-function normalizeNanoGptProviderPricingEntry(entry: NanoGptProviderPricingEntry): NanoGptModelPricing | null {
+function normalizeNanoGptProviderPricingEntry(
+  entry: NanoGptProviderPricingEntry,
+): NanoGptModelPricing | null {
   return isRecord(entry.pricing) ? (entry.pricing as NanoGptModelPricing) : null;
 }
 

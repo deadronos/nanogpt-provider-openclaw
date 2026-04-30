@@ -27,20 +27,20 @@ Bottom line:
 
 ### End-to-end comparison
 
-| Path | Median TTFT | Median total latency | Notes |
-| --- | ---: | ---: | --- |
-| Direct NanoGPT streaming Chat Completions | 4.1s | 4.3s | `POST /api/subscription/v1/chat/completions` |
-| `openclaw infer model run --gateway` | 16.8s | 16.8s | same model, same prompt, no full agent loop |
-| `openclaw agent` | 32.6s | 32.7s | full agent path |
+| Path                                      | Median TTFT | Median total latency | Notes                                        |
+| ----------------------------------------- | ----------: | -------------------: | -------------------------------------------- |
+| Direct NanoGPT streaming Chat Completions |        4.1s |                 4.3s | `POST /api/subscription/v1/chat/completions` |
+| `openclaw infer model run --gateway`      |       16.8s |                16.8s | same model, same prompt, no full agent loop  |
+| `openclaw agent`                          |       32.6s |                32.7s | full agent path                              |
 
 ### Plugin cold-path HTTP calls
 
 These are the obvious up-front NanoGPT HTTP calls performed during provider construction for a subscription-active, completions-mode path:
 
-| Call | Median latency | Notes |
-| --- | ---: | --- |
-| `GET /api/subscription/v1/usage` | 106ms | subscription-state probe |
-| `GET /api/subscription/v1/models?detailed=true` | 386ms | model discovery |
+| Call                                            | Median latency | Notes                    |
+| ----------------------------------------------- | -------------: | ------------------------ |
+| `GET /api/subscription/v1/usage`                |          106ms | subscription-state probe |
+| `GET /api/subscription/v1/models?detailed=true` |          386ms | model discovery          |
 
 Combined, those measured calls are still only about **0.5s** at the median.
 
