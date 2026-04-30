@@ -55,4 +55,31 @@ describe("nanogpt logger", () => {
     vi.doUnmock("node:fs");
     vi.resetModules();
   });
+
+  it("falls back to a no-op logger when the log file cannot be created", async () => {
+    vi.resetModules();
+    vi.doMock("node:fs", async () => {
+      const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+      return {
+        ...actual,
+        createWriteStream: vi.fn(() => {
+          throw new Error("readonly file");
+        }),
+      };
+    });
+
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
+      "./nanogpt-logger.js"
+    );
+    const log = createLoggerWithFailingFs("readonly-file");
+
+    expect(() => {
+      log.info("test-info");
+      log.warn("test-warn");
+      log.error("test-error");
+    }).not.toThrow();
+
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+  });
 });
