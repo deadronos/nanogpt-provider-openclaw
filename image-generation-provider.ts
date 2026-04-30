@@ -143,8 +143,9 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
             response.status === 400 &&
             /unknown model|invalid model|model/i.test(detail)
           ) {
+            const safeDetail = detail.length > 200 ? `${detail.slice(0, 200)}...` : detail;
             throw new Error(
-              `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${detail}`,
+              `${buildUnsupportedModelGuidance(requestedModel)} NanoGPT said: ${safeDetail}`,
             );
           }
         }
