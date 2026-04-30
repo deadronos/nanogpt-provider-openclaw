@@ -161,6 +161,14 @@ describe("inspectNanoGptErrorSurface", () => {
       }),
     });
   });
+
+  it("gracefully falls back to null when JSON parsing fails on HTML-like payloads", () => {
+    expect(
+      inspectNanoGptErrorSurface(
+        "<html><body>Server Error { statusCode: 500 }</body></html>"
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("formatNanoGptErrorSurfaceDetails", () => {
