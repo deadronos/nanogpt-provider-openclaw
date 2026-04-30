@@ -330,6 +330,22 @@ describe("nanogpt image-generation provider", () => {
     expect(result).toBe(false);
   });
 
+  it("throws an error when API key is missing during generation", async () => {
+    resolveApiKeyForProviderMock.mockResolvedValue({ apiKey: undefined });
+
+    const provider = buildNanoGptImageGenerationProvider();
+
+    await expect(async () => {
+      await provider.generateImage({
+        provider: "nanogpt",
+        model: "hidream",
+        prompt: "draw a cat",
+        cfg: {},
+        count: 1,
+      });
+    }).rejects.toThrow("NanoGPT API key missing");
+  });
+
   it("honors req.timeoutMs when set", async () => {
     mockNanoGptApiKey();
 
