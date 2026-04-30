@@ -7,6 +7,7 @@ import {
   getRegisteredProvider,
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
+import type { NanoGptProviderRegistration } from "./provider/types.js";
 
 describe("nanogpt plugin entry", () => {
   it("exports the expected plugin metadata", () => {
@@ -17,7 +18,7 @@ describe("nanogpt plugin entry", () => {
   });
 
   it("registers both the model provider and the web search provider", () => {
-    const providers: unknown[] = [];
+    const providers: NanoGptProviderRegistration[] = [];
     const webSearchProviders: unknown[] = [];
     const imageProviders: unknown[] = [];
 
@@ -49,27 +50,14 @@ describe("nanogpt plugin entry", () => {
       id: "nanogpt",
       label: "NanoGPT",
     });
-    expect((providers[0] as { resolveUsageAuth?: unknown }).resolveUsageAuth).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { fetchUsageSnapshot?: unknown }).fetchUsageSnapshot).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { buildReplayPolicy?: unknown }).buildReplayPolicy).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { sanitizeReplayHistory?: unknown }).sanitizeReplayHistory).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { validateReplayTurns?: unknown }).validateReplayTurns).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { resolveReasoningOutputMode?: unknown }).resolveReasoningOutputMode).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { applyNativeStreamingUsageCompat?: unknown }).applyNativeStreamingUsageCompat).toEqual(
-      expect.any(Function),
-    );
+    const p = providers[0] as NanoGptProviderRegistration;
+    expect(p.resolveUsageAuth).toEqual(expect.any(Function));
+    expect(p.fetchUsageSnapshot).toEqual(expect.any(Function));
+    expect(p.buildReplayPolicy).toEqual(expect.any(Function));
+    expect(p.sanitizeReplayHistory).toEqual(expect.any(Function));
+    expect(p.validateReplayTurns).toEqual(expect.any(Function));
+    expect(p.resolveReasoningOutputMode).toEqual(expect.any(Function));
+    expect(p.applyNativeStreamingUsageCompat).toEqual(expect.any(Function));
   });
 
   it("registers replay and reasoning hooks on the model provider surface", () => {
@@ -87,23 +75,19 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const result = applyCompat?.({
-      providerConfig: {
-        api: "openai-completions",
-        baseUrl: "https://nano-gpt.com/api/subscription/v1",
-        models: [
-          {
-            id: "moonshotai/kimi-k2.5:thinking",
-            compat: { supportsDeveloperRole: false },
-          },
-          {
-            id: "gpt-5.4-mini",
-            compat: { supportsUsageInStreaming: false },
-          },
-        ],
-      },
-    }) as {
-      models: Array<{ compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean } }>;
-    } | null;
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      models: [
+        {
+          id: "moonshotai/kimi-k2.5:thinking",
+          compat: { supportsDeveloperRole: false },
+        },
+        {
+          id: "gpt-5.4-mini",
+          compat: { supportsUsageInStreaming: false },
+        },
+      ],
+    } as any);
 
     expect(result).toBeTruthy();
     expect(result?.models[0]?.compat).toEqual({
@@ -119,21 +103,19 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const result = applyCompat?.({
-      providerConfig: {
-        api: "openai-completions",
-        baseUrl: "https://nano-gpt.com/api/subscription/v1",
-        models: [
-          {
-            id: "moonshotai/kimi-k2.5:thinking",
-            compat: { supportsUsageInStreaming: true },
-          },
-          {
-            id: "gpt-5.4-mini",
-            compat: { supportsUsageInStreaming: false },
-          },
-        ],
-      },
-    });
+      api: "openai-completions",
+      baseUrl: "https://nano-gpt.com/api/subscription/v1",
+      models: [
+        {
+          id: "moonshotai/kimi-k2.5:thinking",
+          compat: { supportsUsageInStreaming: true },
+        },
+        {
+          id: "gpt-5.4-mini",
+          compat: { supportsUsageInStreaming: false },
+        },
+      ],
+    } as any);
 
     expect(result).toBeNull();
   });
@@ -144,23 +126,19 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const completionsResult = applyCompat?.({
-      providerConfig: {
-        api: "openai-completions",
-        baseUrl: "https://example.com/v1",
-        models: [{ id: "x" }],
-      },
-    });
+      api: "openai-completions",
+      baseUrl: "https://example.com/v1",
+      models: [{ id: "x" }],
+    } as any);
     expect(completionsResult).toMatchObject({
       models: [{ compat: { supportsUsageInStreaming: true } }],
     });
 
     const responsesApiResult = applyCompat?.({
-      providerConfig: {
-        api: "openai-responses",
-        baseUrl: "https://nano-gpt.com/api/v1",
-        models: [{ id: "x" }],
-      },
-    });
+      api: "openai-responses",
+      baseUrl: "https://nano-gpt.com/api/v1",
+      models: [{ id: "x" }],
+    } as any);
     expect(responsesApiResult).toBeNull();
   });
 
