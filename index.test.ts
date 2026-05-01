@@ -7,6 +7,7 @@ import {
   getRegisteredProvider,
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
+import type { NanoGptProviderRegistration } from "./provider/types.js";
 
 describe("nanogpt plugin entry", () => {
   it("exports the expected plugin metadata", () => {
@@ -17,13 +18,13 @@ describe("nanogpt plugin entry", () => {
   });
 
   it("registers both the model provider and the web search provider", () => {
-    const providers: unknown[] = [];
+    const providers: NanoGptProviderRegistration[] = [];
     const webSearchProviders: unknown[] = [];
     const imageProviders: unknown[] = [];
 
     plugin.register({
       pluginConfig: {},
-      registerProvider(provider: unknown) {
+      registerProvider(provider: NanoGptProviderRegistration) {
         providers.push(provider);
       },
       registerWebSearchProvider(provider: unknown) {
@@ -49,27 +50,14 @@ describe("nanogpt plugin entry", () => {
       id: "nanogpt",
       label: "NanoGPT",
     });
-    expect((providers[0] as { resolveUsageAuth?: unknown }).resolveUsageAuth).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { fetchUsageSnapshot?: unknown }).fetchUsageSnapshot).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { buildReplayPolicy?: unknown }).buildReplayPolicy).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { sanitizeReplayHistory?: unknown }).sanitizeReplayHistory).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { validateReplayTurns?: unknown }).validateReplayTurns).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { resolveReasoningOutputMode?: unknown }).resolveReasoningOutputMode).toEqual(
-      expect.any(Function),
-    );
-    expect((providers[0] as { applyNativeStreamingUsageCompat?: unknown }).applyNativeStreamingUsageCompat).toEqual(
-      expect.any(Function),
-    );
+    const p = providers[0] as NanoGptProviderRegistration;
+    expect(p.resolveUsageAuth).toEqual(expect.any(Function));
+    expect(p.fetchUsageSnapshot).toEqual(expect.any(Function));
+    expect(p.buildReplayPolicy).toEqual(expect.any(Function));
+    expect(p.sanitizeReplayHistory).toEqual(expect.any(Function));
+    expect(p.validateReplayTurns).toEqual(expect.any(Function));
+    expect(p.resolveReasoningOutputMode).toEqual(expect.any(Function));
+    expect(p.applyNativeStreamingUsageCompat).toEqual(expect.any(Function));
   });
 
   it("registers replay and reasoning hooks on the model provider surface", () => {
@@ -101,16 +89,17 @@ describe("nanogpt plugin entry", () => {
           },
         ],
       },
-    }) as {
-      models: Array<{ compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean } }>;
-    } | null;
+    });
 
     expect(result).toBeTruthy();
-    expect(result?.models[0]?.compat).toEqual({
+    const patched = result as {
+      models: Array<{ compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean } }>;
+    };
+    expect(patched.models[0]?.compat).toEqual({
       supportsDeveloperRole: false,
       supportsUsageInStreaming: true,
     });
-    expect(result?.models[1]?.compat?.supportsUsageInStreaming).toBe(false);
+    expect(patched.models[1]?.compat?.supportsUsageInStreaming).toBe(false);
   });
 
   it("returns no compat patch when completions models already declare streaming usage support", () => {

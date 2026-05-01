@@ -3,6 +3,8 @@ import path from "node:path";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
 
 export const NANOGPT_PROVIDER_ID = "nanogpt";
+export const NANOGPT_PROVIDER_LABEL = "NanoGPT";
+export const NANOGPT_DOCS_PATH = "/providers/models";
 export const NANOGPT_BASE_URL = "https://nano-gpt.com/api/v1";
 export const NANOGPT_SUBSCRIPTION_BASE_URL = "https://nano-gpt.com/api/subscription/v1";
 export const NANOGPT_PAID_BASE_URL = "https://nano-gpt.com/api/paid/v1";
