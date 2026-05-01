@@ -310,6 +310,12 @@ describe("nanogpt web search provider", () => {
     expect(apiKey).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${_secret}" })).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${secret_var}" })).toBeUndefined();
+
+    // Partial matches or multiple references should NOT be blocked by this specific security check
+    // (they will be treated as literal strings and sanitized/validated normally)
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "prefix${SECRET}" })).toBe("prefix${SECRET}");
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${SECRET}suffix" })).toBe("${SECRET}suffix");
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${S1}${S2}" })).toBe("${S1}${S2}");
   });
 
   it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
