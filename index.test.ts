@@ -24,7 +24,7 @@ describe("nanogpt plugin entry", () => {
 
     plugin.register({
       pluginConfig: {},
-      registerProvider(provider: unknown) {
+      registerProvider(provider: NanoGptProviderRegistration) {
         providers.push(provider);
       },
       registerWebSearchProvider(provider: unknown) {
@@ -75,26 +75,31 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const result = applyCompat?.({
-      api: "openai-completions",
-      baseUrl: "https://nano-gpt.com/api/subscription/v1",
-      models: [
-        {
-          id: "moonshotai/kimi-k2.5:thinking",
-          compat: { supportsDeveloperRole: false },
-        },
-        {
-          id: "gpt-5.4-mini",
-          compat: { supportsUsageInStreaming: false },
-        },
-      ],
-    } as any);
+      providerConfig: {
+        api: "openai-completions",
+        baseUrl: "https://nano-gpt.com/api/subscription/v1",
+        models: [
+          {
+            id: "moonshotai/kimi-k2.5:thinking",
+            compat: { supportsDeveloperRole: false },
+          },
+          {
+            id: "gpt-5.4-mini",
+            compat: { supportsUsageInStreaming: false },
+          },
+        ],
+      },
+    });
 
     expect(result).toBeTruthy();
-    expect(result?.models[0]?.compat).toEqual({
+    const patched = result as {
+      models: Array<{ compat?: { supportsDeveloperRole?: boolean; supportsUsageInStreaming?: boolean } }>;
+    };
+    expect(patched.models[0]?.compat).toEqual({
       supportsDeveloperRole: false,
       supportsUsageInStreaming: true,
     });
-    expect(result?.models[1]?.compat?.supportsUsageInStreaming).toBe(false);
+    expect(patched.models[1]?.compat?.supportsUsageInStreaming).toBe(false);
   });
 
   it("returns no compat patch when completions models already declare streaming usage support", () => {
@@ -103,19 +108,21 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const result = applyCompat?.({
-      api: "openai-completions",
-      baseUrl: "https://nano-gpt.com/api/subscription/v1",
-      models: [
-        {
-          id: "moonshotai/kimi-k2.5:thinking",
-          compat: { supportsUsageInStreaming: true },
-        },
-        {
-          id: "gpt-5.4-mini",
-          compat: { supportsUsageInStreaming: false },
-        },
-      ],
-    } as any);
+      providerConfig: {
+        api: "openai-completions",
+        baseUrl: "https://nano-gpt.com/api/subscription/v1",
+        models: [
+          {
+            id: "moonshotai/kimi-k2.5:thinking",
+            compat: { supportsUsageInStreaming: true },
+          },
+          {
+            id: "gpt-5.4-mini",
+            compat: { supportsUsageInStreaming: false },
+          },
+        ],
+      },
+    });
 
     expect(result).toBeNull();
   });
@@ -126,19 +133,23 @@ describe("nanogpt plugin entry", () => {
     expect(applyCompat).toEqual(expect.any(Function));
 
     const completionsResult = applyCompat?.({
-      api: "openai-completions",
-      baseUrl: "https://example.com/v1",
-      models: [{ id: "x" }],
-    } as any);
+      providerConfig: {
+        api: "openai-completions",
+        baseUrl: "https://example.com/v1",
+        models: [{ id: "x" }],
+      },
+    });
     expect(completionsResult).toMatchObject({
       models: [{ compat: { supportsUsageInStreaming: true } }],
     });
 
     const responsesApiResult = applyCompat?.({
-      api: "openai-responses",
-      baseUrl: "https://nano-gpt.com/api/v1",
-      models: [{ id: "x" }],
-    } as any);
+      providerConfig: {
+        api: "openai-responses",
+        baseUrl: "https://nano-gpt.com/api/v1",
+        models: [{ id: "x" }],
+      },
+    });
     expect(responsesApiResult).toBeNull();
   });
 

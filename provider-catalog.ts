@@ -1,4 +1,5 @@
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/provider-catalog-shared";
+import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import { buildNanoGptProvider } from "./catalog/build-provider.js";
 import { NANOGPT_PROVIDER_ID } from "./models.js";
 
@@ -18,7 +19,7 @@ export function resolveNanoGptPluginConfigFromProviderCatalogContext(
 
 export interface NanoGptProviderCatalog {
   order: "simple";
-  run: (ctx: ProviderCatalogContext) => Promise<{ provider: unknown } | null>;
+  run: (ctx: ProviderCatalogContext) => Promise<{ provider: ModelProviderConfig } | null>;
 }
 
 export const nanoGptProviderCatalog: NanoGptProviderCatalog = {

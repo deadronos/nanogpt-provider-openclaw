@@ -1,19 +1,11 @@
-import type {
-  AnyAgentTool,
-  ProviderCatalogContext,
-  ProviderNormalizeToolSchemasContext,
-  ProviderReasoningOutputMode,
-  ProviderReasoningOutputModeContext,
-  ProviderReplayPolicy,
-  ProviderReplayPolicyContext,
-  ProviderResolveDynamicModelContext,
-  ProviderRuntimeModel,
-  ProviderSanitizeReplayHistoryContext,
-  ProviderToolSchemaDiagnostic,
-  ProviderValidateReplayTurnsContext,
-} from "openclaw/plugin-sdk/plugin-entry";
-import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
+import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
 import type { NanoGptProviderCatalog } from "../provider-catalog.js";
+
+type NativeStreamingUsageCompatConfig = {
+  api: string;
+  baseUrl?: string;
+  models?: Array<Record<string, unknown>>;
+};
 
 export interface NanoGptProviderRegistration {
   id: string;
@@ -38,26 +30,19 @@ export interface NanoGptProviderRegistration {
     env?: Record<string, string | undefined>;
     entries: Array<Record<string, unknown>>;
   }) => unknown;
-  normalizeResolvedModel?: (ctx: {
-    agentDir?: string;
-    model: ProviderRuntimeModel;
-  }) => ProviderRuntimeModel | undefined;
-  normalizeToolSchemas?: (ctx: ProviderNormalizeToolSchemasContext) => AnyAgentTool[] | null;
-  inspectToolSchemas?: (ctx: ProviderNormalizeToolSchemasContext) => ProviderToolSchemaDiagnostic[] | null;
-  resolveDynamicModel?: (
-    ctx: ProviderResolveDynamicModelContext & { env?: Record<string, string | undefined> },
-  ) => ProviderRuntimeModel | undefined;
-  applyNativeStreamingUsageCompat?: (providerConfig: ModelProviderConfig) => ModelProviderConfig | null;
+  normalizeResolvedModel?: (ctx: Record<string, unknown>) => unknown;
+  normalizeToolSchemas?: (ctx: Record<string, unknown>) => unknown;
+  inspectToolSchemas?: (ctx: Record<string, unknown>) => unknown;
+  resolveDynamicModel?: (ctx: Record<string, unknown>) => unknown;
+  applyNativeStreamingUsageCompat?: (ctx: {
+    providerConfig: NativeStreamingUsageCompatConfig;
+  }) => NativeStreamingUsageCompatConfig | null;
   resolveUsageAuth?: (ctx: ProviderCatalogContext) => Promise<unknown>;
   fetchUsageSnapshot?: (ctx: ProviderCatalogContext) => Promise<unknown>;
-  buildReplayPolicy?: (context: ProviderReplayPolicyContext) => ProviderReplayPolicy | undefined;
-  sanitizeReplayHistory?: (
-    context: ProviderSanitizeReplayHistoryContext,
-  ) => ProviderSanitizeReplayHistoryContext["messages"] | null | undefined;
-  validateReplayTurns?: (
-    context: ProviderValidateReplayTurnsContext,
-  ) => ProviderValidateReplayTurnsContext["messages"] | null | undefined;
-  resolveReasoningOutputMode?: (context: ProviderReasoningOutputModeContext) => ProviderReasoningOutputMode;
+  buildReplayPolicy?: (context: Record<string, unknown>) => unknown;
+  sanitizeReplayHistory?: (context: Record<string, unknown>) => unknown;
+  validateReplayTurns?: (context: Record<string, unknown>) => unknown;
+  resolveReasoningOutputMode?: (context: Record<string, unknown>) => unknown;
   wrapStreamFn?: (ctx: {
     streamFn: (...args: any[]) => any;
     modelId: string;
