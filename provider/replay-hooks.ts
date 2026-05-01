@@ -8,7 +8,11 @@ import type {
 } from "openclaw/plugin-sdk/plugin-entry";
 import { buildOpenAICompatibleReplayPolicy } from "openclaw/plugin-sdk/provider-model-shared";
 import { isRecord } from "../shared/guards.js";
-import { collectNanoGptStreamMarkerInspection } from "./inspection.js";
+import {
+  collectNanoGptStreamMarkerInspection,
+  collectNanoGptContentBlocksInspection,
+} from "./inspection.js";
+
 import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
@@ -125,68 +129,49 @@ function collectNanoGptReplayAssistantInspection(
     return null;
   }
 
-  let visibleText = "";
-  let textBlockCount = 0;
-  let thinkingBlockCount = 0;
-  let toolCallCount = 0;
   let missingToolCallIdCount = 0;
   let duplicateToolCallIdCount = 0;
   const toolCalls: NanoGptReplayAssistantToolCall[] = [];
   const toolCallIds = new Set<string>();
   const toolCallNames = new Set<string>();
 
+  const blocksInspection = collectNanoGptContentBlocksInspection(message.content);
+
   for (const contentBlock of message.content) {
-    if (!isRecord(contentBlock) || typeof contentBlock.type !== "string") {
+    if (!isRecord(contentBlock) || contentBlock.type !== "toolCall") {
       continue;
     }
 
-    if (contentBlock.type === "text") {
-      textBlockCount += 1;
-      if (typeof contentBlock.text === "string") {
-        visibleText += contentBlock.text;
-      }
-      continue;
+    const id = typeof contentBlock.id === "string" ? contentBlock.id.trim() : "";
+    const name = typeof contentBlock.name === "string" ? contentBlock.name.trim() : "";
+
+    if (id.length === 0) {
+      missingToolCallIdCount += 1;
+    } else if (toolCallIds.has(id)) {
+      duplicateToolCallIdCount += 1;
+    } else {
+      toolCallIds.add(id);
     }
 
-    if (contentBlock.type === "thinking") {
-      thinkingBlockCount += 1;
-      continue;
+    if (name.length > 0) {
+      toolCallNames.add(name);
     }
 
-    if (contentBlock.type === "toolCall") {
-      toolCallCount += 1;
-
-      const id = typeof contentBlock.id === "string" ? contentBlock.id.trim() : "";
-      const name = typeof contentBlock.name === "string" ? contentBlock.name.trim() : "";
-
-      if (id.length === 0) {
-        missingToolCallIdCount += 1;
-      } else if (toolCallIds.has(id)) {
-        duplicateToolCallIdCount += 1;
-      } else {
-        toolCallIds.add(id);
-      }
-
-      if (name.length > 0) {
-        toolCallNames.add(name);
-      }
-
-      toolCalls.push({
-        id,
-        name,
-        missingId: id.length === 0,
-      });
-    }
+    toolCalls.push({
+      id,
+      name,
+      missingId: id.length === 0,
+    });
   }
 
-  const markerInspection = collectNanoGptStreamMarkerInspection(visibleText);
+  const markerInspection = collectNanoGptStreamMarkerInspection(blocksInspection.visibleText);
 
   return {
-    visibleText,
-    visibleTextLength: normalizeNanoGptReplayText(visibleText)?.length ?? 0,
-    textBlockCount,
-    thinkingBlockCount,
-    toolCallCount,
+    visibleText: blocksInspection.visibleText,
+    visibleTextLength: normalizeNanoGptReplayText(blocksInspection.visibleText)?.length ?? 0,
+    textBlockCount: blocksInspection.textBlockCount,
+    thinkingBlockCount: blocksInspection.thinkingBlockCount,
+    toolCallCount: blocksInspection.toolCallCount,
     toolCalls,
     toolCallNames: [...toolCallNames],
     reasoningMarkerNames: markerInspection.reasoningMarkerNames,

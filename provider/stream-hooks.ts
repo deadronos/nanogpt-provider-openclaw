@@ -19,8 +19,10 @@ import {
 import { isRecord } from "../shared/guards.js";
 import {
   collectNanoGptStreamMarkerInspection,
+  collectNanoGptContentBlocksInspection,
   type NanoGptStreamMarkerInspection,
 } from "./inspection.js";
+
 import { parseObjectBridgeAssistantText } from "./bridge/object-parser.js";
 import { buildNanoGptBridgeRetrySystemMessage } from "./bridge/retry.js";
 import {
@@ -104,40 +106,14 @@ function collectNanoGptStreamContentInspection(finalMessage: unknown): NanoGptSt
     return null;
   }
 
-  let visibleText = "";
-  let textBlockCount = 0;
-  let toolCallCount = 0;
-  let thinkingBlockCount = 0;
-
-  for (const contentBlock of finalMessage.content) {
-    if (!isRecord(contentBlock) || typeof contentBlock.type !== "string") {
-      continue;
-    }
-
-    if (contentBlock.type === "text") {
-      textBlockCount += 1;
-      if (typeof contentBlock.text === "string") {
-        visibleText += contentBlock.text;
-      }
-      continue;
-    }
-
-    if (contentBlock.type === "toolCall") {
-      toolCallCount += 1;
-      continue;
-    }
-
-    if (contentBlock.type === "thinking") {
-      thinkingBlockCount += 1;
-    }
-  }
+  const blocksInspection = collectNanoGptContentBlocksInspection(finalMessage.content);
 
   return {
-    visibleText,
-    visibleTextLength: visibleText.trim().length,
-    textBlockCount,
-    toolCallCount,
-    thinkingBlockCount,
+    visibleText: blocksInspection.visibleText,
+    visibleTextLength: blocksInspection.visibleText.trim().length,
+    textBlockCount: blocksInspection.textBlockCount,
+    toolCallCount: blocksInspection.toolCallCount,
+    thinkingBlockCount: blocksInspection.thinkingBlockCount,
   };
 }
 
