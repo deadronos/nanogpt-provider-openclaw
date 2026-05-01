@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildNanoGptProvider } from "./catalog/build-provider.js";
-import { NANOGPT_FALLBACK_MODELS } from "./models.js";
+import { NANOGPT_FALLBACK_MODELS, NANOGPT_PROVIDER_ID } from "./models.js";
 import { resetNanoGptRuntimeState } from "./runtime.js";
+import { resolveNanoGptPluginConfigFromProviderCatalogContext } from "./provider-catalog.js";
+import type { ProviderCatalogContext } from "openclaw/plugin-sdk/provider-catalog-shared";
 
 afterEach(() => {
   resetNanoGptRuntimeState();
@@ -412,5 +414,62 @@ describe("buildNanoGptProvider", () => {
     expect(provider.baseUrl).toBe("https://nano-gpt.com/api/v1");
     expect(provider.models.map((model) => model.id)).toEqual(NANOGPT_FALLBACK_MODELS.map((model) => model.id));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("resolveNanoGptPluginConfigFromProviderCatalogContext", () => {
+  it("extracts the configuration when correctly structured", () => {
+    const ctx = {
+      config: {
+        plugins: {
+          entries: {
+            [NANOGPT_PROVIDER_ID]: {
+              config: { routingMode: "auto" },
+            },
+          },
+        },
+      },
+    } as unknown as ProviderCatalogContext;
+
+    expect(resolveNanoGptPluginConfigFromProviderCatalogContext(ctx)).toEqual({ routingMode: "auto" });
+  });
+
+  it("returns undefined when plugins is undefined", () => {
+    const ctx = { config: {} } as unknown as ProviderCatalogContext;
+    expect(resolveNanoGptPluginConfigFromProviderCatalogContext(ctx)).toBeUndefined();
+  });
+
+  it("returns undefined when entries is undefined", () => {
+    const ctx = { config: { plugins: {} } } as unknown as ProviderCatalogContext;
+    expect(resolveNanoGptPluginConfigFromProviderCatalogContext(ctx)).toBeUndefined();
+  });
+
+  it("returns undefined when the specific provider ID is missing", () => {
+    const ctx = {
+      config: {
+        plugins: {
+          entries: {
+            "other-provider": {
+              config: { foo: "bar" },
+            },
+          },
+        },
+      },
+    } as unknown as ProviderCatalogContext;
+    expect(resolveNanoGptPluginConfigFromProviderCatalogContext(ctx)).toBeUndefined();
+  });
+
+  it("returns undefined when the specific provider ID has no config", () => {
+    const ctx = {
+      config: {
+        plugins: {
+          entries: {
+            [NANOGPT_PROVIDER_ID]: {},
+          },
+        },
+      },
+    } as unknown as ProviderCatalogContext;
+    expect(resolveNanoGptPluginConfigFromProviderCatalogContext(ctx)).toBeUndefined();
   });
 });
