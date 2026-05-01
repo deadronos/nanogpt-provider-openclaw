@@ -23,9 +23,6 @@ import {
 } from "./provider/tool-schema-hooks.js";
 import { wrapNanoGptStreamFn } from "./provider/stream-hooks.js";
 import { createNanoGptLogger } from "./provider/nanogpt-logger.js";
-import type {
-  ProviderCatalogContext,
-} from "openclaw/plugin-sdk/plugin-entry";
 
 export default definePluginEntry({
   id: NANOGPT_PROVIDER_ID,
