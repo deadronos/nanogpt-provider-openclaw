@@ -133,6 +133,13 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         const includeDomains = readStringArrayParam(args, "includeDomains")?.filter(Boolean);
         const excludeDomains = readStringArrayParam(args, "excludeDomains")?.filter(Boolean);
 
+        if (includeDomains && includeDomains.length > 50) {
+          throw new Error("Too many include domains specified (maximum 50).");
+        }
+        if (excludeDomains && excludeDomains.length > 50) {
+          throw new Error("Too many exclude domains specified (maximum 50).");
+        }
+
         return await postTrustedWebToolsJson(
           {
             url: NANOGPT_WEB_SEARCH_URL,
