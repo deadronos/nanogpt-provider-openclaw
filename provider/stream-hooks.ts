@@ -1,9 +1,4 @@
 import { randomUUID } from "node:crypto";
-import {
-  createAssistantMessageEventStream,
-  type AssistantMessage,
-  type ToolCall,
-} from "@mariozechner/pi-ai";
 import type { NanoGptPluginConfig, NanoGptResponseFormat } from "../models.js";
 import type { AnyAgentTool, ProviderWrapStreamFnContext } from "openclaw/plugin-sdk/plugin-entry";
 import {
@@ -32,6 +27,59 @@ import { createNanoGptLoggerSync, type NanoGptLogger } from "./nanogpt-logger.js
 
 type NanoGptWrappedStreamFn = ProviderWrapStreamFnContext["streamFn"];
 type NanoGptStreamResult = Awaited<ReturnType<NonNullable<NanoGptWrappedStreamFn>>>;
+
+type NanoGptToolCall = Readonly<{
+  type: "toolCall";
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}>;
+
+type NanoGptAssistantContentBlock =
+  | Readonly<{ type: "text"; text: string }>
+  | Readonly<{ type: "thinking"; thinking: string }>
+  | NanoGptToolCall
+  | (Record<string, unknown> & { type: string });
+
+type NanoGptAssistantMessage = Readonly<{
+  role: string;
+  content: NanoGptAssistantContentBlock[];
+  stopReason: string;
+  usage?: NanoGptUsage;
+  api?: string;
+  provider?: string;
+  model?: string;
+  timestamp?: number;
+}>;
+
+type NanoGptReplayEvent =
+  | Readonly<{ type: "start"; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "text_start"; contentIndex: number; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "text_delta"; contentIndex: number; delta: string; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "text_end"; contentIndex: number; content: string; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "thinking_start"; contentIndex: number; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "thinking_delta"; contentIndex: number; delta: string; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "thinking_end"; contentIndex: number; content: string; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "toolcall_start"; contentIndex: number; partial: NanoGptAssistantMessage }>
+  | Readonly<{ type: "toolcall_delta"; contentIndex: number; delta: string; partial: NanoGptAssistantMessage }>
+  | Readonly<{
+      type: "toolcall_end";
+      contentIndex: number;
+      toolCall: NanoGptToolCall;
+      partial: NanoGptAssistantMessage;
+    }>
+  | Readonly<{
+      type: "done";
+      reason: "stop" | "length" | "toolUse";
+      message: NanoGptAssistantMessage;
+    }>;
+
+type NanoGptReplayStream = {
+  push: (event: NanoGptReplayEvent) => void;
+  end: (message?: NanoGptAssistantMessage) => void;
+  result: () => Promise<NanoGptAssistantMessage>;
+  [Symbol.asyncIterator]: () => AsyncIterator<NanoGptReplayEvent>;
+};
 
 type NanoGptPluginLogger = {
   warn?: (message: string, meta?: Record<string, unknown>) => void;
@@ -549,7 +597,7 @@ function shouldApplyNanoGptBridge(
   return config?.bridgeMode === "always" && requestToolMetadata.toolEnabled;
 }
 
-function resolveNanoGptReplayStopReason(stopReason: AssistantMessage["stopReason"]): "stop" | "length" | "toolUse" {
+function resolveNanoGptReplayStopReason(stopReason: NanoGptAssistantMessage["stopReason"]): "stop" | "length" | "toolUse" {
   if (stopReason === "toolUse") {
     return "toolUse";
   }
@@ -561,8 +609,8 @@ function resolveNanoGptReplayStopReason(stopReason: AssistantMessage["stopReason
 
 function resolveNanoGptBridgeStopReason(
   parsedKind: "tool_calls" | "final",
-  stopReason: AssistantMessage["stopReason"],
-): AssistantMessage["stopReason"] {
+  stopReason: NanoGptAssistantMessage["stopReason"],
+): string {
   if (parsedKind === "tool_calls") {
     return "toolUse";
   }
@@ -623,7 +671,7 @@ function injectNanoGptBridgePayload(params: {
   };
 }
 
-function buildNanoGptBridgeFailureMessage(finalMessage: AssistantMessage): AssistantMessage {
+function buildNanoGptBridgeFailureMessage(finalMessage: NanoGptAssistantMessage): NanoGptAssistantMessage {
   return {
     ...finalMessage,
     content: [
@@ -637,7 +685,7 @@ function buildNanoGptBridgeFailureMessage(finalMessage: AssistantMessage): Assis
   };
 }
 
-function buildNanoGptBridgeToolCall(toolCall: { name: string; arguments: Record<string, unknown> }): ToolCall {
+function buildNanoGptBridgeToolCall(toolCall: { name: string; arguments: Record<string, unknown> }): NanoGptToolCall {
   return {
     type: "toolCall",
     id: `call_${randomUUID().slice(0, 8)}`,
@@ -647,10 +695,10 @@ function buildNanoGptBridgeToolCall(toolCall: { name: string; arguments: Record<
 }
 
 function rewriteNanoGptBridgeMessage(params: {
-  finalMessage: AssistantMessage;
+  finalMessage: NanoGptAssistantMessage;
   protocol: "object" | "xml";
   tools: readonly AnyAgentTool[];
-}): AssistantMessage | null {
+}): NanoGptAssistantMessage | null {
   if (hasParsedToolCalls(params.finalMessage)) {
     return params.finalMessage;
   }
@@ -676,7 +724,9 @@ function rewriteNanoGptBridgeMessage(params: {
     return params.finalMessage;
   }
 
-  const content: AssistantMessage["content"] = params.finalMessage.content.filter((block) => block.type === "thinking");
+  const content: NanoGptAssistantMessage["content"] = params.finalMessage.content.filter(
+    (block) => block.type === "thinking",
+  );
   if (parsed.content) {
     content.push({ type: "text", text: parsed.content });
   }
@@ -691,13 +741,105 @@ function rewriteNanoGptBridgeMessage(params: {
   };
 }
 
-function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStreamResult {
-  const stream = createAssistantMessageEventStream() as unknown as NanoGptStreamResult;
+function createNanoGptReplayStream(): NanoGptReplayStream {
+  const queuedEvents: NanoGptReplayEvent[] = [];
+  const iteratorWaiters: Array<(entry: IteratorResult<NanoGptReplayEvent>) => void> = [];
+  let streamClosed = false;
+  let finalMessage: NanoGptAssistantMessage | undefined;
+
+  let resolveResult!: (message: NanoGptAssistantMessage) => void;
+  let rejectResult!: (error: Error) => void;
+  let resultSettled = false;
+
+  const resultPromise = new Promise<NanoGptAssistantMessage>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+
+  const settleResult = (message: NanoGptAssistantMessage) => {
+    if (resultSettled) {
+      return;
+    }
+    resultSettled = true;
+    resolveResult(message);
+  };
+
+  const stream: NanoGptReplayStream = {
+    push(event) {
+      if (streamClosed) {
+        return;
+      }
+
+      if (event.type === "done") {
+        finalMessage = event.message;
+        settleResult(event.message);
+      }
+
+      const waiter = iteratorWaiters.shift();
+      if (waiter) {
+        waiter({ value: event, done: false });
+        return;
+      }
+
+      queuedEvents.push(event);
+    },
+    end(message) {
+      if (streamClosed) {
+        return;
+      }
+
+      streamClosed = true;
+      if (message) {
+        finalMessage = message;
+        settleResult(message);
+      } else if (finalMessage) {
+        settleResult(finalMessage);
+      } else if (!resultSettled) {
+        resultSettled = true;
+        rejectResult(new Error("Replay stream ended without a final assistant message."));
+      }
+
+      while (iteratorWaiters.length > 0) {
+        const waiter = iteratorWaiters.shift();
+        waiter?.({ value: undefined, done: true });
+      }
+    },
+    result() {
+      return resultPromise;
+    },
+    [Symbol.asyncIterator]() {
+      return {
+        next: async () => {
+          if (queuedEvents.length > 0) {
+            const event = queuedEvents.shift();
+            if (!event) {
+              return { value: undefined, done: true };
+            }
+            return { value: event, done: false };
+          }
+
+          if (streamClosed) {
+            return { value: undefined, done: true };
+          }
+
+          return await new Promise<IteratorResult<NanoGptReplayEvent>>((resolve) => {
+            iteratorWaiters.push(resolve);
+          });
+        },
+      };
+    },
+  };
+
+  return stream;
+}
+
+function replayNanoGptAssistantMessage(message: NanoGptAssistantMessage): NanoGptStreamResult {
+  const stream = createNanoGptReplayStream();
 
   queueMicrotask(() => {
     stream.push({ type: "start", partial: message });
     message.content.forEach((contentBlock, contentIndex) => {
-      if (contentBlock.type === "text") {
+      if (contentBlock.type === "text" && typeof contentBlock.text === "string") {
         stream.push({ type: "text_start", contentIndex, partial: message });
         stream.push({
           type: "text_delta",
@@ -714,7 +856,7 @@ function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStream
         return;
       }
 
-      if (contentBlock.type === "thinking") {
+      if (contentBlock.type === "thinking" && typeof contentBlock.thinking === "string") {
         stream.push({ type: "thinking_start", contentIndex, partial: message });
         stream.push({
           type: "thinking_delta",
@@ -731,7 +873,12 @@ function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStream
         return;
       }
 
-      if (contentBlock.type === "toolCall") {
+      if (
+        contentBlock.type === "toolCall" &&
+        typeof contentBlock.id === "string" &&
+        typeof contentBlock.name === "string" &&
+        isRecord(contentBlock.arguments)
+      ) {
         const delta = JSON.stringify(contentBlock.arguments);
         stream.push({ type: "toolcall_start", contentIndex, partial: message });
         stream.push({
@@ -743,7 +890,12 @@ function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStream
         stream.push({
           type: "toolcall_end",
           contentIndex,
-          toolCall: contentBlock,
+          toolCall: {
+            type: "toolCall",
+            id: contentBlock.id,
+            name: contentBlock.name,
+            arguments: contentBlock.arguments,
+          },
           partial: message,
         });
       }
@@ -756,7 +908,7 @@ function replayNanoGptAssistantMessage(message: AssistantMessage): NanoGptStream
     stream.end();
   });
 
-  return stream;
+  return stream as unknown as NanoGptStreamResult;
 }
 
 export function wrapNanoGptStreamFn(

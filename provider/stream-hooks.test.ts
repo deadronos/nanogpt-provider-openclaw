@@ -1,8 +1,71 @@
-import { createAssistantMessageEventStream, type AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { wrapNanoGptStreamFn } from "./stream-hooks.js";
 
 const MODEL_ID = "moonshotai/kimi-k2.5:thinking";
+
+type AssistantUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+};
+
+type AssistantMessage = {
+  role: "assistant";
+  content: Array<Record<string, unknown> & { type: string }>;
+  api: string;
+  provider: string;
+  model: string;
+  usage: AssistantUsage;
+  stopReason: "stop" | "length" | "toolUse";
+  timestamp: number;
+};
+
+function createTestAssistantMessageEventStream() {
+  let finalMessage: AssistantMessage | undefined;
+  let resolveResult!: (message: AssistantMessage) => void;
+  let rejectResult!: (error: Error) => void;
+
+  const resultPromise = new Promise<AssistantMessage>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+
+  return {
+    push(event: { type: string; message?: AssistantMessage; reason?: string }) {
+      if (event.type === "done" && event.message) {
+        finalMessage = event.message;
+        resolveResult(event.message);
+      }
+    },
+    end(message?: AssistantMessage) {
+      if (message) {
+        finalMessage = message;
+        resolveResult(message);
+        return;
+      }
+
+      if (finalMessage) {
+        resolveResult(finalMessage);
+        return;
+      }
+
+      rejectResult(new Error("Test stream ended without a final assistant message."));
+    },
+    result() {
+      return resultPromise;
+    },
+  };
+}
+
 type WarnMock = ((message: string, meta?: Record<string, unknown>) => void) & {
   mock: { calls: unknown[][] };
 };
@@ -78,7 +141,7 @@ function createWrappedStream(params: {
 
     const message = messages[Math.min(streamCallIndex, messages.length - 1)];
     streamCallIndex += 1;
-    const stream = createAssistantMessageEventStream();
+    const stream = createTestAssistantMessageEventStream();
     const reason = message.stopReason === "length" ? "length" : message.stopReason === "toolUse" ? "toolUse" : "stop";
     stream.push({ type: "done", reason, message });
     stream.end(message);
@@ -339,7 +402,7 @@ describe("nanoGPT stream hooks", () => {
         observedPayloads.push(observedPayload);
       }
 
-      const stream = createAssistantMessageEventStream();
+      const stream = createTestAssistantMessageEventStream();
       stream.push({ type: "done", reason: "stop", message });
       stream.end(message);
       return stream;
@@ -557,7 +620,7 @@ describe("nanoGPT stream hooks", () => {
         const observedPayload = await options.onPayload({ stream: true }, {});
         observedPayloads.push(observedPayload);
       }
-      const stream = createAssistantMessageEventStream();
+      const stream = createTestAssistantMessageEventStream();
       stream.push({ type: "done", reason: "stop", message });
       stream.end(message);
       return stream;
@@ -596,7 +659,7 @@ describe("nanoGPT stream hooks", () => {
         const observedPayload = await options.onPayload({ stream: true }, {});
         observedPayloads.push(observedPayload);
       }
-      const stream = createAssistantMessageEventStream();
+      const stream = createTestAssistantMessageEventStream();
       stream.push({ type: "done", reason: "stop", message });
       stream.end(message);
       return stream;
@@ -634,7 +697,7 @@ describe("nanoGPT stream hooks", () => {
         const observedPayload = await options.onPayload({ stream: true }, {});
         observedPayloads.push(observedPayload);
       }
-      const stream = createAssistantMessageEventStream();
+      const stream = createTestAssistantMessageEventStream();
       stream.push({ type: "done", reason: "stop", message });
       stream.end(message);
       return stream;
