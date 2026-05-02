@@ -14,3 +14,9 @@
 **Vulnerability:** The web search provider did not enforce a size limit on the `includeDomains` and `excludeDomains` input arrays. Additionally, the image generation provider threw the raw text of HTTP error responses from the upstream API directly to the user.
 **Learning:** Failing to enforce limits on arrays creates an Application-level DoS vector, and passing upstream HTTP error bodies blindly can lead to large allocations, unexpected payload leakage, and crashes.
 **Prevention:** Cap array inputs (e.g. `includeDomains.length > 50`) and limit external error responses to a safe length (e.g. `detail.slice(0, 200)`) before logging or throwing.
+
+## 2026-06-15 - Limit error string lengths to prevent log pollution and info leakage
+
+**Vulnerability:** The error handlers in `runtime/discovery.ts` and `runtime/routing.ts` logged the full text of error messages generated from HTTP fetch failures directly, passing the raw string into structured logging.
+**Learning:** Raw error bodies or stringified exceptions from external API interactions can be unexpectedly large or contain stack traces and other sensitive information, leading to log pollution or data exfiltration.
+**Prevention:** Always truncate error messages (e.g. using `.slice(0, 200)`) before logging them in structured logs, enforcing strict limits on external failure descriptions.
