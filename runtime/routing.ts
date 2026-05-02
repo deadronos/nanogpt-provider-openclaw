@@ -48,7 +48,7 @@ export async function probeNanoGptSubscription(apiKey: string): Promise<boolean>
     return active;
   } catch (err) {
     _routingLogger.error("subscription probe failed", {
-      error: err instanceof Error ? err.message : String(err),
+      error: String(err instanceof Error ? err.message : err).slice(0, 200),
     });
     subscriptionCache.delete(apiKey);
     throw err;

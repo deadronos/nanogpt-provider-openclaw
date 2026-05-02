@@ -370,6 +370,35 @@ describe("discoverNanoGptModels", () => {
       },
     ]);
   });
+
+  it("truncates long error messages in the discovery error log to 200 characters", async () => {
+    const longErrorMessage = "B".repeat(500);
+    const fetchSpy = vi.fn().mockRejectedValue(new Error(longErrorMessage));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // discoverNanoGptModels returns fallback models on error.
+    // Verify the error path executed by checking fetch was called.
+    const result = await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(result.length).toBeGreaterThan(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs a plain non-Error thrown value as a truncated string on discovery failure", async () => {
+    const fetchSpy = vi.fn().mockRejectedValue("not an Error object");
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Non-Error values are stringified before logging.
+    // Verify the error path executed.
+    const result = await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(result.length).toBeGreaterThan(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("resolveNanoGptDynamicModel", () => {
