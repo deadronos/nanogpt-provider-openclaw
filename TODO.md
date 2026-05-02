@@ -1,5 +1,7 @@
 ## Report
 
+**Status: ✅ Resolved.** The `setup.providers` block has been successfully added to `openclaw.plugin.json` and the diagnostic warning has been mitigated.
+
 **Who's affected:** NanoGPT plugin (`~/.openclaw/extensions/nanogpt/openclaw.plugin.json`)
 
 **What's deprecated:** `providerAuthEnvVars` in the plugin manifest. The warning tells us to mirror the env-var declarations into `setup.providers[].envVars` instead.
