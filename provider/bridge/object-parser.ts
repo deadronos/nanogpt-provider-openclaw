@@ -14,7 +14,7 @@ function unwrapJsonCodeFence(text: string): string | null {
   return match ? match[1].trim() : null;
 }
 
-function parseLooseJsonValue(value: unknown): unknown | null {
+function parseLooseJsonValue(value: unknown): unknown {
   if (typeof value !== "string") {
     return null;
   }
@@ -57,8 +57,9 @@ function contentValueToText(value: unknown): string {
     if (typeof record.message === "string") {
       return record.message;
     }
+    return JSON.stringify(value);
   }
-  return String(value);
+  return String(value as string | number | boolean | symbol | bigint);
 }
 
 function firstDefined(record: Record<string, unknown>, keys: string[]): unknown {
