@@ -198,6 +198,8 @@ For example:
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
 - `enableWebSearchProvider`: `false` (default) or `true` — registers the NanoGPT `web_search` provider even when text routing is not explicitly `paygo`
+- `enableWebFetchFallbackStrip`: `true` (default) or `false` — controls whether non-MiniMax NanoGPT families strip `web_fetch` and fall back to curl hints
+- `enableWebFetchToolNameRewrite`: `false` (default) or `true` — rewrites `web_fetch` tool names to `openclaw_web_fetch`; when enabled, this takes precedence and forces fallback stripping off
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
@@ -230,6 +232,11 @@ For example:
   registered by default. Other NanoGPT model families strip `web_fetch`
   during tool-schema normalization because they have been hang-prone on
   `web_fetch` through NanoGPT.
+- `enableWebFetchFallbackStrip: false` disables that family-based stripping and
+  keeps `web_fetch` registered for non-MiniMax families as well.
+- `enableWebFetchToolNameRewrite: true` rewrites `web_fetch`/`fetch_web_page`
+  tool names to `openclaw_web_fetch`, and it always forces fallback stripping
+  off even if `enableWebFetchFallbackStrip: true` is set.
 - When `web_fetch` is stripped for a non-MiniMax NanoGPT model and an
   `exec`/shell-style tool is present, the plugin appends a hint telling the
   model to fetch manually with `curl -L <url>` or `curl -Ls <url>` instead.

@@ -60,6 +60,14 @@
       "label": "Enable Web Search Provider",
       "help": "Register NanoGPT's direct web_search provider even when routing is not explicitly paygo."
     },
+    "enableWebFetchFallbackStrip": {
+      "label": "Enable web_fetch Fallback Strip",
+      "help": "When true (default), non-MiniMax families strip web_fetch and use curl fallback hints."
+    },
+    "enableWebFetchToolNameRewrite": {
+      "label": "Enable web_fetch Tool Name Rewrite",
+      "help": "When true, rewrites web_fetch tool names to openclaw_web_fetch and forces fallback stripping off."
+    },
     "bridgeMode": {
       "label": "Bridge Mode",
       "help": "Enable the NanoProxy-style bridge for tool-enabled completions requests."
@@ -107,6 +115,12 @@
         "type": "string"
       },
       "enableWebSearchProvider": {
+        "type": "boolean"
+      },
+      "enableWebFetchFallbackStrip": {
+        "type": "boolean"
+      },
+      "enableWebFetchToolNameRewrite": {
         "type": "boolean"
       },
       "bridgeMode": {

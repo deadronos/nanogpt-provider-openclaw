@@ -92,6 +92,81 @@ describe("provider tool schema hooks", () => {
     expect(normalized).toBeNull();
   });
 
+  it("keeps web_fetch enabled on non-MiniMax models when fallback stripping is disabled", () => {
+    const provider = getRegisteredProvider({ enableWebFetchFallbackStrip: false });
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+
+    const fetchTool = {
+      name: "web_fetch",
+      description: "Fetch and extract readable content from a URL",
+      parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "deepseek/deepseek-v4-flash:thinking",
+      model: {
+        id: "deepseek/deepseek-v4-flash:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ name: string }> | null;
+
+    expect(normalized).toBeNull();
+  });
+
+  it("rewrites web_fetch tool name when enabled and overrides fallback stripping", () => {
+    const { provider, warn } = getRegisteredProviderHarness({
+      enableWebFetchToolNameRewrite: true,
+      enableWebFetchFallbackStrip: true,
+    });
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    const inspectToolSchemas = provider.inspectToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+    expect(inspectToolSchemas).toEqual(expect.any(Function));
+
+    const fetchTool = {
+      name: "web_fetch",
+      description: "Fetch and extract readable content from a URL",
+      parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: {
+        id: "moonshotai/kimi-k2.5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ name: string; description?: string }> | null;
+
+    const diagnostics = inspectToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: {
+        id: "moonshotai/kimi-k2.5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ toolName: string; toolIndex?: number; violations: string[] }> | null;
+
+    expect(normalized).toEqual([
+      expect.objectContaining({
+        name: "openclaw_web_fetch",
+        description: expect.stringContaining("call this tool as openclaw_web_fetch"),
+      }),
+    ]);
+    expect(diagnostics).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("adds GLM schema hints on non-web_fetch tools", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
