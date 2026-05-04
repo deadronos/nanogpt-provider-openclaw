@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getRegisteredProvider } from "./test-harness.js";
+import { getRegisteredProvider, getRegisteredProviderHarness } from "./test-harness.js";
 
 describe("provider tool schema hooks", () => {
-  it("keeps web_fetch untouched on Kimi models because aliasing is disabled", () => {
-    const provider = getRegisteredProvider();
+  it("strips web_fetch on non-MiniMax models, hints exec toward curl, and warns once", () => {
+    const { provider, warn } = getRegisteredProviderHarness();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
 
@@ -11,6 +11,19 @@ describe("provider tool schema hooks", () => {
       name: "web_fetch",
       description: "Fetch and extract readable content from a URL",
       parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const execTool = {
+      name: "exec",
+      description: "Execute a shell command",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string" },
+        },
+        required: ["command"],
+      },
       execute: async () => ({ ok: true }),
     };
 
@@ -22,13 +35,38 @@ describe("provider tool schema hooks", () => {
         provider: "nanogpt",
         api: "openai-completions",
       },
-      tools: [fetchTool],
-    }) as Array<{ name: string }> | null;
+      tools: [fetchTool, execTool],
+    }) as Array<{ name: string; description?: string }> | null;
 
-    expect(normalized).toBeNull();
+    const normalizedAgain = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: {
+        id: "moonshotai/kimi-k2.5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool, execTool],
+    }) as Array<{ name: string; description?: string }> | null;
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized?.[0]).toMatchObject({
+      name: "exec",
+      description: expect.stringContaining("curl -L <url>"),
+    });
+    expect(normalizedAgain).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("modelId=moonshotai/kimi-k2.5:thinking hangs on web_fetch via NanoGPT; stripped web_fetch tool to avoid hangs"),
+      expect.objectContaining({
+        modelId: "moonshotai/kimi-k2.5:thinking",
+        toolName: "web_fetch",
+        action: "stripped",
+      }),
+    );
   });
 
-  it("adds GLM schema hints without renaming web_fetch", () => {
+  it("keeps web_fetch enabled on minimax models", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -42,25 +80,61 @@ describe("provider tool schema hooks", () => {
 
     const normalized = normalizeToolSchemas?.({
       provider: "nanogpt",
+      modelId: "minimax/minimax-m2.7",
+      model: {
+        id: "minimax/minimax-m2.7",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool],
+    }) as Array<{ name: string }> | null;
+
+    expect(normalized).toBeNull();
+  });
+
+  it("adds GLM schema hints on non-web_fetch tools", () => {
+    const provider = getRegisteredProvider();
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+
+    const extractTool = {
+      name: "extract_fields",
+      description: "Extract selected fields from an existing page reference",
+      parameters: {
+        type: "object",
+        properties: {
+          ref: { type: "string" },
+          selector: { type: "string" },
+          fields: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["ref", "selector"],
+      },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
       modelId: "zai-org/glm-5:thinking",
       model: {
         id: "zai-org/glm-5:thinking",
         provider: "nanogpt",
         api: "openai-completions",
       },
-      tools: [fetchTool],
+      tools: [extractTool],
     }) as Array<{ name: string; description?: string }> | null;
 
     expect(normalized).toHaveLength(1);
     expect(normalized?.[0]).toMatchObject({
-      name: "web_fetch",
+      name: "extract_fields",
       description: expect.stringContaining("NanoGPT GLM tip:"),
     });
-    expect(normalized?.[0]?.name).not.toBe("fetch_web_page");
     expect(normalized?.[0]?.description).toContain(
       "include required ref/selector/fields arguments explicitly when the tool needs them.",
     );
-    expect(fetchTool.description).toBe("Fetch and extract readable content from a URL");
+    expect(extractTool.description).toBe("Extract selected fields from an existing page reference");
   });
 
   it("adds Qwen schema hints that steer models away from leaked XML-like tool text", () => {
@@ -131,6 +205,41 @@ describe("provider tool schema hooks", () => {
         violations: expect.arrayContaining([
           expect.stringContaining("missing description"),
           expect.stringContaining("no named properties"),
+        ]),
+      },
+    ]);
+  });
+
+  it("surfaces a diagnostic when web_fetch is stripped on non-MiniMax models", () => {
+    const provider = getRegisteredProvider();
+    const inspectToolSchemas = provider.inspectToolSchemas;
+    expect(inspectToolSchemas).toEqual(expect.any(Function));
+
+    const diagnostics = inspectToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "deepseek/deepseek-v4-flash:thinking",
+      model: {
+        id: "deepseek/deepseek-v4-flash:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [
+        {
+          name: "web_fetch",
+          description: "Fetch a web page",
+          parameters: { type: "object" },
+          execute: async () => ({ ok: true }),
+        },
+      ],
+    }) as Array<{ toolName: string; toolIndex?: number; violations: string[] }> | null;
+
+    expect(diagnostics).toEqual([
+      {
+        toolName: "web_fetch",
+        toolIndex: 0,
+        violations: expect.arrayContaining([
+          expect.stringContaining("deepseek/deepseek-v4-flash:thinking hangs on web_fetch"),
+          expect.stringContaining("curl -L <url>"),
         ]),
       },
     ]);

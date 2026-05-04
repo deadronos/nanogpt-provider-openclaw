@@ -7,18 +7,88 @@ import { isRecord } from "../shared/guards.js";
 import {
   resolveNanoGptModelIdentity,
 } from "./anomaly-types.js";
+import { createNanoGptLoggerSync } from "./nanogpt-logger.js";
 
 const NANOGPT_GLM_TOOL_SCHEMA_HINT_MARKER = "NanoGPT GLM tip:";
 const NANOGPT_GLM_TOOL_SCHEMA_HINT =
   "NanoGPT GLM tip: include required ref/selector/fields arguments explicitly when the tool needs them.";
 const NANOGPT_QWEN_TOOL_SCHEMA_HINT_MARKER = "NanoGPT Qwen tip:";
+const NANOGPT_WEB_FETCH_FALLBACK_HINT_MARKER = "NanoGPT web_fetch note:";
+const NANOGPT_WEB_FETCH_FALLBACK_HINT =
+  "NanoGPT web_fetch note: this NanoGPT model often hangs on web_fetch. If you still need page contents, prefer the exec or shell tool and fetch manually with curl -L <url> or curl -Ls <url>.";
+
+const warnedNanoGptWebFetchStripSignatures = new Set<string>();
+
+type NanoGptToolSchemaWarnLogger = {
+  warn?: (message: string, meta?: Record<string, unknown>) => void;
+};
 
 /**
  * NanoGPT family-specific tool schema guidance:
- * - Kimi: keep untouched. Alias-heavy rewrites have been flaky and are intentionally disabled.
+ * - MiniMax: keeps web_fetch enabled because it is the known-good family for it today.
+ * - Other families: strip web_fetch to avoid hang-prone turns and hint shell tools toward curl fallback.
  * - GLM: improves tool-call reliability when required/named args are made explicit in descriptions.
  * - Qwen: steers models away from leaked XML-like wrappers toward direct JSON object arguments.
  */
+
+function normalizeNanoGptToolRoutingModelId(modelId: string): string {
+  const normalized = modelId.trim().toLowerCase();
+  return normalized.startsWith("nanogpt/") ? normalized.slice("nanogpt/".length) : normalized;
+}
+
+function shouldKeepNanoGptWebFetchTool(modelId: string): boolean {
+  return normalizeNanoGptToolRoutingModelId(modelId).startsWith("minimax/");
+}
+
+function isNanoGptWebFetchToolName(name: string | undefined): boolean {
+  if (typeof name !== "string") {
+    return false;
+  }
+
+  return /^(web[_-]?fetch|fetch_web_page)$/i.test(name.trim());
+}
+
+function shouldAnnotateNanoGptShellTool(tool: AnyAgentTool): boolean {
+  const normalizedName = tool.name.trim().toLowerCase();
+  return /^(exec|bash|sh|shell)$/.test(normalizedName) || normalizedName.includes("command");
+}
+
+function appendNanoGptWebFetchFallbackHint(description: string | undefined): string {
+  if (
+    typeof description === "string" &&
+    description.includes(NANOGPT_WEB_FETCH_FALLBACK_HINT_MARKER)
+  ) {
+    return description;
+  }
+
+  if (typeof description === "string" && description.trim().length > 0) {
+    return `${description} ${NANOGPT_WEB_FETCH_FALLBACK_HINT}`;
+  }
+
+  return NANOGPT_WEB_FETCH_FALLBACK_HINT;
+}
+
+function warnNanoGptWebFetchStripped(params: {
+  modelId: string;
+  logger?: NanoGptToolSchemaWarnLogger;
+}): void {
+  const signature = normalizeNanoGptToolRoutingModelId(params.modelId);
+  if (!signature || warnedNanoGptWebFetchStripSignatures.has(signature)) {
+    return;
+  }
+
+  warnedNanoGptWebFetchStripSignatures.add(signature);
+  const message = `[nanogpt] modelId=${params.modelId} hangs on web_fetch via NanoGPT; stripped web_fetch tool to avoid hangs`;
+  const meta = {
+    modelId: params.modelId,
+    toolName: "web_fetch",
+    action: "stripped",
+    reason: "non_minimax_model_web_fetch_hang_risk",
+  };
+
+  params.logger?.warn?.(message, meta);
+  createNanoGptLoggerSync("tool-schema-hooks").warn(message, meta);
+}
 
 function getNanoGptToolSchemaSummary(tool: AnyAgentTool): {
   parameters?: Record<string, unknown>;
@@ -136,34 +206,96 @@ function inspectNanoGptQwenToolSchema(
     : null;
 }
 
-export function normalizeNanoGptToolSchemas(
+function inspectNanoGptWebFetchToolSchema(
   ctx: ProviderNormalizeToolSchemasContext,
-): AnyAgentTool[] | null {
-  const { modelFamily: family } = resolveNanoGptModelIdentity(ctx);
-  // Only normalize for families that currently need schema nudges.
-  // Kimi intentionally stays passthrough to avoid reintroducing aliasing debt.
-  if (family !== "glm" && family !== "qwen") {
+): ProviderToolSchemaDiagnostic | null {
+  const { modelId } = resolveNanoGptModelIdentity(ctx);
+  if (shouldKeepNanoGptWebFetchTool(modelId)) {
     return null;
   }
 
-  let changed = false;
-  const tools = ctx.tools.map((tool) => {
+  const toolIndex = ctx.tools.findIndex((tool) => isNanoGptWebFetchToolName(tool.name));
+  if (toolIndex === -1) {
+    return null;
+  }
+
+  return {
+    toolName: ctx.tools[toolIndex]?.name ?? "web_fetch",
+    toolIndex,
+    violations: [
+      `modelId=${modelId} hangs on web_fetch via NanoGPT; stripped web_fetch tool to avoid hangs`,
+      "Hint: prefer an exec or shell tool and fetch manually with curl -L <url> when page contents are still needed.",
+    ],
+  };
+}
+
+export function normalizeNanoGptToolSchemas(
+  ctx: ProviderNormalizeToolSchemasContext,
+  logger?: NanoGptToolSchemaWarnLogger,
+): AnyAgentTool[] | null {
+  const { modelId, modelFamily: family } = resolveNanoGptModelIdentity(ctx);
+  const shouldStripWebFetch = !shouldKeepNanoGptWebFetchTool(modelId);
+  let strippedWebFetch = false;
+
+  const candidateTools = ctx.tools.filter((tool) => {
+    if (shouldStripWebFetch && isNanoGptWebFetchToolName(tool.name)) {
+      strippedWebFetch = true;
+      return false;
+    }
+    return true;
+  });
+
+  if (!strippedWebFetch && family !== "glm" && family !== "qwen") {
+    return null;
+  }
+
+  let changed = strippedWebFetch;
+  const tools = candidateTools.map((tool) => {
+    let nextDescription = tool.description;
+
+    if (strippedWebFetch && shouldAnnotateNanoGptShellTool(tool)) {
+      const hintedDescription = appendNanoGptWebFetchFallbackHint(nextDescription);
+      if (hintedDescription !== nextDescription) {
+        nextDescription = hintedDescription;
+      }
+    }
+
     if (family === "glm" && !shouldAnnotateNanoGptGlmToolSchema(tool)) {
-      return tool;
+      if (nextDescription === tool.description) {
+        return tool;
+      }
+
+      changed = true;
+      return {
+        ...tool,
+        description: nextDescription,
+      } as AnyAgentTool;
     }
-    const nextDescription =
+
+    const familyDescription =
       family === "glm"
-        ? appendNanoGptGlmToolSchemaHint(tool.description)
-        : appendNanoGptQwenToolSchemaHint(tool);
-    if (nextDescription === tool.description) {
+        ? appendNanoGptGlmToolSchemaHint(nextDescription)
+        : family === "qwen"
+          ? appendNanoGptQwenToolSchemaHint({
+              ...tool,
+              description: nextDescription,
+            } as AnyAgentTool)
+          : nextDescription;
+
+    if (familyDescription === tool.description) {
       return tool;
     }
+
     changed = true;
     return {
       ...tool,
-      description: nextDescription,
+      description: familyDescription,
     } as AnyAgentTool;
   });
+
+  if (strippedWebFetch) {
+    warnNanoGptWebFetchStripped({ modelId, logger });
+  }
 
   return changed ? tools : null;
 }
@@ -172,15 +304,22 @@ export function inspectNanoGptToolSchemas(
   ctx: ProviderNormalizeToolSchemasContext,
 ): ProviderToolSchemaDiagnostic[] | null {
   const { modelFamily: family } = resolveNanoGptModelIdentity(ctx);
-  if (family !== "qwen") {
-    return null;
+  const diagnostics: ProviderToolSchemaDiagnostic[] = [];
+
+  const webFetchDiagnostic = inspectNanoGptWebFetchToolSchema(ctx);
+  if (webFetchDiagnostic) {
+    diagnostics.push(webFetchDiagnostic);
   }
 
-  const diagnostics = ctx.tools
-    .map((tool, toolIndex) => inspectNanoGptQwenToolSchema(tool, toolIndex))
-    .filter(
-      (diagnostic): diagnostic is ProviderToolSchemaDiagnostic => diagnostic !== null,
+  if (family === "qwen") {
+    diagnostics.push(
+      ...ctx.tools
+        .map((tool, toolIndex) => inspectNanoGptQwenToolSchema(tool, toolIndex))
+        .filter(
+          (diagnostic): diagnostic is ProviderToolSchemaDiagnostic => diagnostic !== null,
+        ),
     );
+  }
 
   return diagnostics.length > 0 ? diagnostics : null;
 }

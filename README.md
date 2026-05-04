@@ -222,6 +222,13 @@ For example:
 - `zai-org/glm*` models get light schema hints in `normalizeToolSchemas` to
   nudge required ref/selector/fields-style arguments without renaming
   `web_fetch`.
+- `minimax/*` is the only NanoGPT family that currently keeps `web_fetch`
+  registered by default. Other NanoGPT model families strip `web_fetch`
+  during tool-schema normalization because they have been hang-prone on
+  `web_fetch` through NanoGPT.
+- When `web_fetch` is stripped for a non-MiniMax NanoGPT model and an
+  `exec`/shell-style tool is present, the plugin appends a hint telling the
+  model to fetch manually with `curl -L <url>` or `curl -Ls <url>` instead.
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
