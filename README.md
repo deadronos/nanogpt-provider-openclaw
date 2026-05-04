@@ -193,6 +193,7 @@ For example:
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
+- `enableWebSearchProvider`: `false` (default) or `true` — registers the NanoGPT `web_search` provider even when text routing is not explicitly `paygo`
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
@@ -228,6 +229,9 @@ For example:
   text requests.
 - subscription-routed text requests ignore `provider` so the plugin does not
   push subscription calls onto a separate paygo billing path.
+- The NanoGPT `web_search` provider is not registered by default. It is only
+  exposed when `routingMode: "paygo"` is configured explicitly, or when
+  `enableWebSearchProvider: true` is set.
 - `requestApi: "responses"` on subscription routing uses NanoGPT's base API
   endpoint (`/api/v1`) rather than the subscription completions endpoint, so
   treat it as a separate compatibility/billing path from standard subscription
@@ -262,8 +266,13 @@ falls back to the default catalog pricing instead of failing model discovery.
 
 ## Web search
 
-The plugin registers a NanoGPT-backed `web_search` provider using NanoGPT's
-direct `POST /api/web` endpoint.
+When enabled, the plugin registers a NanoGPT-backed `web_search` provider using
+NanoGPT's direct `POST /api/web` endpoint.
+
+The provider stays off by default to avoid exposing NanoGPT web-search billing
+paths on subscription-oriented setups. Enable it by setting either
+`routingMode: "paygo"` or `enableWebSearchProvider: true` in the NanoGPT plugin
+config.
 
 ### Current search behavior
 

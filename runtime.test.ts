@@ -18,6 +18,7 @@ describe("getNanoGptConfig", () => {
         catalogSource: "personalized",
         requestApi: "responses",
         provider: " openrouter ",
+        enableWebSearchProvider: true,
         bridgeMode: "always",
         bridgeProtocol: "xml",
       }),
@@ -26,6 +27,7 @@ describe("getNanoGptConfig", () => {
       catalogSource: "personalized",
       requestApi: "responses",
       provider: "openrouter",
+      enableWebSearchProvider: true,
       bridgeMode: "always",
       bridgeProtocol: "xml",
     });

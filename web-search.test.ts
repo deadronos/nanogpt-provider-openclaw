@@ -29,11 +29,26 @@ beforeEach(() => {
 });
 
 describe("nanogpt web search provider", () => {
-  it("registers the nanogpt web search provider", () => {
+  it("does not register the nanogpt web search provider by default", () => {
     const webSearchProviders: unknown[] = [];
 
     plugin.register({
       pluginConfig: {},
+      registerProvider() {},
+      registerWebSearchProvider(provider: unknown) {
+        webSearchProviders.push(provider);
+      },
+      registerImageGenerationProvider() {},
+    } as never);
+
+    expect(webSearchProviders).toHaveLength(0);
+  });
+
+  it("registers the nanogpt web search provider for explicit paygo routing", () => {
+    const webSearchProviders: unknown[] = [];
+
+    plugin.register({
+      pluginConfig: { routingMode: "paygo" },
       registerProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);

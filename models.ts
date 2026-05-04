@@ -40,6 +40,7 @@ export interface NanoGptPluginConfig {
   catalogSource?: NanoGptCatalogSource;
   requestApi?: "completions" | "responses" | "auto";
   provider?: string;
+  enableWebSearchProvider?: boolean;
   enableRepair?: boolean | NanoGptRepairConfig;
   responseFormat?: NanoGptResponseFormat;
   /**

@@ -33,6 +33,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
         ? candidate.requestApi
         : undefined,
     ...(provider ? { provider } : {}),
+    ...(typeof candidate.enableWebSearchProvider === "boolean"
+      ? { enableWebSearchProvider: candidate.enableWebSearchProvider }
+      : {}),
     ...(candidate.enableRepair !== undefined && candidate.enableRepair !== null
       ? { enableRepair: candidate.enableRepair }
       : {}),
