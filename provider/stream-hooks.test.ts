@@ -486,6 +486,62 @@ describe("nanoGPT stream hooks", () => {
     expect(messages).toHaveLength(2);
   });
 
+  it.each([
+    {
+      error: new Error("Request timed out after 45000ms"),
+      errorKind: "timeout",
+    },
+    {
+      error: Object.assign(new Error("Request was aborted."), { name: "AbortError" }),
+      errorKind: "aborted",
+    },
+    {
+      error: new SyntaxError("Unexpected token < in JSON at position 0"),
+      errorKind: "parse_failed",
+    },
+  ])("logs rejected stream.result() failures as $errorKind", async ({ error, errorKind }) => {
+    const logger = { warn: vi.fn() };
+    const baseStreamFn = vi.fn(async () => ({
+      result: () => Promise.reject(error),
+    }));
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: {
+          id: MODEL_ID,
+          api: "openai-completions",
+        },
+        streamFn: baseStreamFn,
+      } as any,
+      logger,
+    );
+
+    const stream = await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "web_fetch", description: "Fetch a web page", parameters: {} }],
+      } as any,
+      {},
+    );
+
+    await expect(stream?.result()).rejects.toBe(error);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("stream.result() rejected"),
+      expect.objectContaining({
+        modelId: MODEL_ID,
+        family: "kimi",
+        errorKind,
+        errorName: error.name,
+      }),
+    );
+  });
+
   it("injects the object bridge system prompt when bridgeMode=always", async () => {
     const observedPayloads: unknown[] = [];
     const message = buildAssistantMessage({
