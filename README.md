@@ -36,6 +36,10 @@ The implementation is split into small modules:
 - no authoritative weekly token accounting from the documented NanoGPT API
 - pricing is aligned for a configured upstream provider only when NanoGPT
   exposes provider-selection pricing for that model
+- NanoGPT `web_fetch` is currently allowlisted only for `minimax/*` models.
+  Other NanoGPT families such as `moonshotai/kimi*` have been hang-prone on
+  `web_fetch`, so the plugin strips that tool for them and nudges shell-capable
+  agents toward `exec` + `curl` instead to avoid minute-long hangs/timeouts.
 
 NanoGPT's documented usage endpoint reports quota windows, not true token
 usage. The plugin exposes those daily/monthly quota snapshots to OpenClaw, but
@@ -229,6 +233,11 @@ For example:
 - When `web_fetch` is stripped for a non-MiniMax NanoGPT model and an
   `exec`/shell-style tool is present, the plugin appends a hint telling the
   model to fetch manually with `curl -L <url>` or `curl -Ls <url>` instead.
+- Example: on `moonshotai/kimi-k2.5:thinking`, the model no longer sees a
+  `web_fetch` tool in its tool list. Instead, the hint nudges it toward using
+  `exec` with `curl`, which avoids the minute-long `web_fetch` hangs/timeouts
+  we were seeing on NanoGPT while still letting the agent fetch the page
+  successfully.
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
