@@ -16,12 +16,38 @@ import { createNanoGptLoggerSync } from "../provider/nanogpt-logger.js";
 
 const SUBSCRIPTION_CACHE_TTL_MS = 60_000;
 export const NANOGPT_SUBSCRIPTION_PROBE_TIMEOUT_MS = 10_000;
+const _CACHE_CLEANUP_INTERVAL_MS = 60_000;
+const _MAX_SUBSCRIPTION_CACHE_SIZE = 100;
 
 const subscriptionCache = new Map<string, { active: boolean; expiresAt: number }>();
+let _lastCacheCleanup = 0;
 const _routingLogger = createNanoGptLoggerSync("routing");
+
+function _cleanupExpiredCacheEntries(now: number): void {
+  for (const [key, entry] of subscriptionCache) {
+    if (entry.expiresAt <= now) {
+      subscriptionCache.delete(key);
+    }
+  }
+}
 
 export async function probeNanoGptSubscription(apiKey: string): Promise<boolean> {
   const now = Date.now();
+
+  // Periodic cache cleanup: evict expired entries or clear if too large
+  const cacheSize = subscriptionCache.size;
+  const timeSinceCleanup = now - _lastCacheCleanup;
+  if (cacheSize > 0 && (timeSinceCleanup >= _CACHE_CLEANUP_INTERVAL_MS || cacheSize > _MAX_SUBSCRIPTION_CACHE_SIZE)) {
+    if (cacheSize > _MAX_SUBSCRIPTION_CACHE_SIZE) {
+      subscriptionCache.clear();
+      _routingLogger.info("subscription cache cleared due to size limit", { size: cacheSize });
+    } else {
+      _cleanupExpiredCacheEntries(now);
+      _routingLogger.info("subscription cache expired entries evicted", { remaining: subscriptionCache.size });
+    }
+    _lastCacheCleanup = now;
+  }
+
   const cached = subscriptionCache.get(apiKey);
   if (cached && cached.expiresAt > now) {
     _routingLogger.info("subscription probe cached", { active: cached.active });
@@ -139,5 +165,6 @@ export function buildNanoGptRequestHeaders(params: {
 
 export function resetNanoGptRoutingState(): void {
   subscriptionCache.clear();
+  _lastCacheCleanup = 0;
   _routingLogger.info("routing state reset");
 }
