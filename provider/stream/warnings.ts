@@ -57,6 +57,8 @@ const STREAM_RESULT_PARSE_HINTS = [
   "parse error",
 ] as const;
 
+const STREAM_RESULT_PENDING_WARNING_THRESHOLDS_MS = [10_000, 30_000, 60_000] as const;
+
 type NanoGptStreamResultRejectionSummary = {
   errorKind: "aborted" | "timeout" | "parse_failed" | "overloaded" | "format" | "unknown";
   errorName?: string;
@@ -205,6 +207,74 @@ function logNanoGptStreamResultRejection(params: {
     "[nanogpt] stream.result() rejected during stream-result inspection",
     meta,
   );
+}
+
+function logNanoGptStreamResultPending(params: {
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+  transportApi?: string;
+  requestToolMetadata: NanoGptRequestToolMetadata;
+  pendingMs: number;
+}): void {
+  const meta = {
+    modelId: params.modelId,
+    family: params.modelFamily,
+    ...(params.transportApi ? { transportApi: params.transportApi } : {}),
+    pendingMs: params.pendingMs,
+    toolEnabled: params.requestToolMetadata.toolEnabled,
+    toolCount: params.requestToolMetadata.toolCount,
+    ...(params.requestToolMetadata.toolNames.length > 0
+      ? { toolNames: params.requestToolMetadata.toolNames }
+      : {}),
+  };
+
+  params.logger?.warn?.(
+    "[nanogpt] stream.result() still pending during stream-result inspection",
+    meta,
+  );
+  params.nanogptLogger?.warn(
+    "[nanogpt] stream.result() still pending during stream-result inspection",
+    meta,
+  );
+}
+
+function scheduleNanoGptStreamResultPendingWarnings(params: {
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+  transportApi?: string;
+  requestToolMetadata: NanoGptRequestToolMetadata;
+}): () => void {
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+
+  for (const pendingMs of STREAM_RESULT_PENDING_WARNING_THRESHOLDS_MS) {
+    const timer = setTimeout(() => {
+      logNanoGptStreamResultPending({
+        logger: params.logger,
+        nanogptLogger: params.nanogptLogger,
+        modelId: params.modelId,
+        modelFamily: params.modelFamily,
+        transportApi: params.transportApi,
+        requestToolMetadata: params.requestToolMetadata,
+        pendingMs,
+      });
+    }, pendingMs);
+
+    if (typeof timer.unref === "function") {
+      timer.unref();
+    }
+
+    timers.push(timer);
+  }
+
+  return () => {
+    for (const timer of timers) {
+      clearTimeout(timer);
+    }
+  };
 }
 
 function buildNanoGptExpectedToolRequestShapeSummary(
@@ -377,6 +447,15 @@ export function scheduleNanoGptStreamResultWarnings(params: {
   if (!params.stream || typeof streamWithResult.result !== "function") {
     return;
   }
+
+  const clearPendingWarnings = scheduleNanoGptStreamResultPendingWarnings({
+    logger: params.logger,
+    nanogptLogger: params.nanogptLogger,
+    modelId: params.modelId,
+    modelFamily: params.modelFamily,
+    transportApi: params.transportApi,
+    requestToolMetadata: params.requestToolMetadata,
+  });
 
   void streamWithResult
     .result()
@@ -578,5 +657,8 @@ export function scheduleNanoGptStreamResultWarnings(params: {
         transportApi: params.transportApi,
         error,
       });
+    })
+    .finally(() => {
+      clearPendingWarnings();
     });
 }

@@ -542,6 +542,89 @@ describe("nanoGPT stream hooks", () => {
     );
   });
 
+  it("logs when stream.result() stays pending past the watchdog thresholds", async () => {
+    vi.useFakeTimers();
+
+    let resolveResult!: (message: AssistantMessage) => void;
+    const resultPromise = new Promise<AssistantMessage>((resolve) => {
+      resolveResult = resolve;
+    });
+
+    try {
+      const logger = { warn: vi.fn() };
+      const finalMessage = buildAssistantMessage({
+        content: [{ type: "text", text: "all done" }],
+        usageEmpty: false,
+        stopReason: "stop",
+      });
+      const baseStreamFn = vi.fn(async () => ({
+        result: () => resultPromise,
+      }));
+
+      const wrapped = wrapNanoGptStreamFn(
+        {
+          provider: "nanogpt",
+          modelId: MODEL_ID,
+          extraParams: {},
+          model: {
+            id: MODEL_ID,
+            api: "openai-completions",
+          },
+          streamFn: baseStreamFn,
+        } as any,
+        logger,
+      );
+
+      const stream = await wrapped?.(
+        {} as any,
+        {
+          tools: [{ name: "web_fetch", description: "Fetch a web page", parameters: {} }],
+        } as any,
+        {},
+      );
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(logger.warn).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(logger.warn).toHaveBeenCalledTimes(3);
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          modelId: MODEL_ID,
+          family: "kimi",
+          toolEnabled: true,
+          toolCount: 1,
+          toolNames: ["web_fetch"],
+          pendingMs: 10_000,
+        }),
+      );
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          pendingMs: 30_000,
+        }),
+      );
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          pendingMs: 60_000,
+        }),
+      );
+
+      resolveResult(finalMessage);
+      await expect(stream?.result()).resolves.toEqual(finalMessage);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("injects the object bridge system prompt when bridgeMode=always", async () => {
     const observedPayloads: unknown[] = [];
     const message = buildAssistantMessage({
