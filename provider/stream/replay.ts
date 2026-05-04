@@ -6,6 +6,8 @@ import type {
   NanoGptStreamResult,
 } from "./types.js";
 
+type NanoGptReplayAsyncIterator = AsyncIterator<NanoGptReplayEvent>;
+
 function resolveNanoGptReplayStopReason(
   stopReason: NanoGptAssistantMessage["stopReason"],
 ): "stop" | "length" | "toolUse" {
@@ -186,4 +188,35 @@ export function replayNanoGptAssistantMessage(
   });
 
   return stream as unknown as NanoGptStreamResult;
+}
+
+export function deferNanoGptStreamResult(
+  resolveStream: () => Promise<NanoGptStreamResult>,
+): NanoGptStreamResult {
+  const streamPromise = Promise.resolve().then(resolveStream);
+
+  return {
+    result: async () => await (await streamPromise).result(),
+    [Symbol.asyncIterator]() {
+      let iteratorPromise: Promise<NanoGptReplayAsyncIterator> | undefined;
+
+      return {
+        next: async () => {
+          if (!iteratorPromise) {
+            iteratorPromise = streamPromise.then((stream) => {
+              const iteratorFactory = (stream as { [Symbol.asyncIterator]?: () => NanoGptReplayAsyncIterator })[
+                Symbol.asyncIterator
+              ];
+              if (typeof iteratorFactory !== "function") {
+                throw new Error("Deferred stream result does not expose an async iterator.");
+              }
+              return iteratorFactory.call(stream);
+            });
+          }
+
+          return await (await iteratorPromise).next();
+        },
+      } satisfies NanoGptReplayAsyncIterator;
+    },
+  } as NanoGptStreamResult;
 }

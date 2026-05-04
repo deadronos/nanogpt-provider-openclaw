@@ -625,6 +625,68 @@ describe("nanoGPT stream hooks", () => {
     }
   });
 
+  it("returns a stream immediately in bridge mode even when the upstream result is pending", async () => {
+    let resolveResult!: (message: AssistantMessage) => void;
+    const resultPromise = new Promise<AssistantMessage>((resolve) => {
+      resolveResult = resolve;
+    });
+    const message = buildAssistantMessage({
+      content: [
+        {
+          type: "text",
+          text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"I will inspect the file now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"src/index.ts\"}}]}",
+        },
+      ],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const baseStreamFn = vi.fn(async () => ({
+      result: () => resultPromise,
+    }));
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: {
+          id: MODEL_ID,
+          api: "openai-completions",
+        },
+        streamFn: baseStreamFn,
+      } as any,
+      { warn: vi.fn() },
+      { bridgeMode: "always", bridgeProtocol: "object" },
+    );
+
+    let returned = false;
+    const streamPromise = Promise.resolve(
+      wrapped?.(
+        {} as any,
+        {
+          tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        } as any,
+        {},
+      ),
+    ).then((stream) => {
+      returned = true;
+      return stream;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(returned).toBe(true);
+
+    resolveResult(message);
+    const stream = await streamPromise;
+    const result = await stream?.result();
+
+    expect(result?.stopReason).toBe("toolUse");
+    expect(result?.content).toMatchObject([
+      { type: "text", text: "I will inspect the file now." },
+      { type: "toolCall", name: "read", arguments: { path: "src/index.ts" } },
+    ]);
+  });
+
   it("injects the object bridge system prompt when bridgeMode=always", async () => {
     const observedPayloads: unknown[] = [];
     const message = buildAssistantMessage({
