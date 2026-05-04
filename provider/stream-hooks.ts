@@ -146,6 +146,11 @@ export function wrapNanoGptStreamFn(
         requestToolMetadata,
       });
 
+      // TypeScript cannot verify the return type through the conditional bridge
+      // wrapping. This is safe because the underlying stream object is compatible
+      // with the expected return type. The issue is a TypeScript limitation with
+      // narrowing after conditionals, not a runtime type mismatch.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return stream as any;
     };
   }

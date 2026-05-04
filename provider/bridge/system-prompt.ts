@@ -1,6 +1,13 @@
 import type { AnyAgentTool } from "openclaw/plugin-sdk/plugin-entry";
 import { normalizeNanoGptBridgeTools, type NanoGptBridgeTool } from "./types.js";
 
+/**
+ * Builds a tool manifest from normalized bridge tools.
+ * SECURITY NOTE: Tool descriptions are included verbatim in the system prompt.
+ * Malicious tool descriptions could attempt prompt injection. This function
+ * does not sanitize descriptions. Callers should validate tool descriptions
+ * before passing them here, especially for user-supplied or third-party tools.
+ */
 function buildObjectToolManifest(normalizedTools: readonly NanoGptBridgeTool[]) {
   return normalizedTools.map((tool) => {
     const argumentsSchema: Record<string, unknown> = {};
@@ -32,6 +39,11 @@ function toolExists(normalizedTools: readonly NanoGptBridgeTool[], name: string)
   return normalizedTools.some((tool) => canonicalizeToolName(tool.name) === target);
 }
 
+/**
+ * Builds human-readable tool description for XML bridge format.
+ * SECURITY NOTE: Descriptions are included verbatim. Validate tool descriptions
+ * before passing them here to prevent prompt injection attacks.
+ */
 function buildToolDescription(tool: NanoGptBridgeTool): string {
   const lines: string[] = [];
   lines.push(`## ${tool.name}`);
