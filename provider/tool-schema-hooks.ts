@@ -35,8 +35,8 @@ type NanoGptToolSchemaWarnLogger = {
 
 /**
  * NanoGPT family-specific tool schema guidance:
- * - MiniMax: keeps web_fetch enabled because it is the known-good family for it today.
- * - Other families: strip web_fetch to avoid hang-prone turns and hint shell tools toward curl fallback.
+ * - web_fetch tool-name rewrite is enabled by default to avoid native-name collisions.
+ * - web_fetch fallback stripping is opt-in and can still be used for known hang-prone families.
  * - GLM: improves tool-call reliability when required/named args are made explicit in descriptions.
  * - Qwen: steers models away from leaked XML-like wrappers toward direct JSON object arguments.
  */
@@ -57,9 +57,9 @@ function resolveNanoGptEffectiveWebFetchPolicy(params: {
   rewriteToolName: boolean;
   stripFallback: boolean;
 } {
-  const rewriteToolName = params.config?.enableWebFetchToolNameRewrite === true;
+  const rewriteToolName = params.config?.enableWebFetchToolNameRewrite !== false;
   const fallbackStripEnabled =
-    !rewriteToolName && params.config?.enableWebFetchFallbackStrip !== false;
+    !rewriteToolName && params.config?.enableWebFetchFallbackStrip === true;
 
   return {
     rewriteToolName,

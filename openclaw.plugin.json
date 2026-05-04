@@ -62,11 +62,11 @@
     },
     "enableWebFetchFallbackStrip": {
       "label": "Enable web_fetch Fallback Strip",
-      "help": "When true (default), non-MiniMax families strip web_fetch and use curl fallback hints."
+      "help": "When true (off by default), non-MiniMax families strip web_fetch and use curl fallback hints."
     },
     "enableWebFetchToolNameRewrite": {
       "label": "Enable web_fetch Tool Name Rewrite",
-      "help": "When true, rewrites web_fetch tool names to openclaw_web_fetch and forces fallback stripping off."
+      "help": "When true (default), rewrites web_fetch tool names to openclaw_web_fetch and forces fallback stripping off."
     },
     "bridgeMode": {
       "label": "Bridge Mode",

@@ -36,10 +36,6 @@ The implementation is split into small modules:
 - no authoritative weekly token accounting from the documented NanoGPT API
 - pricing is aligned for a configured upstream provider only when NanoGPT
   exposes provider-selection pricing for that model
-- NanoGPT `web_fetch` is currently allowlisted only for `minimax/*` models.
-  Other NanoGPT families such as `moonshotai/kimi*` have been hang-prone on
-  `web_fetch`, so the plugin strips that tool for them and nudges shell-capable
-  agents toward `exec` + `curl` instead to avoid minute-long hangs/timeouts.
 
 NanoGPT's documented usage endpoint reports quota windows, not true token
 usage. The plugin exposes those daily/monthly quota snapshots to OpenClaw, but
@@ -198,8 +194,8 @@ For example:
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
 - `enableWebSearchProvider`: `false` (default) or `true` — registers the NanoGPT `web_search` provider even when text routing is not explicitly `paygo`
-- `enableWebFetchFallbackStrip`: `true` (default) or `false` — controls whether non-MiniMax NanoGPT families strip `web_fetch` and fall back to curl hints
-- `enableWebFetchToolNameRewrite`: `false` (default) or `true` — rewrites `web_fetch` tool names to `openclaw_web_fetch`; when enabled, this takes precedence and forces fallback stripping off
+- `enableWebFetchFallbackStrip`: `false` (default) or `true` — when enabled, strips `web_fetch` on non-MiniMax families and falls back to curl hints
+- `enableWebFetchToolNameRewrite`: `true` (default) or `false` — rewrites `web_fetch` tool names to `openclaw_web_fetch`; when enabled, this takes precedence and forces fallback stripping off
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
@@ -228,15 +224,13 @@ For example:
 - `zai-org/glm*` models get light schema hints in `normalizeToolSchemas` to
   nudge required ref/selector/fields-style arguments without renaming
   `web_fetch`.
-- `minimax/*` is the only NanoGPT family that currently keeps `web_fetch`
-  registered by default. Other NanoGPT model families strip `web_fetch`
-  during tool-schema normalization because they have been hang-prone on
-  `web_fetch` through NanoGPT.
-- `enableWebFetchFallbackStrip: false` disables that family-based stripping and
-  keeps `web_fetch` registered for non-MiniMax families as well.
-- `enableWebFetchToolNameRewrite: true` rewrites `web_fetch`/`fetch_web_page`
-  tool names to `openclaw_web_fetch`, and it always forces fallback stripping
-  off even if `enableWebFetchFallbackStrip: true` is set.
+- `enableWebFetchToolNameRewrite` is enabled by default and rewrites
+  `web_fetch`/`fetch_web_page` tool names to `openclaw_web_fetch`.
+- `enableWebFetchFallbackStrip` is disabled by default. Turn it on only if you
+  explicitly want the older strip-and-curl fallback behavior for non-MiniMax
+  families.
+- When both flags are enabled, tool-name rewriting wins and fallback stripping
+  remains off.
 - When `web_fetch` is stripped for a non-MiniMax NanoGPT model and an
   `exec`/shell-style tool is present, the plugin appends a hint telling the
   model to fetch manually with `curl -L <url>` or `curl -Ls <url>` instead.

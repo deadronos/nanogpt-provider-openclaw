@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getRegisteredProvider, getRegisteredProviderHarness } from "./test-harness.js";
 
 describe("provider tool schema hooks", () => {
-  it("strips web_fetch on non-MiniMax models, hints exec toward curl, and warns once", () => {
+  it("rewrites web_fetch by default on non-MiniMax models", () => {
     const { provider, warn } = getRegisteredProviderHarness();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -49,24 +49,16 @@ describe("provider tool schema hooks", () => {
       tools: [fetchTool, execTool],
     }) as Array<{ name: string; description?: string }> | null;
 
-    expect(normalized).toHaveLength(1);
+    expect(normalized).toHaveLength(2);
     expect(normalized?.[0]).toMatchObject({
-      name: "exec",
-      description: expect.stringContaining("curl -L <url>"),
+      name: "openclaw_web_fetch",
+      description: expect.stringContaining("call this tool as openclaw_web_fetch"),
     });
-    expect(normalizedAgain).toHaveLength(1);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("modelId=moonshotai/kimi-k2.5:thinking hangs on web_fetch via NanoGPT; stripped web_fetch tool to avoid hangs"),
-      expect.objectContaining({
-        modelId: "moonshotai/kimi-k2.5:thinking",
-        toolName: "web_fetch",
-        action: "stripped",
-      }),
-    );
+    expect(normalizedAgain).toHaveLength(2);
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it("keeps web_fetch enabled on minimax models", () => {
+  it("rewrites web_fetch by default on minimax models", () => {
     const provider = getRegisteredProvider();
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
@@ -87,13 +79,21 @@ describe("provider tool schema hooks", () => {
         api: "openai-completions",
       },
       tools: [fetchTool],
-    }) as Array<{ name: string }> | null;
+    }) as Array<{ name: string; description?: string }> | null;
 
-    expect(normalized).toBeNull();
+    expect(normalized).toEqual([
+      expect.objectContaining({
+        name: "openclaw_web_fetch",
+        description: expect.stringContaining("call this tool as openclaw_web_fetch"),
+      }),
+    ]);
   });
 
-  it("keeps web_fetch enabled on non-MiniMax models when fallback stripping is disabled", () => {
-    const provider = getRegisteredProvider({ enableWebFetchFallbackStrip: false });
+  it("keeps original web_fetch name when rewrite is disabled and strip fallback stays off", () => {
+    const provider = getRegisteredProvider({
+      enableWebFetchToolNameRewrite: false,
+      enableWebFetchFallbackStrip: false,
+    });
     const normalizeToolSchemas = provider.normalizeToolSchemas;
     expect(normalizeToolSchemas).toEqual(expect.any(Function));
 
@@ -116,6 +116,53 @@ describe("provider tool schema hooks", () => {
     }) as Array<{ name: string }> | null;
 
     expect(normalized).toBeNull();
+  });
+
+  it("strips web_fetch on non-MiniMax models when stripping is explicitly enabled and rewrite is disabled", () => {
+    const { provider, warn } = getRegisteredProviderHarness({
+      enableWebFetchToolNameRewrite: false,
+      enableWebFetchFallbackStrip: true,
+    });
+    const normalizeToolSchemas = provider.normalizeToolSchemas;
+    expect(normalizeToolSchemas).toEqual(expect.any(Function));
+
+    const fetchTool = {
+      name: "web_fetch",
+      description: "Fetch and extract readable content from a URL",
+      parameters: { type: "object" },
+      execute: async () => ({ ok: true }),
+    };
+
+    const execTool = {
+      name: "exec",
+      description: "Execute a shell command",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string" },
+        },
+        required: ["command"],
+      },
+      execute: async () => ({ ok: true }),
+    };
+
+    const normalized = normalizeToolSchemas?.({
+      provider: "nanogpt",
+      modelId: "moonshotai/kimi-k2.5:thinking",
+      model: {
+        id: "moonshotai/kimi-k2.5:thinking",
+        provider: "nanogpt",
+        api: "openai-completions",
+      },
+      tools: [fetchTool, execTool],
+    }) as Array<{ name: string; description?: string }> | null;
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized?.[0]).toMatchObject({
+      name: "exec",
+      description: expect.stringContaining("curl -L <url>"),
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("rewrites web_fetch tool name when enabled and overrides fallback stripping", () => {
@@ -286,7 +333,10 @@ describe("provider tool schema hooks", () => {
   });
 
   it("surfaces a diagnostic when web_fetch is stripped on non-MiniMax models", () => {
-    const provider = getRegisteredProvider();
+    const provider = getRegisteredProvider({
+      enableWebFetchToolNameRewrite: false,
+      enableWebFetchFallbackStrip: true,
+    });
     const inspectToolSchemas = provider.inspectToolSchemas;
     expect(inspectToolSchemas).toEqual(expect.any(Function));
 
