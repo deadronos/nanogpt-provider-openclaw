@@ -85,31 +85,6 @@ function parseToolCall(input: unknown): NanoGptBridgeToolCall | null {
 }
 
 /**
- * Parse bridge mode from string
- */
-function parseBridgeMode(val: string | unknown): "tool" | "final" | "clarify" {
-  if (typeof val !== "string") {
-    return "final";
-  }
-  const normalized = val.trim().toLowerCase();
-  if (
-    ["tool", "tools", "tool_call", "tool_calls", "action", "actions", "call", "calls"].includes(
-      normalized,
-    )
-  ) {
-    return "tool";
-  }
-  if (
-    ["clarify", "question", "ask", "needs_input", "input_required", "clarification"].includes(
-      normalized,
-    )
-  ) {
-    return "clarify";
-  }
-  return "final";
-}
-
-/**
  * Parse a content array (Anthropic-style) and extract tool calls and message
  */
 function parseContentArray(blocks: unknown[]): { toolCalls: NanoGptBridgeToolCall[]; message: string } {
