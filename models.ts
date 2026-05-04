@@ -42,6 +42,12 @@ export interface NanoGptPluginConfig {
   provider?: string;
   enableRepair?: boolean | NanoGptRepairConfig;
   responseFormat?: NanoGptResponseFormat;
+  /**
+   * When false (default), suppresses response_format injection on completions turns.
+   * Disabling injection can help DeepSeek and other models avoid output-format conflicts.
+   * Set to true alongside responseFormat to re-enable injection.
+   */
+  injectResponseFormat?: boolean;
   bridgeMode?: NanoGptBridgeMode;
   bridgeProtocol?: NanoGptBridgeProtocol;
 }

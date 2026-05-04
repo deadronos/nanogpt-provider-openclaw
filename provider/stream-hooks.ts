@@ -75,9 +75,14 @@ export function wrapNanoGptStreamFn(
               requestedIncludeUsage = true;
             }
 
+            const shouldInjectResponseFormat =
+              requestToolMetadata.toolEnabled &&
+              resolvedConfig?.injectResponseFormat !== false &&
+              resolvedConfig?.responseFormat;
+
             let nextPayload = maybeInjectNanoGptResponseFormat(
               ensured.payload ?? upstreamPayload,
-              requestToolMetadata.toolEnabled ? resolvedConfig?.responseFormat : undefined,
+              shouldInjectResponseFormat ? resolvedConfig?.responseFormat : undefined,
             );
 
             if (bridgeEnabled) {
