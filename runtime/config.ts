@@ -36,6 +36,12 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
     ...(typeof candidate.enableWebSearchProvider === "boolean"
       ? { enableWebSearchProvider: candidate.enableWebSearchProvider }
       : {}),
+    ...(typeof candidate.enableWebFetchFallbackStrip === "boolean"
+      ? { enableWebFetchFallbackStrip: candidate.enableWebFetchFallbackStrip }
+      : {}),
+    ...(typeof candidate.enableWebFetchToolNameRewrite === "boolean"
+      ? { enableWebFetchToolNameRewrite: candidate.enableWebFetchToolNameRewrite }
+      : {}),
     ...(candidate.enableRepair !== undefined && candidate.enableRepair !== null
       ? { enableRepair: candidate.enableRepair }
       : {}),

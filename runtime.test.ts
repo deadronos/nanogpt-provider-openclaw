@@ -19,6 +19,8 @@ describe("getNanoGptConfig", () => {
         requestApi: "responses",
         provider: " openrouter ",
         enableWebSearchProvider: true,
+        enableWebFetchFallbackStrip: false,
+        enableWebFetchToolNameRewrite: true,
         bridgeMode: "always",
         bridgeProtocol: "xml",
       }),
@@ -28,6 +30,8 @@ describe("getNanoGptConfig", () => {
       requestApi: "responses",
       provider: "openrouter",
       enableWebSearchProvider: true,
+      enableWebFetchFallbackStrip: false,
+      enableWebFetchToolNameRewrite: true,
       bridgeMode: "always",
       bridgeProtocol: "xml",
     });

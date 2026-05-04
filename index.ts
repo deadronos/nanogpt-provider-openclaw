@@ -77,8 +77,8 @@ export default definePluginEntry({
           agentDir: ctx.agentDir,
           model: ctx.model,
         }),
-      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx, logger),
-      inspectToolSchemas: (ctx) => inspectNanoGptToolSchemas(ctx),
+      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx, logger, resolvedNanoGptConfig),
+      inspectToolSchemas: (ctx) => inspectNanoGptToolSchemas(ctx, resolvedNanoGptConfig),
       resolveDynamicModel: (ctx) => resolveNanoGptDynamicModelWithSnapshot(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),

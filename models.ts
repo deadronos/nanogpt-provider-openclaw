@@ -41,6 +41,17 @@ export interface NanoGptPluginConfig {
   requestApi?: "completions" | "responses" | "auto";
   provider?: string;
   enableWebSearchProvider?: boolean;
+  /**
+   * Controls whether non-MiniMax families strip web_fetch and fall back to curl hints.
+    * Defaults to false.
+   */
+  enableWebFetchFallbackStrip?: boolean;
+  /**
+   * When enabled, rewrites web_fetch tool names to openclaw_web_fetch.
+    * Defaults to true.
+   * This takes precedence over enableWebFetchFallbackStrip and forces stripping off.
+   */
+  enableWebFetchToolNameRewrite?: boolean;
   enableRepair?: boolean | NanoGptRepairConfig;
   responseFormat?: NanoGptResponseFormat;
   /**
