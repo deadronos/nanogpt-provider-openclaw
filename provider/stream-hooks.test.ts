@@ -486,6 +486,207 @@ describe("nanoGPT stream hooks", () => {
     expect(messages).toHaveLength(2);
   });
 
+  it.each([
+    {
+      error: new Error("Request timed out after 45000ms"),
+      errorKind: "timeout",
+    },
+    {
+      error: Object.assign(new Error("Request was aborted."), { name: "AbortError" }),
+      errorKind: "aborted",
+    },
+    {
+      error: new SyntaxError("Unexpected token < in JSON at position 0"),
+      errorKind: "parse_failed",
+    },
+  ])("logs rejected stream.result() failures as $errorKind", async ({ error, errorKind }) => {
+    const logger = { warn: vi.fn() };
+    const baseStreamFn = vi.fn(async () => ({
+      result: () => Promise.reject(error),
+    }));
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: {
+          id: MODEL_ID,
+          api: "openai-completions",
+        },
+        streamFn: baseStreamFn,
+      } as any,
+      logger,
+    );
+
+    const stream = await wrapped?.(
+      {} as any,
+      {
+        tools: [{ name: "web_fetch", description: "Fetch a web page", parameters: {} }],
+      } as any,
+      {},
+    );
+
+    await expect(stream?.result()).rejects.toBe(error);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("stream.result() rejected"),
+      expect.objectContaining({
+        modelId: MODEL_ID,
+        family: "kimi",
+        errorKind,
+        errorName: error.name,
+      }),
+    );
+  });
+
+  it("logs when stream.result() stays pending past the watchdog thresholds", async () => {
+    vi.useFakeTimers();
+
+    let resolveResult!: (message: AssistantMessage) => void;
+    const resultPromise = new Promise<AssistantMessage>((resolve) => {
+      resolveResult = resolve;
+    });
+
+    try {
+      const logger = { warn: vi.fn() };
+      const finalMessage = buildAssistantMessage({
+        content: [{ type: "text", text: "all done" }],
+        usageEmpty: false,
+        stopReason: "stop",
+      });
+      const baseStreamFn = vi.fn(async () => ({
+        result: () => resultPromise,
+      }));
+
+      const wrapped = wrapNanoGptStreamFn(
+        {
+          provider: "nanogpt",
+          modelId: MODEL_ID,
+          extraParams: {},
+          model: {
+            id: MODEL_ID,
+            api: "openai-completions",
+          },
+          streamFn: baseStreamFn,
+        } as any,
+        logger,
+      );
+
+      const stream = await wrapped?.(
+        {} as any,
+        {
+          tools: [{ name: "web_fetch", description: "Fetch a web page", parameters: {} }],
+        } as any,
+        {},
+      );
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(logger.warn).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(logger.warn).toHaveBeenCalledTimes(3);
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          modelId: MODEL_ID,
+          family: "kimi",
+          toolEnabled: true,
+          toolCount: 1,
+          toolNames: ["web_fetch"],
+          pendingMs: 10_000,
+        }),
+      );
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          pendingMs: 30_000,
+        }),
+      );
+      expect(logger.warn).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining("stream.result() still pending"),
+        expect.objectContaining({
+          pendingMs: 60_000,
+        }),
+      );
+
+      resolveResult(finalMessage);
+      await expect(stream?.result()).resolves.toEqual(finalMessage);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns a stream immediately in bridge mode even when the upstream result is pending", async () => {
+    let resolveResult!: (message: AssistantMessage) => void;
+    const resultPromise = new Promise<AssistantMessage>((resolve) => {
+      resolveResult = resolve;
+    });
+    const message = buildAssistantMessage({
+      content: [
+        {
+          type: "text",
+          text: "{\"v\":1,\"mode\":\"tool\",\"message\":\"I will inspect the file now.\",\"tool_calls\":[{\"name\":\"read\",\"arguments\":{\"path\":\"src/index.ts\"}}]}",
+        },
+      ],
+      usageEmpty: false,
+      stopReason: "stop",
+    });
+    const baseStreamFn = vi.fn(async () => ({
+      result: () => resultPromise,
+    }));
+
+    const wrapped = wrapNanoGptStreamFn(
+      {
+        provider: "nanogpt",
+        modelId: MODEL_ID,
+        extraParams: {},
+        model: {
+          id: MODEL_ID,
+          api: "openai-completions",
+        },
+        streamFn: baseStreamFn,
+      } as any,
+      { warn: vi.fn() },
+      { bridgeMode: "always", bridgeProtocol: "object" },
+    );
+
+    let returned = false;
+    const streamPromise = Promise.resolve(
+      wrapped?.(
+        {} as any,
+        {
+          tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } }],
+        } as any,
+        {},
+      ),
+    ).then((stream) => {
+      returned = true;
+      return stream;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(returned).toBe(true);
+
+    resolveResult(message);
+    const stream = await streamPromise;
+    const result = await stream?.result();
+
+    expect(result?.stopReason).toBe("toolUse");
+    expect(result?.content).toMatchObject([
+      { type: "text", text: "I will inspect the file now." },
+      { type: "toolCall", name: "read", arguments: { path: "src/index.ts" } },
+    ]);
+  });
+
   it("injects the object bridge system prompt when bridgeMode=always", async () => {
     const observedPayloads: unknown[] = [];
     const message = buildAssistantMessage({
