@@ -141,7 +141,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./dist/index.js"
+      "./index.js"
     ],
     "providers": [
       "nanogpt"
