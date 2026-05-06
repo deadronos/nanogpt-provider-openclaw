@@ -1,6 +1,6 @@
 {
   "name": "@deadronos/nanogpt-provider-openclaw",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "OpenClaw NanoGPT provider plugin",
   "type": "module",
   "keywords": [
@@ -20,6 +20,7 @@
   },
   "license": "MIT",
   "files": [
+    "dist/",
     "index.ts",
     "api.ts",
     "models.ts",
@@ -83,7 +84,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && node ./scripts/stage-package-dir.mjs",
+    "compile": "tsc --noEmit && node ./scripts/compile.mjs",
+    "build": "npm run compile && node ./scripts/stage-package-dir.mjs",
     "build:tgz": "npm run build && npm pack ./dist/package --pack-destination ./dist",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check --threads=1",
@@ -98,6 +100,7 @@
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
+    "esbuild": "^0.25.0",
     "openclaw": "2026.4.22",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
@@ -138,7 +141,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./index.js"
     ],
     "providers": [
       "nanogpt"
