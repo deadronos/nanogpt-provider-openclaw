@@ -25,7 +25,7 @@ function setupProvider() {
   };
 
   plugin.register({
-    pluginConfig: { enableRepair: false },
+    pluginConfig: { enableRepair: false, responseFormat: "json_object" },
     runtime: {
       logging: {
         shouldLogVerbose() {
