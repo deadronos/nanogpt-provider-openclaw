@@ -87,6 +87,24 @@ Actionable follow-up work based on:
     - `models.ts`
     - `index.ts`
     - a new reliability helper module if needed
+- [ ] Evaluate a one-turn fallback route for stalled tool-enabled turns.
+  - Goal:
+    - if a tool-enabled NanoGPT turn hangs or never produces a usable tool call,
+      retry that turn once through a known-working fallback model such as
+      `minimax/minimax-m2.7`
+    - resume the originally requested model on subsequent turns instead of
+      pinning the whole session to the fallback
+  - Constraints to resolve first:
+    - only allow it under explicit paygo-compatible config
+    - avoid duplicate tool execution or double-billing when the original turn
+      eventually completes
+    - decide whether the current `wrapStreamFn` / `createStreamFn` hook surface
+      is sufficient or whether this depends on newer OpenClaw fallback hooks
+      such as `followupFallbackRoute`
+    - define the trigger carefully:
+      - `stream.result()` pending past a threshold
+      - tool-enabled turn with no parsed tool call
+      - tool-like visible text instead of a canonical tool call
 
 ### Canonicalization and compatibility helpers
 
@@ -105,6 +123,20 @@ Actionable follow-up work based on:
     - document embeddings as paygo-first unless NanoGPT clearly supports subscription-backed embeddings
 
 ### Web search expansion
+
+- [ ] Keep NanoGPT `web_search` exposure opt-in and paygo-first unless docs and
+  billing behavior become clearer.
+  - Current direction:
+    - do not register the NanoGPT `web_search` provider by default
+    - expose it only for explicit `routingMode: "paygo"` or an explicit config
+      toggle such as `enableWebSearchProvider: true`
+  - Follow-up questions:
+    - should explicit `provider` selection also be required?
+    - should the plugin suppress `web_search` / `web_fetch` when NanoGPT native
+      `:online`, `webSearch`, or `scraping` paths are active on the model
+      request?
+    - can subscription probing or known NanoGPT billing signals safely auto-gate
+      this later, or is explicit operator intent the safer long-term policy?
 
 - [ ] Deepen the existing NanoGPT web-search provider.
   - Current implementation is intentionally narrow and hard-codes:

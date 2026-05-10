@@ -40,6 +40,7 @@ export default definePluginEntry({
         });
         log.info("config resolved", {
           routingMode: resolvedNanoGptConfig.routingMode,
+          enableWebSearchProvider: resolvedNanoGptConfig.enableWebSearchProvider,
           bridgeMode: resolvedNanoGptConfig.bridgeMode,
           bridgeProtocol: resolvedNanoGptConfig.bridgeProtocol,
         });
@@ -76,8 +77,8 @@ export default definePluginEntry({
           agentDir: ctx.agentDir,
           model: ctx.model,
         }),
-      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx),
-      inspectToolSchemas: (ctx) => inspectNanoGptToolSchemas(ctx),
+      normalizeToolSchemas: (ctx) => normalizeNanoGptToolSchemas(ctx, logger, resolvedNanoGptConfig),
+      inspectToolSchemas: (ctx) => inspectNanoGptToolSchemas(ctx, resolvedNanoGptConfig),
       resolveDynamicModel: (ctx) => resolveNanoGptDynamicModelWithSnapshot(ctx),
       applyNativeStreamingUsageCompat: ({ providerConfig }) =>
         applyNanoGptNativeStreamingUsageCompat(providerConfig),
@@ -92,7 +93,12 @@ export default definePluginEntry({
       classifyFailoverReason: (ctx) => classifyFailoverReasonHook(ctx),
     });
 
-    api.registerWebSearchProvider(createNanoGptWebSearchProvider());
+    if (
+      resolvedNanoGptConfig.routingMode === "paygo" ||
+      resolvedNanoGptConfig.enableWebSearchProvider === true
+    ) {
+      api.registerWebSearchProvider(createNanoGptWebSearchProvider());
+    }
     api.registerImageGenerationProvider(buildNanoGptImageGenerationProvider());
   },
 });

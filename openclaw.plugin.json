@@ -56,6 +56,18 @@
       "label": "Provider Override",
       "help": "Optional NanoGPT upstream provider id for paygo provider selection."
     },
+    "enableWebSearchProvider": {
+      "label": "Enable Web Search Provider",
+      "help": "Register NanoGPT's direct web_search provider even when routing is not explicitly paygo."
+    },
+    "enableWebFetchFallbackStrip": {
+      "label": "Enable web_fetch Fallback Strip",
+      "help": "When true (off by default), non-MiniMax families strip web_fetch and use curl fallback hints."
+    },
+    "enableWebFetchToolNameRewrite": {
+      "label": "Enable web_fetch Tool Name Rewrite",
+      "help": "When true (default), rewrites web_fetch tool names to openclaw_web_fetch and forces fallback stripping off."
+    },
     "bridgeMode": {
       "label": "Bridge Mode",
       "help": "Enable the NanoProxy-style bridge for tool-enabled completions requests."
@@ -99,24 +111,33 @@
           "responses"
         ]
       },
-        "provider": {
-          "type": "string"
-        },
-        "bridgeMode": {
+      "provider": {
+        "type": "string"
+      },
+      "enableWebSearchProvider": {
+        "type": "boolean"
+      },
+      "enableWebFetchFallbackStrip": {
+        "type": "boolean"
+      },
+      "enableWebFetchToolNameRewrite": {
+        "type": "boolean"
+      },
+      "bridgeMode": {
           "type": "string",
           "enum": [
             "never",
             "always"
           ]
         },
-        "bridgeProtocol": {
+      "bridgeProtocol": {
           "type": "string",
           "enum": [
             "object",
             "xml"
           ]
         },
-        "responseFormat": {
+      "responseFormat": {
           "anyOf": [
             {
               "const": false
@@ -144,8 +165,8 @@
             }
           ]
         },
-        "webSearch": {
-          "type": "object",
+      "webSearch": {
+        "type": "object",
         "properties": {
           "apiKey": {
             "type": "string"

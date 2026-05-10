@@ -131,7 +131,7 @@ export function validateReplayTurns(
         ? pendingToolCalls.findIndex((toolCall) => toolCall.id === toolResultInspection.toolCallId)
         : -1;
 
-      if (matchingIndex > 0) {
+      if (matchingIndex >= 0) {
         const matchedToolCall = pendingToolCalls.splice(matchingIndex, 1)[0];
         emitNanoGptReplayOrderingWarning({
           warnNanoGptAnomaly,

@@ -40,8 +40,26 @@ export interface NanoGptPluginConfig {
   catalogSource?: NanoGptCatalogSource;
   requestApi?: "completions" | "responses" | "auto";
   provider?: string;
+  enableWebSearchProvider?: boolean;
+  /**
+   * Controls whether non-MiniMax families strip web_fetch and fall back to curl hints.
+    * Defaults to false.
+   */
+  enableWebFetchFallbackStrip?: boolean;
+  /**
+   * When enabled, rewrites web_fetch tool names to openclaw_web_fetch.
+    * Defaults to true.
+   * This takes precedence over enableWebFetchFallbackStrip and forces stripping off.
+   */
+  enableWebFetchToolNameRewrite?: boolean;
   enableRepair?: boolean | NanoGptRepairConfig;
   responseFormat?: NanoGptResponseFormat;
+  /**
+   * When false (default), suppresses response_format injection on completions turns.
+   * Disabling injection can help DeepSeek and other models avoid output-format conflicts.
+   * Set to true alongside responseFormat to re-enable injection.
+   */
+  injectResponseFormat?: boolean;
   bridgeMode?: NanoGptBridgeMode;
   bridgeProtocol?: NanoGptBridgeProtocol;
 }
