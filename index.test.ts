@@ -17,7 +17,7 @@ describe("nanogpt plugin entry", () => {
     expect(typeof plugin.register).toBe("function");
   });
 
-  it("registers both the model provider and the web search provider", () => {
+  it("registers the model and image providers by default without web search", () => {
     const providers: NanoGptProviderRegistration[] = [];
     const webSearchProviders: unknown[] = [];
     const imageProviders: unknown[] = [];
@@ -40,11 +40,7 @@ describe("nanogpt plugin entry", () => {
       id: "nanogpt",
       label: "NanoGPT",
     });
-    expect(webSearchProviders).toHaveLength(1);
-    expect(webSearchProviders[0]).toMatchObject({
-      id: "nanogpt",
-      label: "NanoGPT Search",
-    });
+    expect(webSearchProviders).toHaveLength(0);
     expect(imageProviders).toHaveLength(1);
     expect(imageProviders[0]).toMatchObject({
       id: "nanogpt",
@@ -58,6 +54,44 @@ describe("nanogpt plugin entry", () => {
     expect(p.validateReplayTurns).toEqual(expect.any(Function));
     expect(p.resolveReasoningOutputMode).toEqual(expect.any(Function));
     expect(p.applyNativeStreamingUsageCompat).toEqual(expect.any(Function));
+  });
+
+  it("registers the web search provider when NanoGPT routing is explicitly paygo", () => {
+    const webSearchProviders: unknown[] = [];
+
+    plugin.register({
+      pluginConfig: { routingMode: "paygo" },
+      registerProvider() {},
+      registerWebSearchProvider(provider: unknown) {
+        webSearchProviders.push(provider);
+      },
+      registerImageGenerationProvider() {},
+    } as never);
+
+    expect(webSearchProviders).toHaveLength(1);
+    expect(webSearchProviders[0]).toMatchObject({
+      id: "nanogpt",
+      label: "NanoGPT Search",
+    });
+  });
+
+  it("registers the web search provider when explicitly enabled", () => {
+    const webSearchProviders: unknown[] = [];
+
+    plugin.register({
+      pluginConfig: { enableWebSearchProvider: true },
+      registerProvider() {},
+      registerWebSearchProvider(provider: unknown) {
+        webSearchProviders.push(provider);
+      },
+      registerImageGenerationProvider() {},
+    } as never);
+
+    expect(webSearchProviders).toHaveLength(1);
+    expect(webSearchProviders[0]).toMatchObject({
+      id: "nanogpt",
+      label: "NanoGPT Search",
+    });
   });
 
   it("registers replay and reasoning hooks on the model provider surface", () => {

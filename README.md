@@ -193,6 +193,9 @@ For example:
 - `catalogSource`: `auto`, `canonical`, `subscription`, `paid`, `personalized`
 - `requestApi`: `auto`, `responses`, `completions`
 - `provider`: optional NanoGPT upstream provider id for paygo provider selection
+- `enableWebSearchProvider`: `false` (default) or `true` — registers the NanoGPT `web_search` provider even when text routing is not explicitly `paygo`
+- `enableWebFetchFallbackStrip`: `false` (default) or `true` — when enabled, strips `web_fetch` on non-MiniMax families and falls back to curl hints
+- `enableWebFetchToolNameRewrite`: `true` (default) or `false` — rewrites `web_fetch` tool names to `openclaw_web_fetch`; when enabled, this takes precedence and forces fallback stripping off
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
@@ -221,6 +224,21 @@ For example:
 - `zai-org/glm*` models get light schema hints in `normalizeToolSchemas` to
   nudge required ref/selector/fields-style arguments without renaming
   `web_fetch`.
+- `enableWebFetchToolNameRewrite` is enabled by default and rewrites
+  `web_fetch`/`fetch_web_page` tool names to `openclaw_web_fetch`.
+- `enableWebFetchFallbackStrip` is disabled by default. Turn it on only if you
+  explicitly want the older strip-and-curl fallback behavior for non-MiniMax
+  families.
+- When both flags are enabled, tool-name rewriting wins and fallback stripping
+  remains off.
+- When `web_fetch` is stripped for a non-MiniMax NanoGPT model and an
+  `exec`/shell-style tool is present, the plugin appends a hint telling the
+  model to fetch manually with `curl -L <url>` or `curl -Ls <url>` instead.
+- Example: on `moonshotai/kimi-k2.5:thinking`, the model no longer sees a
+  `web_fetch` tool in its tool list. Instead, the hint nudges it toward using
+  `exec` with `curl`, which avoids the minute-long `web_fetch` hangs/timeouts
+  we were seeing on NanoGPT while still letting the agent fetch the page
+  successfully.
 - The plugin does **not** currently alias `web_fetch` to `fetch_web_page` on
   `main`; that earlier experiment remains documented in repo history, but the
   alias is currently disabled in code.
@@ -228,6 +246,9 @@ For example:
   text requests.
 - subscription-routed text requests ignore `provider` so the plugin does not
   push subscription calls onto a separate paygo billing path.
+- The NanoGPT `web_search` provider is not registered by default. It is only
+  exposed when `routingMode: "paygo"` is configured explicitly, or when
+  `enableWebSearchProvider: true` is set.
 - `requestApi: "responses"` on subscription routing uses NanoGPT's base API
   endpoint (`/api/v1`) rather than the subscription completions endpoint, so
   treat it as a separate compatibility/billing path from standard subscription
@@ -262,8 +283,13 @@ falls back to the default catalog pricing instead of failing model discovery.
 
 ## Web search
 
-The plugin registers a NanoGPT-backed `web_search` provider using NanoGPT's
-direct `POST /api/web` endpoint.
+When enabled, the plugin registers a NanoGPT-backed `web_search` provider using
+NanoGPT's direct `POST /api/web` endpoint.
+
+The provider stays off by default to avoid exposing NanoGPT web-search billing
+paths on subscription-oriented setups. Enable it by setting either
+`routingMode: "paygo"` or `enableWebSearchProvider: true` in the NanoGPT plugin
+config.
 
 ### Current search behavior
 

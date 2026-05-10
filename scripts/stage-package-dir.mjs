@@ -23,7 +23,7 @@ export function resolvePackageSurfaceEntries(manifest) {
     ? manifest.files.map(normalizeSurfaceEntry).filter(Boolean)
     : [];
 
-  return ["package.json", ...explicitEntries];
+  return ["package.json", ...explicitEntries.filter((e) => !e.startsWith("dist/"))];
 }
 
 function copySurfaceEntry(sourcePath, targetPath) {
@@ -36,6 +36,35 @@ function copySurfaceEntry(sourcePath, targetPath) {
   }
 
   fs.copyFileSync(sourcePath, targetPath);
+}
+
+function mergeCompiledOutput(repoRoot, outputDir) {
+  const compileDir = path.join(repoRoot, "dist");
+  if (!fs.existsSync(compileDir)) {
+    return;
+  }
+  // Copy compiled JS files over their .ts counterparts in the staged package
+  // to make compiled JS take precedence
+  for (const entry of getAllFiles(compileDir)) {
+    const src = path.join(compileDir, entry);
+    const dst = path.join(outputDir, entry);
+    if (fs.statSync(src).isDirectory()) continue;
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(src, dst);
+  }
+}
+
+function getAllFiles(dir, base = "") {
+  const files = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const relPath = base ? `${base}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      files.push(...getAllFiles(path.join(dir, entry.name), relPath));
+    } else {
+      files.push(relPath);
+    }
+  }
+  return files;
 }
 
 export function stagePackageDir(params = {}) {
@@ -62,6 +91,8 @@ export function stagePackageDir(params = {}) {
     const targetPath = path.join(outputDir, entry);
     copySurfaceEntry(sourcePath, targetPath);
   }
+
+  mergeCompiledOutput(repoRoot, outputDir);
 
   return outputDir;
 }

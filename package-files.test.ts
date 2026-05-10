@@ -151,6 +151,9 @@ describe("package manifest files", () => {
         },
       ]),
     });
+    expect(properties.enableWebSearchProvider).toMatchObject({
+      type: "boolean",
+    });
   });
 
   it("does not ship unused Telegram runtime dependencies", () => {

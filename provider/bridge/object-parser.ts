@@ -1,5 +1,6 @@
 import type { AnyAgentTool } from "openclaw/plugin-sdk/plugin-entry";
 import type { NanoGptBridgeParseResult, NanoGptBridgeToolCall } from "./types.js";
+import { parseBridgeResponseWithSchema } from "./schemas.js";
 
 function tryParseJson(text: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
   try {
@@ -181,6 +182,23 @@ function normalizeBridgeTurnPayload(value: unknown, depth = 0): Record<string, u
     if (value.length === 1) {
       return normalizeBridgeTurnPayload(value[0], depth + 1);
     }
+    // Handle content block arrays (Anthropic-style)
+    const toolCalls: unknown[] = [];
+    let message = "";
+    for (const item of value) {
+      if (item && typeof item === "object") {
+        const block = item as Record<string, unknown>;
+        if (block.type === "text" || block.type === "text_block") {
+          const text = typeof block.text === "string" ? block.text : typeof block.content === "string" ? block.content : "";
+          message += text;
+        } else if (block.type === "tool_use" || block.type === "tool_call" || block.type === "function_call") {
+          toolCalls.push(item);
+        }
+      }
+    }
+    if (toolCalls.length > 0) {
+      return { v: 1, mode: "tool", message: message.trim(), tool_calls: toolCalls };
+    }
     return value.length > 0 ? { v: 1, mode: "tool", message: "", tool_calls: value } : null;
   }
 
@@ -189,17 +207,26 @@ function normalizeBridgeTurnPayload(value: unknown, depth = 0): Record<string, u
   }
 
   const record = value as Record<string, unknown>;
-  for (const key of ["assistant", "response", "turn", "result", "output", "data", "payload", "bridge"]) {
-    if (!Object.prototype.hasOwnProperty.call(record, key)) {
-      continue;
-    }
-    const nested = normalizeBridgeTurnPayload(record[key], depth + 1);
+
+  // Handle Anthropic-style content_block format: { type: "content_block", content: [...] }
+  if (record.type === "content_block" || record.type === "message") {
+    const nested = normalizeBridgeTurnPayload(record.content ?? record.text ?? record.data, depth + 1);
     if (nested) {
-      const outerMessage = contentValueToText(firstDefined(record, ["message", "content", "text", "reply", "visible"])).trim();
-      if (outerMessage && !nested.message) {
-        nested.message = outerMessage;
-      }
       return nested;
+    }
+    // If no nested content, treat this block as the payload
+  }
+
+  for (const key of ["assistant", "response", "turn", "result", "output", "data", "payload", "bridge"]) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const nested = normalizeBridgeTurnPayload(record[key], depth + 1);
+      if (nested) {
+        const outerMessage = contentValueToText(firstDefined(record, ["message", "content", "text", "reply", "visible"])).trim();
+        if (outerMessage && !nested.message) {
+          nested.message = outerMessage;
+        }
+        return nested;
+      }
     }
   }
 
@@ -279,6 +306,18 @@ function normalizeObjectBridgeResponseText(text: string): string | null {
     return "";
   }
 
+  // First, try the robust Zod-based schema parser
+  const schemaResult = parseBridgeResponseWithSchema(source);
+  if (schemaResult && (schemaResult.toolCalls.length > 0 || schemaResult.message)) {
+    return JSON.stringify({
+      v: 1,
+      mode: schemaResult.toolCalls.length > 0 ? "tool" : "final",
+      message: schemaResult.message,
+      ...(schemaResult.toolCalls.length > 0 ? { tool_calls: schemaResult.toolCalls } : {}),
+    });
+  }
+
+  // Fall back to existing heuristics for backward compatibility
   const candidates = new Set<string>([source]);
   const unfenced = unwrapJsonCodeFence(source);
   if (unfenced) {

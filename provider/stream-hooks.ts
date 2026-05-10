@@ -18,7 +18,10 @@ import {
   resolveNanoGptBridgeProtocol,
   shouldApplyNanoGptBridge,
 } from "./stream/payload.js";
-import { replayNanoGptAssistantMessage } from "./stream/replay.js";
+import {
+  deferNanoGptStreamResult,
+  replayNanoGptAssistantMessage,
+} from "./stream/replay.js";
 import type {
   NanoGptPluginLogger,
   NanoGptWrappedStreamFn,
@@ -72,9 +75,14 @@ export function wrapNanoGptStreamFn(
               requestedIncludeUsage = true;
             }
 
+            const shouldInjectResponseFormat =
+              requestToolMetadata.toolEnabled &&
+              resolvedConfig?.injectResponseFormat !== false &&
+              resolvedConfig?.responseFormat;
+
             let nextPayload = maybeInjectNanoGptResponseFormat(
               ensured.payload ?? upstreamPayload,
-              requestToolMetadata.toolEnabled ? resolvedConfig?.responseFormat : undefined,
+              shouldInjectResponseFormat ? resolvedConfig?.responseFormat : undefined,
             );
 
             if (bridgeEnabled) {
@@ -96,28 +104,34 @@ export function wrapNanoGptStreamFn(
       let stream = await runAttempt();
       nanogptLogger.info("stream result received", { modelId, family: modelFamily, bridgeEnabled });
       if (bridgeEnabled) {
-        let finalMessage = await stream.result();
-        let rewrittenMessage = rewriteNanoGptBridgeMessage({
-          finalMessage,
-          protocol: bridgeProtocol,
-          tools: requestTools,
-        });
-
-        if (!rewrittenMessage) {
-          nanogptLogger.warn("bridge failed to parse, retrying", { modelId });
-          stream = await runAttempt(buildNanoGptBridgeRetrySystemMessage(bridgeProtocol));
-          finalMessage = await stream.result();
-          rewrittenMessage = rewriteNanoGptBridgeMessage({
+        const initialStream = stream;
+        stream = deferNanoGptStreamResult(async () => {
+          let activeStream = initialStream;
+          let finalMessage = await activeStream.result();
+          let rewrittenMessage = rewriteNanoGptBridgeMessage({
             finalMessage,
             protocol: bridgeProtocol,
             tools: requestTools,
           });
-          stream = replayNanoGptAssistantMessage(rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage));
-        } else if (rewrittenMessage !== finalMessage) {
-          stream = replayNanoGptAssistantMessage(rewrittenMessage);
-        } else {
-          stream = replayNanoGptAssistantMessage(finalMessage);
-        }
+
+          if (!rewrittenMessage) {
+            nanogptLogger.warn("bridge failed to parse, retrying", { modelId });
+            activeStream = await runAttempt(buildNanoGptBridgeRetrySystemMessage(bridgeProtocol));
+            finalMessage = await activeStream.result();
+            rewrittenMessage = rewriteNanoGptBridgeMessage({
+              finalMessage,
+              protocol: bridgeProtocol,
+              tools: requestTools,
+            });
+            return replayNanoGptAssistantMessage(
+              rewrittenMessage ?? buildNanoGptBridgeFailureMessage(finalMessage),
+            );
+          }
+
+          return replayNanoGptAssistantMessage(
+            rewrittenMessage !== finalMessage ? rewrittenMessage : finalMessage,
+          );
+        });
       }
 
       scheduleNanoGptStreamResultWarnings({
@@ -132,6 +146,11 @@ export function wrapNanoGptStreamFn(
         requestToolMetadata,
       });
 
+      // TypeScript cannot verify the return type through the conditional bridge
+      // wrapping. This is safe because the underlying stream object is compatible
+      // with the expected return type. The issue is a TypeScript limitation with
+      // narrowing after conditionals, not a runtime type mismatch.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return stream as any;
     };
   }

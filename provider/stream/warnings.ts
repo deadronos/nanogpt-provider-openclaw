@@ -2,6 +2,7 @@ import {
   createNanoGptAnomalyWarnOnceLogger,
   type NanoGptAnomalyWarning,
 } from "../anomaly-logger.js";
+import { inspectNanoGptErrorSurface } from "../../nanogpt-errors.js";
 import {
   buildNanoGptExpectedShapeSummary,
   buildNanoGptObservedShapeSummary,
@@ -28,6 +29,253 @@ const NANO_GPT_STREAM_ANOMALY_LOGGER_CACHE = new WeakMap<
   NanoGptPluginLogger,
   NanoGptStreamWarnFn
 >();
+
+const STREAM_RESULT_ABORT_HINTS = [
+  "aborterror",
+  "request was aborted",
+  "aborted",
+  "abort signal",
+  "signal is aborted",
+] as const;
+
+const STREAM_RESULT_TIMEOUT_HINTS = [
+  "timed out",
+  "timeout",
+  "time out",
+  "deadline exceeded",
+  "etimedout",
+] as const;
+
+const STREAM_RESULT_PARSE_HINTS = [
+  "syntaxerror",
+  "unexpected token",
+  "invalid json",
+  "invalid_json",
+  "invalid json schema",
+  "invalid_json_schema",
+  "failed to parse",
+  "parse error",
+] as const;
+
+const STREAM_RESULT_PENDING_WARNING_THRESHOLDS_MS = [10_000, 30_000, 60_000] as const;
+
+type NanoGptStreamResultRejectionSummary = {
+  errorKind: "aborted" | "timeout" | "parse_failed" | "overloaded" | "format" | "unknown";
+  errorName?: string;
+  errorMessage?: string;
+  mappedReason?: string;
+  errorEnvelope?: string;
+  errorCode?: string;
+  errorType?: string;
+  status?: number;
+};
+
+function truncateStreamResultLogValue(
+  value: string | undefined,
+  maxLength = 240,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.length <= maxLength ? trimmed : `${trimmed.slice(0, maxLength - 1)}…`;
+}
+
+function includesStreamResultHint(value: string, hints: readonly string[]): boolean {
+  return hints.some((hint) => value.includes(hint));
+}
+
+function stringifyStreamResultErrorRecord(
+  error: Record<string, unknown>,
+): string | undefined {
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return undefined;
+  }
+}
+
+function readStreamResultRejectionIdentity(error: unknown): {
+  errorName?: string;
+  errorMessage?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      errorName: truncateStreamResultLogValue(error.name, 80),
+      errorMessage: truncateStreamResultLogValue(error.message),
+    };
+  }
+
+  if (typeof error === "string") {
+    return { errorMessage: truncateStreamResultLogValue(error) };
+  }
+
+  if (isRecord(error)) {
+    const errorName =
+      typeof error.name === "string"
+        ? truncateStreamResultLogValue(error.name, 80)
+        : undefined;
+    const errorMessage =
+      typeof error.message === "string"
+        ? truncateStreamResultLogValue(error.message)
+        : typeof error.error === "string"
+          ? truncateStreamResultLogValue(error.error)
+          : truncateStreamResultLogValue(stringifyStreamResultErrorRecord(error));
+    return { errorName, errorMessage };
+  }
+
+  return { errorMessage: truncateStreamResultLogValue(String(error)) };
+}
+
+function summarizeNanoGptStreamResultRejection(
+  error: unknown,
+): NanoGptStreamResultRejectionSummary {
+  const { errorName, errorMessage } = readStreamResultRejectionIdentity(error);
+  const lowerIdentity = `${errorName ?? ""}\n${errorMessage ?? ""}`.toLowerCase();
+  const inspection = errorMessage ? inspectNanoGptErrorSurface(errorMessage) : null;
+
+  let errorKind: NanoGptStreamResultRejectionSummary["errorKind"] = "unknown";
+  if (includesStreamResultHint(lowerIdentity, STREAM_RESULT_ABORT_HINTS)) {
+    errorKind = "aborted";
+  } else if (includesStreamResultHint(lowerIdentity, STREAM_RESULT_TIMEOUT_HINTS)) {
+    errorKind = "timeout";
+  } else if (includesStreamResultHint(lowerIdentity, STREAM_RESULT_PARSE_HINTS)) {
+    errorKind = "parse_failed";
+  } else if (inspection?.kind === "mapped") {
+    if (inspection.reason === "timeout") {
+      errorKind = "timeout";
+    } else if (inspection.reason === "overloaded") {
+      errorKind = "overloaded";
+    } else if (
+      inspection.reason === "format" &&
+      includesStreamResultHint(
+        `${inspection.error.code ?? ""}\n${inspection.error.message ?? ""}`.toLowerCase(),
+        STREAM_RESULT_PARSE_HINTS,
+      )
+    ) {
+      errorKind = "parse_failed";
+    } else if (inspection.reason === "format") {
+      errorKind = "format";
+    }
+  }
+
+  const structuredError =
+    inspection?.kind === "mapped" ||
+    inspection?.kind === "context_overflow" ||
+    inspection?.kind === "recognized_unmapped" ||
+    inspection?.kind === "unknown_structured"
+      ? inspection.error
+      : undefined;
+
+  return {
+    errorKind,
+    ...(errorName ? { errorName } : {}),
+    ...(errorMessage ? { errorMessage } : {}),
+    ...(inspection?.kind === "mapped" ? { mappedReason: inspection.reason } : {}),
+    ...(structuredError?.envelope ? { errorEnvelope: structuredError.envelope } : {}),
+    ...(structuredError?.code ? { errorCode: structuredError.code } : {}),
+    ...(structuredError?.type ? { errorType: structuredError.type } : {}),
+    ...(structuredError?.status !== undefined ? { status: structuredError.status } : {}),
+  };
+}
+
+function logNanoGptStreamResultRejection(params: {
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+  transportApi?: string;
+  error: unknown;
+}): void {
+  const meta = {
+    modelId: params.modelId,
+    family: params.modelFamily,
+    ...(params.transportApi ? { transportApi: params.transportApi } : {}),
+    ...summarizeNanoGptStreamResultRejection(params.error),
+  };
+
+  params.logger?.warn?.(
+    "[nanogpt] stream.result() rejected during stream-result inspection",
+    meta,
+  );
+  params.nanogptLogger?.warn(
+    "[nanogpt] stream.result() rejected during stream-result inspection",
+    meta,
+  );
+}
+
+function logNanoGptStreamResultPending(params: {
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+  transportApi?: string;
+  requestToolMetadata: NanoGptRequestToolMetadata;
+  pendingMs: number;
+}): void {
+  const meta = {
+    modelId: params.modelId,
+    family: params.modelFamily,
+    ...(params.transportApi ? { transportApi: params.transportApi } : {}),
+    pendingMs: params.pendingMs,
+    toolEnabled: params.requestToolMetadata.toolEnabled,
+    toolCount: params.requestToolMetadata.toolCount,
+    ...(params.requestToolMetadata.toolNames.length > 0
+      ? { toolNames: params.requestToolMetadata.toolNames }
+      : {}),
+  };
+
+  params.logger?.warn?.(
+    "[nanogpt] stream.result() still pending during stream-result inspection",
+    meta,
+  );
+  params.nanogptLogger?.warn(
+    "[nanogpt] stream.result() still pending during stream-result inspection",
+    meta,
+  );
+}
+
+function scheduleNanoGptStreamResultPendingWarnings(params: {
+  logger?: NanoGptPluginLogger;
+  nanogptLogger?: NanoGptLogger;
+  modelId: string;
+  modelFamily: NanoGptModelFamily;
+  transportApi?: string;
+  requestToolMetadata: NanoGptRequestToolMetadata;
+}): () => void {
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+
+  for (const pendingMs of STREAM_RESULT_PENDING_WARNING_THRESHOLDS_MS) {
+    const timer = setTimeout(() => {
+      logNanoGptStreamResultPending({
+        logger: params.logger,
+        nanogptLogger: params.nanogptLogger,
+        modelId: params.modelId,
+        modelFamily: params.modelFamily,
+        transportApi: params.transportApi,
+        requestToolMetadata: params.requestToolMetadata,
+        pendingMs,
+      });
+    }, pendingMs);
+
+    if (typeof timer.unref === "function") {
+      timer.unref();
+    }
+
+    timers.push(timer);
+  }
+
+  return () => {
+    for (const timer of timers) {
+      clearTimeout(timer);
+    }
+  };
+}
 
 function buildNanoGptExpectedToolRequestShapeSummary(
   requestToolMetadata: NanoGptRequestToolMetadata,
@@ -199,6 +447,15 @@ export function scheduleNanoGptStreamResultWarnings(params: {
   if (!params.stream || typeof streamWithResult.result !== "function") {
     return;
   }
+
+  const clearPendingWarnings = scheduleNanoGptStreamResultPendingWarnings({
+    logger: params.logger,
+    nanogptLogger: params.nanogptLogger,
+    modelId: params.modelId,
+    modelFamily: params.modelFamily,
+    transportApi: params.transportApi,
+    requestToolMetadata: params.requestToolMetadata,
+  });
 
   void streamWithResult
     .result()
@@ -391,7 +648,17 @@ export function scheduleNanoGptStreamResultWarnings(params: {
         });
       }
     })
-    .catch(() => {
-      // Non-blocking: stream warnings are best-effort.
+    .catch((error: unknown) => {
+      logNanoGptStreamResultRejection({
+        logger: params.logger,
+        nanogptLogger: params.nanogptLogger,
+        modelId: params.modelId,
+        modelFamily: params.modelFamily,
+        transportApi: params.transportApi,
+        error,
+      });
+    })
+    .finally(() => {
+      clearPendingWarnings();
     });
 }
