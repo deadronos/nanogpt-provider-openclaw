@@ -20,3 +20,17 @@
 **Vulnerability:** The error handlers in `runtime/discovery.ts` and `runtime/routing.ts` logged the full text of error messages generated from HTTP fetch failures directly, passing the raw string into structured logging.
 **Learning:** Raw error bodies or stringified exceptions from external API interactions can be unexpectedly large or contain stack traces and other sensitive information, leading to log pollution or data exfiltration.
 **Prevention:** Always truncate error messages (e.g. using `.slice(0, 200)`) before logging them in structured logs, enforcing strict limits on external failure descriptions.
+## 2026-06-25 - Fix environment variable exfiltration via unbraced apiKey parameter
+
+**Vulnerability:** The code in `web-search/credentials.ts` validated if a string looked like an environment variable reference using the unanchored regex `/\$\{([^}]+)\}/`.
+
+**Learning:** This regex failed to catch secrets formatted as unbraced shell variables (e.g. `$secret`) or empty braced variables (e.g. `${}`). This allowed those strings to bypass the check and potentially leak an environment variable value if the underlying framework tried to resolve it.
+
+**Prevention:** Always use comprehensive regexes when checking for unsafe shell variable formats (like `/\/`) to ensure attackers cannot bypass validation simply by omitting braces.
+## 2026-06-25 - Fix environment variable exfiltration via unbraced apiKey parameter
+
+**Vulnerability:** The code in `web-search/credentials.ts` validated if a string looked like an environment variable reference using the unanchored regex `/\$\{([^}]+)\}/`.
+
+**Learning:** This regex failed to catch secrets formatted as unbraced shell variables (e.g. `$secret`) or empty braced variables (e.g. `${}`). This allowed those strings to bypass the check and potentially leak an environment variable value if the underlying framework tried to resolve it.
+
+**Prevention:** Always use comprehensive regexes when checking for unsafe shell variable formats (like `/\$(?:\{[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)/`) to ensure attackers cannot bypass validation simply by omitting braces.
