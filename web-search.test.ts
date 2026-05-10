@@ -380,6 +380,12 @@ describe("nanogpt web search provider", () => {
     expect(apiKey).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${_secret}" })).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${secret_var}" })).toBeUndefined();
+    // New regex branches: empty braces and unbraced $VAR shell form
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${}" })).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$SECRET" })).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$HOME" })).toBeUndefined();
+    // Bare dollar with invalid var name (digit-starting) should NOT be treated as an env ref
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$123" })).toBe("$123");
   });
 
   it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
