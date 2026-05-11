@@ -382,6 +382,8 @@ describe("nanogpt web search provider", () => {
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${secret_var}" })).toBeUndefined();
     // New regex branches: empty braces and unbraced $VAR shell form
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "${}" })).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$_secret" })).toBeUndefined();
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$secret_var" })).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$SECRET" })).toBeUndefined();
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$HOME" })).toBeUndefined();
     // Bare dollar with invalid var name (digit-starting) should NOT be treated as an env ref
