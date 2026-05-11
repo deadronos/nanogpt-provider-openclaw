@@ -18,7 +18,7 @@ import plugin from "./index.js";
 import { clearEnvKeys, restoreEnv, snapshotEnv } from "./test-env.js";
 import { createNanoGptWebSearchProvider, __testing } from "./web-search.js";
 
-const WEB_SEARCH_ENV_KEYS = ["NANOGPT_API_KEY"] as const;
+const WEB_SEARCH_ENV_KEYS = ["NANOGPT_API_KEY", "AWS_SECRET"] as const;
 
 let webSearchEnvSnapshot: Record<string, string | undefined> | undefined;
 
@@ -388,6 +388,37 @@ describe("nanogpt web search provider", () => {
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$HOME" })).toBeUndefined();
     // Bare dollar with invalid var name (digit-starting) should NOT be treated as an env ref
     expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "$123" })).toBe("$123");
+    expect(
+      __testing.resolveNanoGptWebSearchApiKey({
+        apiKey: { source: "env", provider: "default", id: "AWS_SECRET" },
+      }),
+    ).toBeUndefined();
+    expect(
+      __testing.resolveNanoGptWebSearchApiKey({
+        apiKey: { source: "env", id: "AWS_SECRET" },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("preserves literal api keys that contain dollar signs", () => {
+    process.env.NANOGPT_API_KEY = "env-key";
+
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "key$HOMEsuffix" })).toBe(
+      "key$HOMEsuffix",
+    );
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "prefix${HOME}suffix" })).toBe(
+      "prefix${HOME}suffix",
+    );
+  });
+
+  it("resolves the allowed structured NanoGPT env secret ref", () => {
+    process.env.NANOGPT_API_KEY = "env-ref-key";
+
+    expect(
+      __testing.resolveNanoGptWebSearchApiKey({
+        apiKey: { source: "env", provider: "default", id: "NANOGPT_API_KEY" },
+      }),
+    ).toBe("env-ref-key");
   });
 
   it("resolves env secret refs from the provisioned NanoGPT web_search credential path", async () => {
