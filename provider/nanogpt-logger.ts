@@ -62,9 +62,18 @@ function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
+const SENSITIVE_KEYS = /apikey|nanogptapikey|token|password|secret|authorization|credential|cookie/i;
+
+function redactReplacer(key: string, value: unknown): unknown {
+  if (SENSITIVE_KEYS.test(key)) {
+    return "[REDACTED]";
+  }
+  return value;
+}
+
 function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = formatTimestamp();
-  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
+  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta, redactReplacer)}` : "";
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;
 }
 
