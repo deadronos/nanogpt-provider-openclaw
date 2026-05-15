@@ -10,8 +10,7 @@ import {
 const NANOGPT_WEB_SEARCH_CREDENTIAL_PATH = "plugins.entries.nanogpt.config.webSearch.apiKey";
 const NANOGPT_API_KEY_ENV_VAR = "NANOGPT_API_KEY";
 const NANOGPT_ENV_REF_PATTERN = /^\$\{(NANOGPT_API_KEY)\}$/;
-const ANY_BRACED_ENV_REF_PATTERN = /^\$\{[^}]*\}$/;
-const ANY_UNBRACED_ENV_REF_PATTERN = /^\$[A-Za-z_][A-Za-z0-9_]*$/;
+const UNSAFE_ENV_REF_PATTERN = /\$(?:\{[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)/;
 
 function isEnvSecretRef(value: unknown): value is {
   source: "env";
@@ -62,15 +61,15 @@ function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): 
 
   if (typeof rawCredentialValue === "string") {
     const trimmedCredentialValue = rawCredentialValue.trim();
-    if (
-      ANY_BRACED_ENV_REF_PATTERN.test(trimmedCredentialValue) ||
-      ANY_UNBRACED_ENV_REF_PATTERN.test(trimmedCredentialValue)
-    ) {
+    if (UNSAFE_ENV_REF_PATTERN.test(trimmedCredentialValue)) {
       return undefined;
     }
   }
 
-  if (isEnvSecretRef(rawCredentialValue) && rawCredentialValue.id.trim() !== NANOGPT_API_KEY_ENV_VAR) {
+  if (
+    isEnvSecretRef(rawCredentialValue) &&
+    rawCredentialValue.id.trim() !== NANOGPT_API_KEY_ENV_VAR
+  ) {
     return undefined;
   }
 
