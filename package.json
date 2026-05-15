@@ -131,13 +131,11 @@
     },
     "onlyBuiltDependencies": [
       "@discordjs/opus",
-      "@matrix-org/matrix-sdk-crypto-nodejs",
+      "@google/genai",
       "@whiskeysockets/baileys",
-      "esbuild",
       "koffi",
       "openclaw",
-      "protobufjs",
-      "sharp"
+      "protobufjs"
     ]
   },
   "publishConfig": {
