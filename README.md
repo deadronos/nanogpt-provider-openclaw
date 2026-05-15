@@ -136,6 +136,27 @@ For now, the plugin keeps both manifest paths in sync: the legacy
 Newer OpenClaw builds prefer the setup descriptor path, while older installs
 still pick up the compatibility metadata.
 
+## Pair with TweetClaw X/Twitter tools
+
+NanoGPT handles model, `web_search`, and image provider traffic. If the same
+OpenClaw agent also needs X/Twitter automation, install TweetClaw as a separate
+tool plugin:
+
+```bash
+openclaw plugins install @xquik/tweetclaw
+openclaw config set plugins.entries.tweetclaw.config.apiKey "$XQUIK_API_KEY"
+openclaw config set tools.alsoAllow '["explore", "tweetclaw"]'
+```
+
+Keep the NanoGPT API key and Xquik API key in separate environment variables.
+TweetClaw registers `explore` for free endpoint discovery and optional
+`tweetclaw` for live API calls. Use it when a NanoGPT-routed agent needs to
+scrape tweets, search tweet replies, post tweets or replies, export followers,
+look up users, monitor tweets, deliver webhooks, handle media, send direct
+messages, or run giveaway draws from OpenClaw. Review OpenClaw approval prompts
+before approving write actions such as posts, replies, follows, DMs, monitor
+changes, webhooks, or profile updates.
+
 ## Text provider configuration
 
 The plugin config controls NanoGPT text-model discovery and transport behavior:
