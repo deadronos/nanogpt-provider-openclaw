@@ -400,15 +400,13 @@ describe("nanogpt web search provider", () => {
     ).toBeUndefined();
   });
 
-  it("preserves literal api keys that contain dollar signs", () => {
+  it("blocks api keys that contain embedded environment variable references", () => {
     process.env.NANOGPT_API_KEY = "env-key";
 
-    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "key$HOMEsuffix" })).toBe(
-      "key$HOMEsuffix",
-    );
-    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "prefix${HOME}suffix" })).toBe(
-      "prefix${HOME}suffix",
-    );
+    expect(__testing.resolveNanoGptWebSearchApiKey({ apiKey: "key$HOMEsuffix" })).toBeUndefined();
+    expect(
+      __testing.resolveNanoGptWebSearchApiKey({ apiKey: "prefix${HOME}suffix" }),
+    ).toBeUndefined();
   });
 
   it("resolves the allowed structured NanoGPT env secret ref", () => {
