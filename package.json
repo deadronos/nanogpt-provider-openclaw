@@ -110,8 +110,8 @@
   },
   "overrides": {
     "axios": "1.15.0",
-    "hono": "4.12.16",
-    "protobufjs": "7.5.5",
+    "hono": "4.12.18",
+    "protobufjs": "7.5.6",
     "tar": "7.5.13",
     "fast-xml-parser": "5.7.0",
     "fast-xml-builder": "1.1.7",
@@ -121,8 +121,8 @@
   "pnpm": {
     "overrides": {
       "axios": "1.15.0",
-      "hono": "4.12.16",
-      "protobufjs": "7.5.5",
+      "hono": "4.12.18",
+      "protobufjs": "7.5.6",
       "tar": "7.5.13",
       "fast-xml-parser": "5.7.0",
       "fast-xml-builder": "1.1.7",
