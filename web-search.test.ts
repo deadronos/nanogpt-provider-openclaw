@@ -35,6 +35,7 @@ describe("nanogpt web search provider", () => {
     plugin.register({
       pluginConfig: {},
       registerProvider() {},
+      registerModelCatalogProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);
       },
@@ -50,6 +51,7 @@ describe("nanogpt web search provider", () => {
     plugin.register({
       pluginConfig: { routingMode: "paygo" },
       registerProvider() {},
+      registerModelCatalogProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);
       },
