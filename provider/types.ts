@@ -1,8 +1,4 @@
 import type { ProviderCatalogContext } from "openclaw/plugin-sdk/plugin-entry";
-import type {
-  UnifiedModelCatalogEntry,
-  UnifiedModelCatalogProviderContext,
-} from "openclaw/plugin-sdk/provider-model-shared";
 import type { NanoGptProviderCatalog } from "../provider-catalog.js";
 
 type NativeStreamingUsageCompatConfig = {
@@ -10,17 +6,6 @@ type NativeStreamingUsageCompatConfig = {
   baseUrl?: string;
   models?: Array<Record<string, unknown>>;
 };
-
-export interface NanoGptModelCatalogProviderRegistration {
-  provider: string;
-  kinds: readonly string[];
-  liveCatalog?: (
-    ctx: UnifiedModelCatalogProviderContext,
-  ) => Promise<readonly UnifiedModelCatalogEntry[]> | readonly UnifiedModelCatalogEntry[];
-  staticCatalog?: (
-    ctx: UnifiedModelCatalogProviderContext,
-  ) => Promise<readonly UnifiedModelCatalogEntry[]> | readonly UnifiedModelCatalogEntry[];
-}
 
 export interface NanoGptProviderRegistration {
   id: string;

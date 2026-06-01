@@ -97,6 +97,10 @@ export const NANOGPT_UNIFIED_LIVE_CATALOG_SOURCE = "live" as const satisfies Uni
 export async function readNanoGptUnifiedLiveCatalog(
   ctx: UnifiedModelCatalogProviderContext,
 ): Promise<UnifiedModelCatalogEntry[]> {
+  // `UnifiedModelCatalogProviderContext` extends `ProviderCatalogContext` with
+  // optional fields (`signal`, `includeLive`, `timeoutMs`), so the superset
+  // is structurally assignable to the narrower context expected by the legacy
+  // `nanoGptProviderCatalog.run()` — no cast needed.
   const result = await nanoGptProviderCatalog.run(ctx);
   return projectNanoGptModelProviderConfigToUnifiedTextRows({
     providerId: NANOGPT_PROVIDER_ID,

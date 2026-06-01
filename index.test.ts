@@ -9,6 +9,18 @@ import {
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
 import type { NanoGptProviderRegistration } from "./provider/types.js";
+import type { UnifiedModelCatalogProviderContext } from "openclaw/plugin-sdk/provider-model-shared";
+
+/**
+ * Cast a minimal test stub to `UnifiedModelCatalogProviderContext`.
+ *
+ * Test stubs intentionally omit or loosen some fields (e.g.
+ * `resolveProviderAuth` returns `null`) that the real SDK type requires.
+ * Centralising the cast here avoids repeating `as never` at every call-site.
+ */
+function catalogCtx(stub: Record<string, unknown>): UnifiedModelCatalogProviderContext {
+  return stub as UnifiedModelCatalogProviderContext;
+}
 
 describe("nanogpt plugin entry", () => {
   it("exports the expected plugin metadata", () => {
@@ -251,11 +263,11 @@ describe("nanogpt plugin entry", () => {
       ),
     );
 
-    const result = staticRegistration?.staticCatalog?.({
+    const result = staticRegistration?.staticCatalog?.(catalogCtx({
       agentDir,
       config: {},
       env: {},
-    } as never);
+    }));
 
     expect(result).toMatchObject([
       {
@@ -293,12 +305,12 @@ describe("nanogpt plugin entry", () => {
     const harness = getRegisteredProviderHarness();
     const registration = harness.modelCatalogProviders[0];
 
-    const liveRows = await registration.liveCatalog?.({
+    const liveRows = await registration.liveCatalog?.(catalogCtx({
       config: { plugins: { entries: {} } },
       env: {},
       resolveProviderApiKey: () => ({ apiKey: undefined, source: "missing", mode: "missing" }),
       resolveProviderAuth: () => null,
-    } as never);
+    }));
 
     expect(liveRows).toEqual([]);
   });
@@ -307,12 +319,12 @@ describe("nanogpt plugin entry", () => {
     const harness = getRegisteredProviderHarness();
     const registration = harness.modelCatalogProviders[0];
 
-    const liveRows = (await registration.liveCatalog?.({
+    const liveRows = (await registration.liveCatalog?.(catalogCtx({
       config: { plugins: { entries: {} } },
       env: {},
       resolveProviderApiKey: () => ({ apiKey: "test-key", source: "env", mode: "api_key" }),
       resolveProviderAuth: () => null,
-    } as never)) ?? [];
+    }))) ?? [];
 
     expect(liveRows.length).toBeGreaterThan(0);
     for (const row of liveRows) {
@@ -664,7 +676,7 @@ describe("nanogpt plugin entry", () => {
       },
       config: {},
       baseConfig: {},
-      runtime: {} as never,
+      runtime: {},
       agentDir: "/tmp/nanogpt-agent",
       resolveApiKey: async () => ({
         key: "ngpt_live_key",
@@ -754,14 +766,14 @@ describe("nanogpt plugin entry", () => {
     const { default: mockedPlugin } = await import("./index.js");
     const providers: unknown[] = [];
     const modelCatalogProviders: Array<{
-      staticCatalog?: (ctx: never) => unknown;
+      staticCatalog?: (ctx: UnifiedModelCatalogProviderContext) => unknown;
     }> = [];
     mockedPlugin.register({
       pluginConfig: {},
       registerProvider(provider: unknown) {
         providers.push(provider);
       },
-      registerModelCatalogProvider(provider: { staticCatalog?: (ctx: never) => unknown }) {
+      registerModelCatalogProvider(provider: { staticCatalog?: (ctx: UnifiedModelCatalogProviderContext) => unknown }) {
         modelCatalogProviders.push(provider);
       },
       registerWebSearchProvider() {},
@@ -773,11 +785,11 @@ describe("nanogpt plugin entry", () => {
     );
     expect(staticRegistration).toBeDefined();
 
-    const warmResult = staticRegistration?.staticCatalog?.({
+    const warmResult = staticRegistration?.staticCatalog?.(catalogCtx({
       agentDir,
       config: {},
       env: {},
-    } as never);
+    }));
 
     expect(warmResult).toMatchObject([
       {
@@ -794,22 +806,22 @@ describe("nanogpt plugin entry", () => {
       throw new Error("Simulated fs error");
     });
 
-    const errorResult = staticRegistration?.staticCatalog?.({
+    const errorResult = staticRegistration?.staticCatalog?.(catalogCtx({
       agentDir,
       config: {},
       env: {},
-    } as never);
+    }));
 
     expect(errorResult).toEqual([]);
     expect(modelsReadCount).toBe(1);
 
     existsSyncMock.mockImplementation(actualFs.existsSync);
 
-    const recoveredResult = staticRegistration?.staticCatalog?.({
+    const recoveredResult = staticRegistration?.staticCatalog?.(catalogCtx({
       agentDir,
       config: {},
       env: {},
-    } as never);
+    }));
 
     expect(modelsReadCount).toBe(2);
     expect(recoveredResult).toMatchObject([
