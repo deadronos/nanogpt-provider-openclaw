@@ -29,6 +29,31 @@ describe("nanogpt logger", () => {
     expect(contents).toContain('"key":"value"');
   });
 
+  it("redacts sensitive keys in the metadata", async () => {
+    const log = createNanoGptLoggerSync("test-redaction");
+    log.info("sensitive-info", {
+      apiKey: "secret-key",
+      nested: {
+        token: "secret-token",
+        other: "safe",
+      },
+      safe: "data",
+    });
+
+    // Stream buffers — give it a moment to flush
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(existsSync(LOG_PATH)).toBe(true);
+    const contents = readFileSync(LOG_PATH, "utf8");
+    expect(contents).toContain("[info] [test-redaction] sensitive-info");
+    expect(contents).toContain('"apiKey":"[REDACTED]"');
+    expect(contents).toContain('"token":"[REDACTED]"');
+    expect(contents).toContain('"other":"safe"');
+    expect(contents).toContain('"safe":"data"');
+    expect(contents).not.toContain("secret-key");
+    expect(contents).not.toContain("secret-token");
+  });
+
   it("falls back to a no-op logger when the log directory cannot be created", async () => {
     vi.resetModules();
     vi.doMock("node:fs", async () => {
