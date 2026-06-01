@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import plugin from "./index.js";
 import {
   getRegisteredProvider,
+  getRegisteredProviderHarness,
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
 import type { NanoGptProviderRegistration } from "./provider/types.js";
@@ -27,6 +28,7 @@ describe("nanogpt plugin entry", () => {
       registerProvider(provider: NanoGptProviderRegistration) {
         providers.push(provider);
       },
+      registerModelCatalogProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);
       },
@@ -62,6 +64,7 @@ describe("nanogpt plugin entry", () => {
     plugin.register({
       pluginConfig: { routingMode: "paygo" },
       registerProvider() {},
+      registerModelCatalogProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);
       },
@@ -81,6 +84,7 @@ describe("nanogpt plugin entry", () => {
     plugin.register({
       pluginConfig: { enableWebSearchProvider: true },
       registerProvider() {},
+      registerModelCatalogProvider() {},
       registerWebSearchProvider(provider: unknown) {
         webSearchProviders.push(provider);
       },
@@ -214,9 +218,12 @@ describe("nanogpt plugin entry", () => {
   });
 
   it("surfaces discovered NanoGPT models from models.json into catalog augmentation", () => {
-    const provider = getRegisteredProvider();
+    const harness = getRegisteredProviderHarness();
 
-    expect(provider.augmentModelCatalog).toEqual(expect.any(Function));
+    const staticRegistration = harness.modelCatalogProviders.find(
+      (entry) => typeof entry.staticCatalog === "function",
+    );
+    expect(staticRegistration).toBeDefined();
 
     const agentDir = mkdtempSync(join(tmpdir(), "nanogpt-agent-"));
     writeFileSync(
@@ -244,23 +251,79 @@ describe("nanogpt plugin entry", () => {
       ),
     );
 
-    expect(
-      provider.augmentModelCatalog?.({
-        agentDir,
-        config: {},
-        env: {},
-        entries: [],
-      }),
-    ).toMatchObject([
+    const result = staticRegistration?.staticCatalog?.({
+      agentDir,
+      config: {},
+      env: {},
+    } as never);
+
+    expect(result).toMatchObject([
       {
+        kind: "text",
         provider: "nanogpt",
-        id: "openai/gpt-oss-120b",
-        name: "GPT OSS 120B",
-        reasoning: true,
-        input: ["text"],
-        contextWindow: 131072,
+        model: "openai/gpt-oss-120b",
+        label: "GPT OSS 120B",
+        source: "configured",
       },
     ]);
+  });
+
+  it("registers a unified text model-catalog provider with live and static sources", () => {
+    const harness = getRegisteredProviderHarness();
+
+    expect(harness.modelCatalogProviders).toHaveLength(1);
+    const registration = harness.modelCatalogProviders[0];
+    expect(registration).toMatchObject({
+      provider: "nanogpt",
+      kinds: ["text"],
+    });
+    expect(registration.liveCatalog).toEqual(expect.any(Function));
+    expect(registration.staticCatalog).toEqual(expect.any(Function));
+  });
+
+  it("drops the legacy augmentModelCatalog hook from the model provider registration", () => {
+    const provider = getRegisteredProvider();
+
+    expect(
+      (provider as unknown as { augmentModelCatalog?: unknown }).augmentModelCatalog,
+    ).toBeUndefined();
+  });
+
+  it("returns an empty unified text catalog when no NanoGPT API key is available", async () => {
+    const harness = getRegisteredProviderHarness();
+    const registration = harness.modelCatalogProviders[0];
+
+    const liveRows = await registration.liveCatalog?.({
+      config: { plugins: { entries: {} } },
+      env: {},
+      resolveProviderApiKey: () => ({ apiKey: undefined, source: "missing", mode: "missing" }),
+      resolveProviderAuth: () => null,
+    } as never);
+
+    expect(liveRows).toEqual([]);
+  });
+
+  it("projects the live NanoGPT provider config onto the unified text catalog surface", async () => {
+    const harness = getRegisteredProviderHarness();
+    const registration = harness.modelCatalogProviders[0];
+
+    const liveRows = (await registration.liveCatalog?.({
+      config: { plugins: { entries: {} } },
+      env: {},
+      resolveProviderApiKey: () => ({ apiKey: "test-key", source: "env", mode: "api_key" }),
+      resolveProviderAuth: () => null,
+    } as never)) ?? [];
+
+    expect(liveRows.length).toBeGreaterThan(0);
+    for (const row of liveRows) {
+      expect(row).toMatchObject({
+        kind: "text",
+        provider: "nanogpt",
+        source: "live",
+      });
+      expect(typeof row.model).toBe("string");
+      expect(row.model.length).toBeGreaterThan(0);
+    }
   });
 
   it("rehydrates flattened discovered NanoGPT metadata from models.json", () => {
@@ -690,31 +753,39 @@ describe("nanogpt plugin entry", () => {
 
     const { default: mockedPlugin } = await import("./index.js");
     const providers: unknown[] = [];
+    const modelCatalogProviders: Array<{
+      staticCatalog?: (ctx: never) => unknown;
+    }> = [];
     mockedPlugin.register({
       pluginConfig: {},
       registerProvider(provider: unknown) {
         providers.push(provider);
       },
+      registerModelCatalogProvider(provider: { staticCatalog?: (ctx: never) => unknown }) {
+        modelCatalogProviders.push(provider);
+      },
       registerWebSearchProvider() {},
       registerImageGenerationProvider() {},
     } as never);
 
-    const provider = providers[0] as ReturnType<typeof getRegisteredProvider>;
+    const staticRegistration = modelCatalogProviders.find(
+      (entry) => typeof entry.staticCatalog === "function",
+    );
+    expect(staticRegistration).toBeDefined();
 
-    expect(provider.augmentModelCatalog).toEqual(expect.any(Function));
-
-    const warmResult = provider.augmentModelCatalog?.({
+    const warmResult = staticRegistration?.staticCatalog?.({
       agentDir,
       config: {},
       env: {},
-      entries: [],
-    });
+    } as never);
 
     expect(warmResult).toMatchObject([
       {
+        kind: "text",
         provider: "nanogpt",
-        id: "openai/gpt-oss-120b",
-        name: "GPT OSS 120B",
+        model: "openai/gpt-oss-120b",
+        label: "GPT OSS 120B",
+        source: "configured",
       },
     ]);
     expect(modelsReadCount).toBe(1);
@@ -723,31 +794,31 @@ describe("nanogpt plugin entry", () => {
       throw new Error("Simulated fs error");
     });
 
-    const errorResult = provider.augmentModelCatalog?.({
+    const errorResult = staticRegistration?.staticCatalog?.({
       agentDir,
       config: {},
       env: {},
-      entries: [],
-    });
+    } as never);
 
     expect(errorResult).toEqual([]);
     expect(modelsReadCount).toBe(1);
 
     existsSyncMock.mockImplementation(actualFs.existsSync);
 
-    const recoveredResult = provider.augmentModelCatalog?.({
+    const recoveredResult = staticRegistration?.staticCatalog?.({
       agentDir,
       config: {},
       env: {},
-      entries: [],
-    });
+    } as never);
 
     expect(modelsReadCount).toBe(2);
     expect(recoveredResult).toMatchObject([
       {
+        kind: "text",
         provider: "nanogpt",
-        id: "openai/gpt-oss-120b",
-        name: "GPT OSS 120B",
+        model: "openai/gpt-oss-120b",
+        label: "GPT OSS 120B",
+        source: "configured",
       },
     ]);
   });

@@ -95,13 +95,13 @@
     "lint:fix": "oxlint --fix && npm run format"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.4.22"
+    "openclaw": ">=2026.5.20"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "esbuild": "^0.25.0",
-    "openclaw": "2026.4.23",
+    "openclaw": "2026.5.20",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
     "oxlint-tsgolint": "^0.21.1",
@@ -149,12 +149,12 @@
       "nanogpt"
     ],
     "compat": {
-      "pluginApi": ">=2026.4.22",
-      "minGatewayVersion": "2026.4.22"
+      "pluginApi": ">=2026.5.20",
+      "minGatewayVersion": "2026.5.20"
     },
     "build": {
-      "openclawVersion": "2026.4.22",
-      "pluginSdkVersion": "2026.4.22"
+      "openclawVersion": "2026.5.20",
+      "pluginSdkVersion": "2026.5.20"
     }
   },
   "dependencies": {
