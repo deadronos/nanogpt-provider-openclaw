@@ -44,9 +44,13 @@ function mergeCompiledOutput(repoRoot, outputDir) {
     return;
   }
   // Copy compiled JS files over their .ts counterparts in the staged package
-  // to make compiled JS take precedence
+  // to make compiled JS take precedence.
+  // When the staged package output lives under dist, avoid recursing into it.
   for (const entry of getAllFiles(compileDir)) {
     const src = path.join(compileDir, entry);
+    if (isPathInside(outputDir, src)) {
+      continue;
+    }
     const dst = path.join(outputDir, entry);
     if (fs.statSync(src).isDirectory()) continue;
     fs.mkdirSync(path.dirname(dst), { recursive: true });
