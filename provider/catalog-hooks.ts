@@ -3,7 +3,10 @@ import type {
   ProviderResolveDynamicModelContext,
   ProviderRuntimeModel,
 } from "openclaw/plugin-sdk/plugin-entry";
-import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
+import type {
+  ModelProviderConfig,
+  UnifiedModelCatalogEntry,
+} from "openclaw/plugin-sdk/provider-model-shared";
 import { readNanoGptModelsJsonSnapshot, type NanoGptCatalogEntry } from "../catalog/models-json-snapshot.js";
 import { resolveNanoGptDynamicModel } from "../runtime/dynamic-models.js";
 import { NANOGPT_PROVIDER_ID } from "../models.js";
@@ -33,10 +36,13 @@ export function readNanoGptAugmentedCatalogEntries(params: {
 }): NanoGptCatalogEntry[] {
   return mergeNanoGptCatalogEntries(
     readNanoGptModelsJsonSnapshot(params.agentDir, params.env).catalogEntries,
+    // The OpenClaw `ConfiguredProviderCatalogEntry` `input` enum has been
+    // widened in 2026.5.20+ to include `video`/`audio`, but the merge only
+    // reads `provider` + `id`, so a narrow cast is safe here.
     readConfiguredProviderCatalogEntries({
       config: params.config as import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig | undefined,
       providerId: NANOGPT_PROVIDER_ID,
-    }),
+    }) as unknown as NanoGptCatalogEntry[],
   );
 }
 
@@ -48,11 +54,15 @@ export function normalizeNanoGptResolvedModel(
     return undefined;
   }
 
+  // `ProviderRuntimeModel.input` is the narrow `("text" | "image")[]` union,
+  // but OpenClaw's `ModelDefinitionConfig.input` was widened in 2026.5.20+ to
+  // include `video`/`audio`. We only ever populate the narrow values via
+  // `normalizeNanoGptProviderModelInput`, so the cast is safe.
   const nextModel: ProviderRuntimeModel = {
     ...ctx.model,
     name: definition.name,
     reasoning: definition.reasoning,
-    input: [...definition.input],
+    input: [...(definition.input as Array<"text" | "image">)],
     cost: { ...definition.cost },
     contextWindow: definition.contextWindow,
     maxTokens: definition.maxTokens,
@@ -128,4 +138,60 @@ export function applyNanoGptNativeStreamingUsageCompat(
   });
 
   return changed ? { ...providerConfig, models } : null;
+}
+
+/**
+ * Unified catalog source used when projecting the supplemental NanoGPT
+ * `augmentModelCatalog` rows onto the unified model-catalog surface.
+ */
+export const NANOGPT_UNIFIED_STATIC_CATALOG_SOURCE = "configured" as const satisfies UnifiedModelCatalogEntry["source"];
+
+/**
+ * Project NanoGPT `NanoGptCatalogEntry` supplemental rows onto the unified
+ * `UnifiedModelCatalogEntry` surface.
+ *
+ * Exposed so the migration can route the legacy `augmentModelCatalog` rows
+ * through `api.registerModelCatalogProvider` (`staticCatalog`) without
+ * abandoning the in-place `NanoGptCatalogEntry` shape used by NanoGPT tests
+ * and the local discovery snapshot.
+ */
+export function projectNanoGptAugmentedEntriesToUnifiedTextRows(
+  entries: readonly NanoGptCatalogEntry[],
+): UnifiedModelCatalogEntry[] {
+  const rows: UnifiedModelCatalogEntry[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry.id !== "string" || entry.id.length === 0) {
+      continue;
+    }
+    const provider = typeof entry.provider === "string" && entry.provider.length > 0
+      ? entry.provider
+      : NANOGPT_PROVIDER_ID;
+    rows.push({
+      kind: "text",
+      provider,
+      model: entry.id,
+      ...(typeof entry.name === "string" && entry.name.length > 0 ? { label: entry.name } : {}),
+      source: NANOGPT_UNIFIED_STATIC_CATALOG_SOURCE,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Adapter that reads the supplemental NanoGPT catalog rows (models.json +
+ * configured providers) and projects them onto the unified model-catalog
+ * surface.
+ *
+ * Suitable for `api.registerModelCatalogProvider({ ..., staticCatalog })` in
+ * `register(api)`. The returned rows are pure: identical inputs yield
+ * identical outputs, so OpenClaw can safely cache the projection.
+ */
+export function readNanoGptUnifiedStaticCatalog(params: {
+  agentDir?: string;
+  config?: unknown;
+  env?: Record<string, string | undefined>;
+}): UnifiedModelCatalogEntry[] {
+  return projectNanoGptAugmentedEntriesToUnifiedTextRows(
+    readNanoGptAugmentedCatalogEntries(params),
+  );
 }
