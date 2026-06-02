@@ -20,8 +20,9 @@ function normalizeNanoGptWebSearchResult(
     return null;
   }
 
+  let parsedUrl: URL;
   try {
-    const parsedUrl = new URL(url);
+    parsedUrl = new URL(url);
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       return null;
     }
@@ -39,9 +40,9 @@ function normalizeNanoGptWebSearchResult(
 
   return {
     title: title ? wrapWebContent(title, "web_search") : "",
-    url,
+    url: parsedUrl.href,
     snippet: rawSnippet ? wrapWebContent(rawSnippet, "web_search") : "",
-    siteName: resolveSiteName(url) || undefined,
+    siteName: resolveSiteName(parsedUrl.href) || undefined,
   };
 }
 
