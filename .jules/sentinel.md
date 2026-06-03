@@ -6,3 +6,7 @@
 **Vulnerability:** Partial match bypass in environment variable reference validation allowed exfiltration.
 **Learning:** The previous `ANY_BRACED_ENV_REF_PATTERN` and `ANY_UNBRACED_ENV_REF_PATTERN` regexes used `^` and `$` anchors, which only matched strings that were *entirely* environment variable references (like `${SECRET}`). This allowed references embedded within larger strings (like `prefix${SECRET}suffix`) to bypass the check and potentially exfiltrate sensitive data.
 **Prevention:** Validation regexes for unsafe references must be unanchored to ensure that references embedded anywhere within a string are correctly identified and blocked.
+## 2026-05-18 - SSRF/Parser Differential via URL Validation
+**Vulnerability:** The web search results normalizer (`web-search/results.ts`) validated URLs using the `URL` constructor to ensure they used `http:` or `https:`, but returned the *raw* user-supplied string rather than the parsed URL string. This allowed URL parser differentials where the string passed validation but downstream consumers interpreted it as a different, potentially malicious URI.
+**Learning:** Checking a parsed URL is not enough if you continue to use the raw, un-normalized string. You must use the sanitized, serialized output of the parser (`parsedUrl.href`) to ensure the validation logic accurately reflects what the downstream consumer will process.
+**Prevention:** Always extract and export the canonicalized properties (`parsedUrl.href`) from the parsed URL object rather than returning the raw input string.
