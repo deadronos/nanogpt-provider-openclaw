@@ -131,11 +131,11 @@
     },
     "onlyBuiltDependencies": [
       "@discordjs/opus",
-      "@google/genai",
       "@whiskeysockets/baileys",
       "koffi",
       "openclaw",
-      "protobufjs"
+      "protobufjs",
+      "tree-sitter-bash"
     ]
   },
   "publishConfig": {
