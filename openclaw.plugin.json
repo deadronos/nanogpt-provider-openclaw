@@ -68,6 +68,14 @@
       "label": "Enable web_fetch Tool Name Rewrite",
       "help": "When true (default), rewrites web_fetch tool names to openclaw_web_fetch and forces fallback stripping off."
     },
+    "enableRepair": {
+      "label": "Enable Repair",
+      "help": "Optional NanoGPT repair mode. Set to false to preserve raw NanoGPT output when using repair-aware model flows."
+    },
+    "injectResponseFormat": {
+      "label": "Inject Response Format",
+      "help": "Control whether responseFormat injection is applied to tool-enabled NanoGPT completions requests."
+    },
     "bridgeMode": {
       "label": "Bridge Mode",
       "help": "Enable the NanoProxy-style bridge for tool-enabled completions requests."
@@ -121,6 +129,26 @@
         "type": "boolean"
       },
       "enableWebFetchToolNameRewrite": {
+        "type": "boolean"
+      },
+      "enableRepair": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kimiRepair": { "type": "boolean" },
+              "glmRepair": { "type": "boolean" },
+              "qwenRepair": { "type": "boolean" },
+              "otherRepair": { "type": "boolean" }
+            }
+          }
+        ]
+      },
+      "injectResponseFormat": {
         "type": "boolean"
       },
       "bridgeMode": {

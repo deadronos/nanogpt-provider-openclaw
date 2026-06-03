@@ -36,6 +36,18 @@ describe("getNanoGptConfig", () => {
       bridgeProtocol: "xml",
     });
   });
+
+  it("preserves injectResponseFormat when explicitly configured", () => {
+    expect(
+      getNanoGptConfig({
+        responseFormat: "json_object",
+        injectResponseFormat: false,
+      }),
+    ).toEqual({
+      responseFormat: "json_object",
+      injectResponseFormat: false,
+    });
+  });
 });
 
 describe("resolveNanoGptRequestApi", () => {

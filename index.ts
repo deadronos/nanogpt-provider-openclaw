@@ -1,7 +1,10 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { buildNanoGptImageGenerationProvider } from "./image-generation-provider.js";
 import { NANOGPT_PROVIDER_ID, NANOGPT_PROVIDER_LABEL, NANOGPT_DOCS_PATH } from "./models.js";
-import { nanoGptProviderCatalog } from "./provider-catalog.js";
+import {
+  nanoGptProviderCatalog,
+  readNanoGptUnifiedLiveCatalog,
+} from "./provider-catalog.js";
 import { getNanoGptConfig } from "./runtime/config.js";
 import {
   fetchNanoGptUsageSnapshot,
@@ -12,8 +15,8 @@ import { createNanoGptApiKeyAuthMethod } from "./provider/auth.js";
 import {
   applyNanoGptNativeStreamingUsageCompat,
   normalizeNanoGptResolvedModel,
-  readNanoGptAugmentedCatalogEntries,
   resolveNanoGptDynamicModelWithSnapshot,
+  readNanoGptUnifiedStaticCatalog,
 } from "./provider/catalog-hooks.js";
 import { createNanoGptErrorSurfaceHooks } from "./provider/error-hooks.js";
 import { createNanoGptReplayHooks } from "./provider/replay-hooks.js";
@@ -66,12 +69,6 @@ export default definePluginEntry({
       envVars: ["NANOGPT_API_KEY"],
       auth: [createNanoGptApiKeyAuthMethod()],
       catalog: nanoGptProviderCatalog,
-      augmentModelCatalog: (ctx) =>
-        readNanoGptAugmentedCatalogEntries({
-          agentDir: ctx.agentDir,
-          config: ctx.config,
-          env: ctx.env,
-        }),
       normalizeResolvedModel: (ctx) =>
         normalizeNanoGptResolvedModel({
           agentDir: ctx.agentDir,
@@ -91,6 +88,13 @@ export default definePluginEntry({
       wrapStreamFn: (ctx) => wrapNanoGptStreamFn(ctx, logger, resolvedNanoGptConfig),
       matchesContextOverflowError: (ctx) => matchesContextOverflowErrorHook(ctx),
       classifyFailoverReason: (ctx) => classifyFailoverReasonHook(ctx),
+    });
+
+    api.registerModelCatalogProvider({
+      provider: NANOGPT_PROVIDER_ID,
+      kinds: ["text"],
+      liveCatalog: (ctx) => readNanoGptUnifiedLiveCatalog(ctx),
+      staticCatalog: (ctx) => readNanoGptUnifiedStaticCatalog(ctx),
     });
 
     if (

@@ -29,6 +29,34 @@ describe("nanogpt logger", () => {
     expect(contents).toContain('"key":"value"');
   });
 
+  it("redacts sensitive keys from meta", async () => {
+    const log = createNanoGptLoggerSync("test-redact");
+    log.info("test-redact-info", {
+      normalKey: "visible",
+      apiKey: "secret-api-key",
+      nanoGptApiKey: "secret-nanogpt-key",
+      nested: { token: "secret-token", password: "secret-password" },
+      authorization: "secret-auth",
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(existsSync(LOG_PATH)).toBe(true);
+    const contents = readFileSync(LOG_PATH, "utf8");
+    expect(contents).toContain("test-redact-info");
+    expect(contents).toContain('"normalKey":"visible"');
+    expect(contents).toContain('"apiKey":"[REDACTED]"');
+    expect(contents).toContain('"nanoGptApiKey":"[REDACTED]"');
+    expect(contents).toContain('"token":"[REDACTED]"');
+    expect(contents).toContain('"password":"[REDACTED]"');
+    expect(contents).toContain('"authorization":"[REDACTED]"');
+    expect(contents).not.toContain("secret-api-key");
+    expect(contents).not.toContain("secret-nanogpt-key");
+    expect(contents).not.toContain("secret-token");
+    expect(contents).not.toContain("secret-password");
+    expect(contents).not.toContain("secret-auth");
+  });
+
   it("falls back to a no-op logger when the log directory cannot be created", async () => {
     vi.resetModules();
     vi.doMock("node:fs", async () => {

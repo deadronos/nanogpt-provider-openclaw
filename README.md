@@ -196,6 +196,8 @@ For example:
 - `enableWebSearchProvider`: `false` (default) or `true` — registers the NanoGPT `web_search` provider even when text routing is not explicitly `paygo`
 - `enableWebFetchFallbackStrip`: `false` (default) or `true` — when enabled, strips `web_fetch` on non-MiniMax families and falls back to curl hints
 - `enableWebFetchToolNameRewrite`: `true` (default) or `false` — rewrites `web_fetch` tool names to `openclaw_web_fetch`; when enabled, this takes precedence and forces fallback stripping off
+- `enableRepair`: `true` or `false` — optional NanoGPT repair toggle; set to `false` when you want raw NanoGPT assistant output preserved through repair-aware flows
+- `injectResponseFormat`: `true` or `false` — controls whether `responseFormat` injection is applied to tool-enabled NanoGPT completions requests
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled

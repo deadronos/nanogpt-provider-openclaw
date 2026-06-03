@@ -75,6 +75,7 @@ describe("nanogpt image-generation provider", () => {
     plugin.register({
       pluginConfig: {},
       registerProvider() {},
+      registerModelCatalogProvider() {},
       registerWebSearchProvider() {},
       registerImageGenerationProvider(provider: unknown) {
         imageProviders.push(provider);

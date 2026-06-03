@@ -1,3 +1,4 @@
+import { isRecord } from "../shared/guards.js";
 import { NANOGPT_PROVIDER_ID } from "../models.js";
 import {
   mergeScopedSearchConfig,
@@ -7,7 +8,21 @@ import {
 } from "openclaw/plugin-sdk/provider-web-search";
 
 const NANOGPT_WEB_SEARCH_CREDENTIAL_PATH = "plugins.entries.nanogpt.config.webSearch.apiKey";
+const NANOGPT_API_KEY_ENV_VAR = "NANOGPT_API_KEY";
 const NANOGPT_ENV_REF_PATTERN = /^\$\{(NANOGPT_API_KEY)\}$/;
+const UNSAFE_ENV_REF_PATTERN = /\$(?:\{[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)/;
+
+function isEnvSecretRef(value: unknown): value is {
+  source: "env";
+  id: string;
+  provider?: string;
+} {
+  if (!isRecord(value) || value.source !== "env" || typeof value.id !== "string") {
+    return false;
+  }
+
+  return value.provider === undefined || typeof value.provider === "string";
+}
 
 function resolveNanoGptWebSearchConfig(ctx: {
   config?: Record<string, unknown>;
@@ -25,29 +40,43 @@ function resolveNanoGptWebSearchConfig(ctx: {
 }
 
 function resolveNanoGptWebSearchApiKey(searchConfig?: Record<string, unknown>): string | undefined {
+  const rawCredentialValue = searchConfig?.apiKey;
+
   // Keep compatibility with the ${ENV_VAR} string form provisioned by NanoGPT
   // onboarding/auth setup. The generic helper handles direct strings and
   // structured secret refs, but this legacy env-template form still needs to
   // be collapsed before handing off to the normal provider credential path.
   const inlineEnvRef =
-    typeof searchConfig?.apiKey === "string"
-      ? NANOGPT_ENV_REF_PATTERN.exec(searchConfig.apiKey.trim())?.[1]
+    typeof rawCredentialValue === "string"
+      ? NANOGPT_ENV_REF_PATTERN.exec(rawCredentialValue.trim())?.[1]
       : undefined;
 
-  const rawCredentialValue = searchConfig?.apiKey;
-  // If it looks like an environment variable but didn't match the safe pattern, don't pass it through
-  // Security fix: Use broad regex to prevent partial match bypasses for environment variable exfiltration.
-  // We check for both ${VAR} (including empty ${}) and $VAR patterns.
-  const isUnsafeEnvRef =
-    typeof rawCredentialValue === "string" &&
-    /\$(?:\{[^}]*\}|[a-zA-Z_][a-zA-Z0-9_]*)/.test(rawCredentialValue.trim());
+  if (inlineEnvRef) {
+    return resolveWebSearchProviderCredential({
+      credentialValue: readProviderEnvValue([inlineEnvRef]),
+      path: "tools.web.search.apiKey",
+      envVars: [NANOGPT_API_KEY_ENV_VAR],
+    });
+  }
+
+  if (typeof rawCredentialValue === "string") {
+    const trimmedCredentialValue = rawCredentialValue.trim();
+    if (UNSAFE_ENV_REF_PATTERN.test(trimmedCredentialValue)) {
+      return undefined;
+    }
+  }
+
+  if (
+    isEnvSecretRef(rawCredentialValue) &&
+    rawCredentialValue.id.trim() !== NANOGPT_API_KEY_ENV_VAR
+  ) {
+    return undefined;
+  }
 
   return resolveWebSearchProviderCredential({
-    credentialValue:
-      (inlineEnvRef ? readProviderEnvValue([inlineEnvRef]) : undefined) ??
-      (isUnsafeEnvRef ? undefined : rawCredentialValue),
+    credentialValue: rawCredentialValue,
     path: "tools.web.search.apiKey",
-    envVars: ["NANOGPT_API_KEY"],
+    envVars: [NANOGPT_API_KEY_ENV_VAR],
   });
 }
 

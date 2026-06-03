@@ -95,13 +95,13 @@
     "lint:fix": "oxlint --fix && npm run format"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.4.22"
+    "openclaw": ">=2026.5.20"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "esbuild": "^0.25.0",
-    "openclaw": "2026.4.23",
+    "openclaw": "2026.5.20",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
     "oxlint-tsgolint": "^0.21.1",
@@ -110,8 +110,8 @@
   },
   "overrides": {
     "axios": "1.15.0",
-    "hono": "4.12.16",
-    "protobufjs": "7.5.5",
+    "hono": "4.12.18",
+    "protobufjs": "7.5.6",
     "tar": "7.5.13",
     "fast-xml-parser": "5.7.0",
     "fast-xml-builder": "1.1.7",
@@ -121,8 +121,8 @@
   "pnpm": {
     "overrides": {
       "axios": "1.15.0",
-      "hono": "4.12.16",
-      "protobufjs": "7.5.5",
+      "hono": "4.12.18",
+      "protobufjs": "7.5.6",
       "tar": "7.5.13",
       "fast-xml-parser": "5.7.0",
       "fast-xml-builder": "1.1.7",
@@ -131,13 +131,11 @@
     },
     "onlyBuiltDependencies": [
       "@discordjs/opus",
-      "@matrix-org/matrix-sdk-crypto-nodejs",
+      "@google/genai",
       "@whiskeysockets/baileys",
-      "esbuild",
       "koffi",
       "openclaw",
-      "protobufjs",
-      "sharp"
+      "protobufjs"
     ]
   },
   "publishConfig": {
@@ -151,12 +149,12 @@
       "nanogpt"
     ],
     "compat": {
-      "pluginApi": ">=2026.4.22",
-      "minGatewayVersion": "2026.4.22"
+      "pluginApi": ">=2026.5.20",
+      "minGatewayVersion": "2026.5.20"
     },
     "build": {
-      "openclawVersion": "2026.4.22",
-      "pluginSdkVersion": "2026.4.22"
+      "openclawVersion": "2026.5.20",
+      "pluginSdkVersion": "2026.5.20"
     }
   },
   "dependencies": {
