@@ -45,6 +45,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
     ...(candidate.enableRepair !== undefined && candidate.enableRepair !== null
       ? { enableRepair: candidate.enableRepair }
       : {}),
+    ...(typeof candidate.injectResponseFormat === "boolean"
+      ? { injectResponseFormat: candidate.injectResponseFormat }
+      : {}),
     ...(() => {
       const rf = candidate.responseFormat;
       if (
