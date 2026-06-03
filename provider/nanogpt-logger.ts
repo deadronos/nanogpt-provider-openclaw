@@ -58,22 +58,45 @@ function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; re
   return { stream, ready: _streamPromise };
 }
 
+const SENSITIVE_KEYS = new Set([
+  "apikey",
+  "nanogptapikey",
+  "token",
+  "password",
+  "secret",
+  "authorization",
+  "credential",
+  "cookie",
+]);
+
+function redact(val: unknown): unknown {
+  if (val === null || typeof val !== "object") {
+    return val;
+  }
+
+  if (Array.isArray(val)) {
+    return val.map(redact);
+  }
+
+  const record = val as Record<string, unknown>;
+  const redacted: Record<string, unknown> = {};
+  for (const key of Object.keys(record)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      redacted[key] = "[REDACTED]";
+    } else {
+      redacted[key] = redact(record[key]);
+    }
+  }
+  return redacted;
+}
+
 function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-const SENSITIVE_KEYS = /apikey|nanogptapikey|token|password|secret|authorization|credential|cookie/i;
-
-function redactReplacer(key: string, value: unknown): unknown {
-  if (SENSITIVE_KEYS.test(key)) {
-    return "[REDACTED]";
-  }
-  return value;
-}
-
 function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = formatTimestamp();
-  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta, redactReplacer)}` : "";
+  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(redact(meta))}` : "";
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;
 }
 
