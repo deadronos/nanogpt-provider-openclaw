@@ -62,4 +62,27 @@ describe("stage package dir", () => {
     );
     expect(fs.existsSync(path.join(outputDir, "node_modules"))).toBe(false);
   });
+
+  it("does not recurse into the staged package directory when outputDir is under dist", () => {
+    const repoRoot = makeTempDir();
+    const distDir = path.join(repoRoot, "dist");
+    const outputDir = path.join(distDir, "package");
+    const manifest = {
+      name: "example-plugin",
+      version: "1.0.0",
+      files: ["index.ts"],
+    };
+
+    fs.writeFileSync(path.join(repoRoot, "package.json"), JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(path.join(repoRoot, "index.ts"), "export const plugin = true;\n");
+    fs.mkdirSync(distDir, { recursive: true });
+    fs.writeFileSync(path.join(distDir, "index.js"), "export const plugin = true;\n");
+
+    const stagedDir = stagePackageDir({ repoRoot, outputDir });
+
+    expect(stagedDir).toBe(outputDir);
+    expect(fs.existsSync(path.join(outputDir, "package.json"))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, "index.js"))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, "package", "index.js"))).toBe(false);
+  });
 });

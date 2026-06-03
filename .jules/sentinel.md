@@ -1,22 +1,12 @@
-## 2024-05-20 - Fix environment variable exfiltration via apiKey parameter
-
-**Vulnerability:** The code in `web-search/credentials.ts` validated if a string looked like an environment variable reference (e.g. `${ENV_VAR}`) using the restrictive regex `/^\$\{([A-Z][A-Z0-9_]*)\}$/`.
-
-**Learning:** This regex failed to catch secrets named with lowercase characters or leading underscores (e.g., `${_secret}` or `${my_secret}`). This allowed those strings to bypass the check and potentially leak an environment variable value if the underlying framework tried to resolve it.
-
-**Prevention:** Always use broad regexes when checking for unsafe string formats (like `/^\$\{([^}]+)\}$/` instead of `/^\$\{([A-Z][A-Z0-9_]*)\}$/`) to ensure attackers cannot bypass validation simply by changing the casing or naming pattern.
-## 2026-04-24 - Add input length limits to image generation prompt
-**Vulnerability:** The image generation provider accepted an arbitrarily long `req.prompt` parameter, passing it directly to the provider payload. This lack of validation created a potential DoS/resource exhaustion vector.
-**Learning:** Missing length limits on arbitrary text inputs passed to external APIs can be exploited to cause large memory allocations or exceed upstream API payload limits unnecessarily.
-**Prevention:** Implement input length validation early in the request pipeline (e.g. `req.prompt.length > 4000`) to enforce a safe maximum before payload serialization.
-## 2026-05-24 - Limit array sizes and external error strings to prevent DoS and information leak
-
-**Vulnerability:** The web search provider did not enforce a size limit on the `includeDomains` and `excludeDomains` input arrays. Additionally, the image generation provider threw the raw text of HTTP error responses from the upstream API directly to the user.
-**Learning:** Failing to enforce limits on arrays creates an Application-level DoS vector, and passing upstream HTTP error bodies blindly can lead to large allocations, unexpected payload leakage, and crashes.
-**Prevention:** Cap array inputs (e.g. `includeDomains.length > 50`) and limit external error responses to a safe length (e.g. `detail.slice(0, 200)`) before logging or throwing.
-
-## 2026-06-15 - Limit error string lengths to prevent log pollution and info leakage
-
-**Vulnerability:** The error handlers in `runtime/discovery.ts` and `runtime/routing.ts` logged the full text of error messages generated from HTTP fetch failures directly, passing the raw string into structured logging.
-**Learning:** Raw error bodies or stringified exceptions from external API interactions can be unexpectedly large or contain stack traces and other sensitive information, leading to log pollution or data exfiltration.
-**Prevention:** Always truncate error messages (e.g. using `.slice(0, 200)`) before logging them in structured logs, enforcing strict limits on external failure descriptions.
+## 2025-02-20 - [Redact Sensitive Data In Log Meta Output]
+**Vulnerability:** The logger `provider/nanogpt-logger.ts` was serializing the raw `meta` object using `JSON.stringify(meta)` without redacting sensitive information like `apiKey`, `secret`, `token`, `password`, and `authorization` keys.
+**Learning:** Raw logger implementations should always use a JSON replacer to intercept object key serialization in order to filter/redact sensitive metadata (e.g. passwords, API keys) which may inadvertently be passed into logs, thus polluting logs with secrets.
+**Prevention:** Implement a replacer function for `JSON.stringify` that checks keys via regex and redacts sensitive data with `[REDACTED]`.
+## 2026-05-15 - Environment Variable Exfiltration Bypass
+**Vulnerability:** Partial match bypass in environment variable reference validation allowed exfiltration.
+**Learning:** The previous `ANY_BRACED_ENV_REF_PATTERN` and `ANY_UNBRACED_ENV_REF_PATTERN` regexes used `^` and `$` anchors, which only matched strings that were *entirely* environment variable references (like `${SECRET}`). This allowed references embedded within larger strings (like `prefix${SECRET}suffix`) to bypass the check and potentially exfiltrate sensitive data.
+**Prevention:** Validation regexes for unsafe references must be unanchored to ensure that references embedded anywhere within a string are correctly identified and blocked.
+## 2026-05-18 - SSRF/Parser Differential via URL Validation
+**Vulnerability:** The web search results normalizer (`web-search/results.ts`) validated URLs using the `URL` constructor to ensure they used `http:` or `https:`, but returned the *raw* user-supplied string rather than the parsed URL string. This allowed URL parser differentials where the string passed validation but downstream consumers interpreted it as a different, potentially malicious URI.
+**Learning:** Checking a parsed URL is not enough if you continue to use the raw, un-normalized string. You must use the sanitized, serialized output of the parser (`parsedUrl.href`) to ensure the validation logic accurately reflects what the downstream consumer will process.
+**Prevention:** Always extract and export the canonicalized properties (`parsedUrl.href`) from the parsed URL object rather than returning the raw input string.

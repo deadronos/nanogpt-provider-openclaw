@@ -80,7 +80,7 @@ function redact(val: unknown): unknown {
 
   const record = val as Record<string, unknown>;
   const redacted: Record<string, unknown> = {};
-  for (const key in record) {
+  for (const key of Object.keys(record)) {
     if (SENSITIVE_KEYS.has(key.toLowerCase())) {
       redacted[key] = "[REDACTED]";
     } else {
