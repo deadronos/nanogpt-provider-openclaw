@@ -128,7 +128,7 @@ function normalizeToolArguments(value: unknown): Record<string, unknown> {
     return { items: value };
   }
   if (typeof value === "object") {
-    return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+    return { ...(value as Record<string, unknown>) };
   }
   return { value };
 }
