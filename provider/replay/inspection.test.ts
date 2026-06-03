@@ -37,6 +37,8 @@ describe("replay inspection", () => {
       expect(result?.toolCallCount).toBe(1);
       expect(result?.toolCalls).toEqual([{ id: "call_1", name: "test_tool", missingId: false }]);
       expect(result?.toolCallNames).toEqual(["test_tool"]);
+      expect(result?.missingToolCallIdCount).toBe(0);
+      expect(result?.duplicateToolCallIdCount).toBe(0);
     });
 
     it("normalizes visibleTextLength with extra whitespace", () => {
@@ -47,7 +49,8 @@ describe("replay inspection", () => {
 
       const result = collectNanoGptReplayAssistantInspection(message);
       expect(result?.visibleText).toBe("  Hello   \n  world  ");
-      // "Hello world" length is 11
+      // normalizeNanoGptReplayText collapses all whitespace runs (including newlines)
+      // into single spaces, then trims, yielding "Hello world" (length 11)
       expect(result?.visibleTextLength).toBe(11);
     });
 
@@ -70,6 +73,9 @@ describe("replay inspection", () => {
       expect(result?.toolCalls[0].missingId).toBe(true);
       expect(result?.toolCalls[1].missingId).toBe(true);
       expect(result?.toolCalls[2].missingId).toBe(false);
+      // names are captured even when IDs are missing
+      expect(result?.toolCallNames).toContain("tool1");
+      expect(result?.toolCallNames).toContain("tool2");
     });
 
     it("integrates with stream markers (reasoning tags)", () => {
@@ -168,6 +174,8 @@ describe("replay inspection", () => {
       expect(resolveNanoGptReplayTransportApi({})).toBeUndefined();
       expect(resolveNanoGptReplayTransportApi({ modelApi: 123 })).toBeUndefined();
       expect(resolveNanoGptReplayTransportApi({ modelApi: "  " })).toBeUndefined();
+      // non-record model is skipped, falls through to modelApi (also missing)
+      expect(resolveNanoGptReplayTransportApi({ model: "not-an-object" })).toBeUndefined();
     });
   });
 
@@ -185,6 +193,10 @@ describe("replay inspection", () => {
         isNanoGptTaggedReasoningOutputMode({
           model: { compat: { requiresThinkingAsText: false } },
         }),
+      ).toBe(false);
+      // non-record compat is skipped by isRecord guard
+      expect(
+        isNanoGptTaggedReasoningOutputMode({ model: { compat: "not-an-object" } }),
       ).toBe(false);
     });
   });
