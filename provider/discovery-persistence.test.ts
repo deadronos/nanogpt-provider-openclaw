@@ -56,9 +56,7 @@ describe("buildNanogptProvidersBlock", () => {
   });
 
   it("returns null when config.models is empty", () => {
-    expect(
-      buildNanogptProvidersBlock({ config: asConfig({ models: [] }) }),
-    ).toBeNull();
+    expect(buildNanogptProvidersBlock({ config: asConfig({ models: [] }) })).toBeNull();
   });
 
   it("returns null when config.models is missing", () => {
@@ -222,9 +220,7 @@ describe("writeNanogptProviderCatalogToModelsJson", () => {
 
     expect(write.ok).toBe(true);
     expect(write.changed).toBe(true);
-    const written = JSON.parse(
-      fs.readFileSync(path.join(agentDir, "models.json"), "utf8"),
-    );
+    const written = JSON.parse(fs.readFileSync(path.join(agentDir, "models.json"), "utf8"));
     expect(written.providers[NANOGPT_PROVIDER_ID]).toEqual({
       models: [{ id: "fresh", contextWindow: 1048576 }],
     });
@@ -248,9 +244,7 @@ describe("writeNanogptProviderCatalogToModelsJson", () => {
     });
 
     expect(write.ok).toBe(true);
-    const written = JSON.parse(
-      fs.readFileSync(path.join(agentDir, "models.json"), "utf8"),
-    );
+    const written = JSON.parse(fs.readFileSync(path.join(agentDir, "models.json"), "utf8"));
     expect(written.providers.anthropic).toEqual({
       models: [{ id: "claude-sonnet-4.6" }],
     });
@@ -324,9 +318,7 @@ describe("scheduleNanogptProviderCatalogPersistence", () => {
       apiKey: "test-key",
       pluginConfig: {},
     });
-    const written = JSON.parse(
-      fs.readFileSync(path.join(agentDir, "models.json"), "utf8"),
-    );
+    const written = JSON.parse(fs.readFileSync(path.join(agentDir, "models.json"), "utf8"));
     expect(written.providers.nanogpt.models[0].contextWindow).toBe(1048576);
     expect(logger.warn).not.toHaveBeenCalled();
   });

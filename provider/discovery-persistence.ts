@@ -194,12 +194,9 @@ export function scheduleNanogptProviderCatalogPersistence(
           pluginConfig: params.pluginConfig,
         });
       } catch (err) {
-        params.logger.warn(
-          "NanoGPT discovery failed while persisting catalog",
-          {
-            error: err instanceof Error ? err.message : String(err),
-          },
-        );
+        params.logger.warn("NanoGPT discovery failed while persisting catalog", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         return;
       }
 
@@ -208,8 +205,7 @@ export function scheduleNanogptProviderCatalogPersistence(
         return;
       }
 
-      const agentDir =
-        params.agentDir ?? resolveNanoGptAgentDir(undefined, params.env);
+      const agentDir = params.agentDir ?? resolveNanoGptAgentDir(undefined, params.env);
       if (!agentDir) {
         return;
       }
@@ -220,30 +216,25 @@ export function scheduleNanogptProviderCatalogPersistence(
       });
 
       if (!write.ok) {
-        params.logger.warn(
-          "Failed to persist NanoGPT provider catalog to models.json",
-          { path: write.path, reason: write.reason },
-        );
+        params.logger.warn("Failed to persist NanoGPT provider catalog to models.json", {
+          path: write.path,
+          reason: write.reason,
+        });
         return;
       }
 
       if (write.changed) {
-        const modelCount = Array.isArray(block.models)
-          ? block.models.length
-          : 0;
-        params.logger.info(
-          "Persisted NanoGPT provider catalog to models.json",
-          { path: write.path, modelCount },
-        );
+        const modelCount = Array.isArray(block.models) ? block.models.length : 0;
+        params.logger.info("Persisted NanoGPT provider catalog to models.json", {
+          path: write.path,
+          modelCount,
+        });
       }
     } catch (err) {
       try {
-        params.logger.warn(
-          "Unhandled error persisting NanoGPT provider catalog",
-          {
-            error: err instanceof Error ? err.message : String(err),
-          },
-        );
+        params.logger.warn("Unhandled error persisting NanoGPT provider catalog", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       } catch {
         // Logging is best-effort; never throw.
       }
