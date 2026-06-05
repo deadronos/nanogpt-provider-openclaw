@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
@@ -62,6 +63,16 @@ export interface NanoGptPluginConfig {
   injectResponseFormat?: boolean;
   bridgeMode?: NanoGptBridgeMode;
   bridgeProtocol?: NanoGptBridgeProtocol;
+  /**
+   * When true, the plugin will write its live-discovered NanoGPT provider
+   * catalog into the agent's `models.json` at registration time so that
+   * `session_status` reads the correct context window (e.g. 1 048 576 for
+   * `deepseek/deepseek-v4-flash`) instead of the bundled 200 000 default.
+   *
+   * Opt-in: the plugin must never mutate agent state without the user
+   * explicitly turning the behavior on. Defaults to `false`.
+   */
+  persistDiscoveredCatalog?: boolean;
 }
 
 export interface NanoGptModelCapabilities {
@@ -170,14 +181,62 @@ export function resolveNanoGptAgentDir(
     return envAgentDir;
   }
 
+  // Resolve the agents root from either OPENCLAW_STATE_DIR or the home dir.
   const stateDir = resolvedEnv.OPENCLAW_STATE_DIR?.trim();
-  if (stateDir) {
-    return path.join(stateDir, "agents", "default", "agent");
-  }
-
   const homeDir =
     resolvedEnv.OPENCLAW_HOME?.trim() || resolvedEnv.HOME?.trim() || os.homedir();
-  return homeDir ? path.join(homeDir, ".openclaw", "agents", "default", "agent") : undefined;
+  const agentsRoot = stateDir
+    ? path.join(stateDir, "agents")
+    : homeDir
+      ? path.join(homeDir, ".openclaw", "agents")
+      : undefined;
+
+  if (!agentsRoot) {
+    return undefined;
+  }
+
+  // Prefer the agent dir whose `openclaw-agent.sqlite` was most recently
+  // modified — that is the active session. This avoids landing in a
+  // stale `default` agent when the user is actually running their session
+  // in `main` (or any other named agent).
+  const activeAgentDir = findMostRecentlyActiveAgentDir(agentsRoot);
+  if (activeAgentDir) {
+    return activeAgentDir;
+  }
+
+  return path.join(agentsRoot, "default", "agent");
+}
+
+/**
+ * Scan `<agentsRoot>/<name>/agent/openclaw-agent.sqlite` entries and return
+ * the agent dir whose sqlite has the most recent mtime. Returns `undefined`
+ * when the agents root is missing or no agent has a sqlite file yet.
+ */
+function findMostRecentlyActiveAgentDir(agentsRoot: string): string | undefined {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(agentsRoot);
+  } catch {
+    return undefined;
+  }
+
+  let best: { path: string; mtimeMs: number } | undefined;
+  for (const entry of entries) {
+    if (entry.startsWith(".")) {
+      continue;
+    }
+    const sqlitePath = path.join(agentsRoot, entry, "agent", "openclaw-agent.sqlite");
+    try {
+      const stat = fs.statSync(sqlitePath);
+      if (stat.isFile() && (!best || stat.mtimeMs > best.mtimeMs)) {
+        best = { path: path.join(agentsRoot, entry, "agent"), mtimeMs: stat.mtimeMs };
+      }
+    } catch {
+      // No sqlite file in this agent dir; skip it.
+    }
+  }
+
+  return best?.path;
 }
 
 export function shouldAliasNanoGptWebFetchTool(modelId: string): boolean {

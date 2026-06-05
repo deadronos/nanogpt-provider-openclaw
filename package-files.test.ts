@@ -68,6 +68,7 @@ describe("package manifest files", () => {
         "catalog/build-provider.ts",
         "provider/anomaly-types.ts",
         "provider/anomaly-logger.ts",
+        "provider/discovery-persistence.ts",
         "provider/replay-hooks.ts",
         "provider/replay/types.ts",
         "provider/replay/inspection.ts",

@@ -65,6 +65,9 @@ export function getNanoGptConfig(config: unknown): NanoGptPluginConfig {
     ...(candidate.bridgeProtocol === "object" || candidate.bridgeProtocol === "xml"
       ? { bridgeProtocol: candidate.bridgeProtocol }
       : {}),
+    ...(typeof candidate.persistDiscoveredCatalog === "boolean"
+      ? { persistDiscoveredCatalog: candidate.persistDiscoveredCatalog }
+      : {}),
   };
 }
 

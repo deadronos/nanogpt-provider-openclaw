@@ -11,13 +11,14 @@ import {
   resolveNanoGptUsageAuth,
 } from "./runtime/usage.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
-import { createNanoGptApiKeyAuthMethod } from "./provider/auth.js";
+import { createNanoGptApiKeyAuthMethod, NANOGPT_API_KEY_ENV_VAR } from "./provider/auth.js";
 import {
   applyNanoGptNativeStreamingUsageCompat,
   normalizeNanoGptResolvedModel,
   resolveNanoGptDynamicModelWithSnapshot,
   readNanoGptUnifiedStaticCatalog,
 } from "./provider/catalog-hooks.js";
+import { scheduleNanogptProviderCatalogPersistence } from "./provider/discovery-persistence.js";
 import { createNanoGptErrorSurfaceHooks } from "./provider/error-hooks.js";
 import { createNanoGptReplayHooks } from "./provider/replay-hooks.js";
 import {
@@ -104,5 +105,20 @@ export default definePluginEntry({
       api.registerWebSearchProvider(createNanoGptWebSearchProvider());
     }
     api.registerImageGenerationProvider(buildNanoGptImageGenerationProvider());
+
+    // Opt-in: persist the live NanoGPT provider catalog into the agent's
+    // `models.json` so `session_status` reads the correct context window
+    // (e.g. 1 048 576 for `deepseek/deepseek-v4-flash`) instead of falling
+    // back to the bundled 200k default. Off by default; users must set
+    // `persistDiscoveredCatalog: true` in plugin config to enable it.
+    // Fire-and-forget; never blocks plugin load.
+    if (resolvedNanoGptConfig.persistDiscoveredCatalog === true) {
+      scheduleNanogptProviderCatalogPersistence({
+        apiKey: process.env[NANOGPT_API_KEY_ENV_VAR],
+        pluginConfig,
+        env: process.env as Record<string, string | undefined>,
+        logger,
+      });
+    }
   },
 });

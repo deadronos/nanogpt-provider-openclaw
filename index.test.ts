@@ -8,6 +8,7 @@ import {
   getRegisteredProviderHarness,
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
+import * as persistence from "./provider/discovery-persistence.js";
 import type { NanoGptProviderRegistration } from "./provider/types.js";
 import type { UnifiedModelCatalogProviderContext } from "openclaw/plugin-sdk/provider-model-shared";
 
@@ -833,6 +834,79 @@ describe("nanogpt plugin entry", () => {
         source: "configured",
       },
     ]);
+  });
+
+  it("schedules NanoGPT catalog persistence during register() when persistDiscoveredCatalog is true", () => {
+    const spy = vi
+      .spyOn(persistence, "scheduleNanogptProviderCatalogPersistence")
+      .mockImplementation(() => {});
+
+    try {
+      plugin.register({
+        pluginConfig: { persistDiscoveredCatalog: true },
+        runtime: { logging: { shouldLogVerbose: () => false } },
+        logger: { warn: vi.fn(), info: vi.fn() },
+        registerProvider: () => {},
+        registerModelCatalogProvider: () => {},
+        registerWebSearchProvider: () => {},
+        registerImageGenerationProvider: () => {},
+      } as never);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: process.env.NANOGPT_API_KEY,
+          pluginConfig: { persistDiscoveredCatalog: true },
+          env: expect.any(Object),
+          logger: expect.any(Object),
+        }),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("does not schedule NanoGPT catalog persistence when persistDiscoveredCatalog is false or omitted", () => {
+    const spy = vi
+      .spyOn(persistence, "scheduleNanogptProviderCatalogPersistence")
+      .mockImplementation(() => {});
+
+    try {
+      plugin.register({
+        pluginConfig: { persistDiscoveredCatalog: false },
+        runtime: { logging: { shouldLogVerbose: () => false } },
+        logger: { warn: vi.fn(), info: vi.fn() },
+        registerProvider: () => {},
+        registerModelCatalogProvider: () => {},
+        registerWebSearchProvider: () => {},
+        registerImageGenerationProvider: () => {},
+      } as never);
+
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+
+    // Also covers the default case (flag omitted entirely).
+    const spy2 = vi
+      .spyOn(persistence, "scheduleNanogptProviderCatalogPersistence")
+      .mockImplementation(() => {});
+
+    try {
+      plugin.register({
+        pluginConfig: {},
+        runtime: { logging: { shouldLogVerbose: () => false } },
+        logger: { warn: vi.fn(), info: vi.fn() },
+        registerProvider: () => {},
+        registerModelCatalogProvider: () => {},
+        registerWebSearchProvider: () => {},
+        registerImageGenerationProvider: () => {},
+      } as never);
+
+      expect(spy2).not.toHaveBeenCalled();
+    } finally {
+      spy2.mockRestore();
+    }
   });
 
 });

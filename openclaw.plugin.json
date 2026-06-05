@@ -88,6 +88,10 @@
     "responseFormat": {
       "label": "Response Format",
       "help": "Optionally inject OpenAI-compatible response_format into NanoGPT requests."
+    },
+    "persistDiscoveredCatalog": {
+      "label": "Persist Discovered Catalog",
+      "help": "When true, write the live-discovered NanoGPT provider catalog into the agent's models.json so session_status shows the real context window per model. Off by default."
     }
   },
   "configSchema": {
@@ -194,6 +198,9 @@
             }
           ]
         },
+      "persistDiscoveredCatalog": {
+        "type": "boolean"
+      },
       "webSearch": {
         "type": "object",
         "properties": {

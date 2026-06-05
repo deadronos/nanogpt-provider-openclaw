@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
+import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { snapshotEnv, restoreEnv, setEnvValue } from "./test-env.js";
@@ -186,5 +187,81 @@ describe("resolveNanoGptAgentDir", () => {
   it("uses process.env by default if env is not provided", () => {
     setEnvValue("OPENCLAW_AGENT_DIR", "/global/agent/dir");
     expect(resolveNanoGptAgentDir()).toBe("/global/agent/dir");
+  });
+
+  it("auto-detects the agent dir with the most recently active openclaw-agent.sqlite when no env vars are set", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-resolve-agent-"));
+    const mainAgent = path.join(root, ".openclaw", "agents", "main", "agent");
+    const defaultAgent = path.join(root, ".openclaw", "agents", "default", "agent");
+    fs.mkdirSync(mainAgent, { recursive: true });
+    fs.mkdirSync(defaultAgent, { recursive: true });
+    const mainSqlite = path.join(mainAgent, "openclaw-agent.sqlite");
+    const defaultSqlite = path.join(defaultAgent, "openclaw-agent.sqlite");
+    fs.writeFileSync(mainSqlite, "main");
+    fs.writeFileSync(defaultSqlite, "default");
+    // main sqlite is newer than default sqlite.
+    const now = Date.now();
+    fs.utimesSync(mainSqlite, new Date(now - 1000), new Date(now - 1000));
+    fs.utimesSync(defaultSqlite, new Date(now - 60_000), new Date(now - 60_000));
+
+    try {
+      expect(resolveNanoGptAgentDir(undefined, { HOME: root })).toBe(mainAgent);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("skips agent dirs that have no openclaw-agent.sqlite and falls back to the most recent sqlite", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-resolve-agent-"));
+    const mainAgent = path.join(root, ".openclaw", "agents", "main", "agent");
+    const staleAgent = path.join(root, ".openclaw", "agents", "stale", "agent");
+    const defaultAgent = path.join(root, ".openclaw", "agents", "default", "agent");
+    fs.mkdirSync(mainAgent, { recursive: true });
+    fs.mkdirSync(staleAgent, { recursive: true });
+    fs.mkdirSync(defaultAgent, { recursive: true });
+    // Only main and default have sqlite; "stale" has no sqlite file.
+    const mainSqlite = path.join(mainAgent, "openclaw-agent.sqlite");
+    const defaultSqlite = path.join(defaultAgent, "openclaw-agent.sqlite");
+    fs.writeFileSync(mainSqlite, "main");
+    fs.writeFileSync(defaultSqlite, "default");
+    const now = Date.now();
+    fs.utimesSync(mainSqlite, new Date(now - 1000), new Date(now - 1000));
+    fs.utimesSync(defaultSqlite, new Date(now - 60_000), new Date(now - 60_000));
+    // Sanity: stale has no sqlite (and would lose if it did, since its mtime is older).
+    fs.writeFileSync(path.join(staleAgent, "random.txt"), "x");
+
+    try {
+      expect(resolveNanoGptAgentDir(undefined, { HOME: root })).toBe(mainAgent);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the default agent dir when no agent has an openclaw-agent.sqlite", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-resolve-agent-"));
+    const defaultAgent = path.join(root, ".openclaw", "agents", "default", "agent");
+    fs.mkdirSync(defaultAgent, { recursive: true });
+    // No sqlite file written anywhere.
+
+    try {
+      expect(resolveNanoGptAgentDir(undefined, { HOME: root })).toBe(
+        path.join(root, ".openclaw", "agents", "default", "agent"),
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the default agent dir when the agents root does not exist", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nanogpt-resolve-agent-"));
+    // No .openclaw/agents subdir created.
+
+    try {
+      expect(resolveNanoGptAgentDir(undefined, { HOME: root })).toBe(
+        path.join(root, ".openclaw", "agents", "default", "agent"),
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
