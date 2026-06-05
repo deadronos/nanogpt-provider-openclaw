@@ -106,15 +106,19 @@ export default definePluginEntry({
     }
     api.registerImageGenerationProvider(buildNanoGptImageGenerationProvider());
 
-    // Persist the live NanoGPT provider catalog into the agent's
-    // `models.json` so `session_status` can read the correct context
-    // window instead of falling back to the bundled 200k default.
+    // Opt-in: persist the live NanoGPT provider catalog into the agent's
+    // `models.json` so `session_status` reads the correct context window
+    // (e.g. 1 048 576 for `deepseek/deepseek-v4-flash`) instead of falling
+    // back to the bundled 200k default. Off by default; users must set
+    // `persistDiscoveredCatalog: true` in plugin config to enable it.
     // Fire-and-forget; never blocks plugin load.
-    scheduleNanogptProviderCatalogPersistence({
-      apiKey: process.env[NANOGPT_API_KEY_ENV_VAR],
-      pluginConfig,
-      env: process.env as Record<string, string | undefined>,
-      logger,
-    });
+    if (resolvedNanoGptConfig.persistDiscoveredCatalog === true) {
+      scheduleNanogptProviderCatalogPersistence({
+        apiKey: process.env[NANOGPT_API_KEY_ENV_VAR],
+        pluginConfig,
+        env: process.env as Record<string, string | undefined>,
+        logger,
+      });
+    }
   },
 });

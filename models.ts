@@ -62,6 +62,16 @@ export interface NanoGptPluginConfig {
   injectResponseFormat?: boolean;
   bridgeMode?: NanoGptBridgeMode;
   bridgeProtocol?: NanoGptBridgeProtocol;
+  /**
+   * When true, the plugin will write its live-discovered NanoGPT provider
+   * catalog into the agent's `models.json` at registration time so that
+   * `session_status` reads the correct context window (e.g. 1 048 576 for
+   * `deepseek/deepseek-v4-flash`) instead of the bundled 200 000 default.
+   *
+   * Opt-in: the plugin must never mutate agent state without the user
+   * explicitly turning the behavior on. Defaults to `false`.
+   */
+  persistDiscoveredCatalog?: boolean;
 }
 
 export interface NanoGptModelCapabilities {

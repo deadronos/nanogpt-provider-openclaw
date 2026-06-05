@@ -48,6 +48,19 @@ describe("getNanoGptConfig", () => {
       injectResponseFormat: false,
     });
   });
+
+  it("normalizes persistDiscoveredCatalog as an opt-in boolean", () => {
+    expect(getNanoGptConfig({ persistDiscoveredCatalog: true })).toEqual({
+      persistDiscoveredCatalog: true,
+    });
+    expect(getNanoGptConfig({ persistDiscoveredCatalog: false })).toEqual({
+      persistDiscoveredCatalog: false,
+    });
+    expect(getNanoGptConfig({})).toEqual({});
+    // Non-boolean values are ignored (defensive: never coerce truthy/falsy).
+    expect(getNanoGptConfig({ persistDiscoveredCatalog: "true" })).toEqual({});
+    expect(getNanoGptConfig({ persistDiscoveredCatalog: 1 })).toEqual({});
+  });
 });
 
 describe("resolveNanoGptRequestApi", () => {

@@ -134,13 +134,37 @@ credential path described below.
 ### Status display context windows
 
 `session_status` (and `/status`) read the per-model context window from the
-agent's `models.json`. The plugin now writes its live-discovered NanoGPT
+agent's `models.json`. The plugin can write its live-discovered NanoGPT
 catalog into that file at registration time (background, fire-and-forget) so
 the status display shows the real window reported by the NanoGPT API
 (e.g. `1 048 576` for `deepseek/deepseek-v4-flash`) instead of the bundled
-`200 000` default. The write preserves every other provider in the file
-and is atomic; if discovery fails or the API key is missing, the write is
-skipped silently and the previous value is left untouched.
+`200 000` default.
+
+**This is opt-in.** Set `persistDiscoveredCatalog: true` in the plugin
+config to enable it:
+
+```json5
+{
+  plugins: {
+    entries: {
+      nanogpt: {
+        enabled: true,
+        config: {
+          persistDiscoveredCatalog: true,
+        },
+      },
+    },
+  },
+}
+```
+
+The write preserves every other provider in the file and is atomic; if
+discovery fails or the API key is missing, the write is skipped silently
+and the previous value is left untouched. When the flag is `false` (the
+default) or omitted, the plugin does not touch `models.json` at all and
+the status code will fall back to the bundled 200 000 default until you
+either enable this flag or set `models.providers.nanogpt.models[].contextWindow`
+explicitly in `openclaw.json`.
 
 For now, the plugin keeps both manifest paths in sync: the legacy
 `providerAuthEnvVars` field and the newer `setup.providers[].envVars` field.
@@ -212,6 +236,7 @@ For example:
 - `responseFormat`: `false` (default), `"json_object"`, or `{ type: "json_schema", schema? }` — controls `response_format` injection for tool-enabled requests
 - `bridgeMode`: `"never"` (default) or `"always"` — opt into the NanoProxy-style tool bridge for tool-enabled completions turns
 - `bridgeProtocol`: `"object"` (default) or `"xml"` — chooses the bridge format requested when `bridgeMode` is enabled
+- `persistDiscoveredCatalog`: `false` (default) or `true` — opt into writing the live-discovered NanoGPT catalog into the agent's `models.json` so `session_status` reads the correct per-model context window. See **Status display context windows** below for details.
 
 ### Behavior notes
 

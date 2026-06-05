@@ -1,6 +1,6 @@
 # NanoGPT Context Window Status Display Fix — Design
 
-> **Status:** Approved (Approach A: plugin self-writes `models.json` at registration, always overwrite, background/fire-and-forget, plugin-only).
+> **Status:** Approved (Approach A: plugin self-writes `models.json` at registration, always overwrite, background/fire-and-forget, plugin-only, **opt-in via `persistDiscoveredCatalog` flag**).
 
 ## Problem
 
@@ -10,6 +10,7 @@
 
 The plugin already has the discovered catalog (`nanoGptProviderCatalog.run()` → `buildNanoGptProvider()` → live `/models?detailed=true`). The status code reads from `<agentDir>/models.json`. The plugin will close the gap by writing the live-discovered `providers.nanogpt` block into that file at registration time.
 
+- **Opt-in via `persistDiscoveredCatalog: true`** in plugin config. The flag defaults to `false` so the plugin never mutates agent state without explicit user consent. When the flag is `false` (default), the plugin does not touch `models.json` and the status code continues to fall back to the bundled 200 000 default until the user enables the flag or sets `openclaw.json.models.providers.nanogpt.models[].contextWindow` explicitly.
 - **Always overwrite** the `providers.nanogpt` block (never fill-if-empty) so stale entries (models removed from the live catalog) are pruned on every successful discovery.
 - **Background, fire-and-forget**: discovery + write happen after `register(api)` returns. The plugin load is never blocked.
 - **Best-effort, never throws**: read errors, write errors, discovery errors, and missing API key are all logged as warnings and swallowed. The next plugin load retries.
