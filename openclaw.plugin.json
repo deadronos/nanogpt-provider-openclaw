@@ -2,6 +2,7 @@
   "id": "nanogpt",
   "name": "NanoGPT",
   "description": "NanoGPT provider plugin for OpenClaw",
+  "providerCatalogEntry": "./provider-discovery.ts",
   "providerDiscoveryEntry": "./provider-discovery.ts",
   "providers": [
     "nanogpt"
