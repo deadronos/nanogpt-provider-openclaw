@@ -1,6 +1,10 @@
 allowBuilds:
   '@discordjs/opus': true
+  '@google/genai': true
   '@whiskeysockets/baileys': true
+  esbuild: true
   koffi: true
   openclaw: true
   protobufjs: true
+  sharp: true
+  tree-sitter-bash: true
