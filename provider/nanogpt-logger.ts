@@ -69,25 +69,11 @@ const SENSITIVE_KEYS = new Set([
   "cookie",
 ]);
 
-function redact(val: unknown): unknown {
-  if (val === null || typeof val !== "object") {
-    return val;
+function redactReplacer(key: string, value: unknown): unknown {
+  if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+    return "[REDACTED]";
   }
-
-  if (Array.isArray(val)) {
-    return val.map(redact);
-  }
-
-  const record = val as Record<string, unknown>;
-  const redacted: Record<string, unknown> = {};
-  for (const key of Object.keys(record)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-      redacted[key] = "[REDACTED]";
-    } else {
-      redacted[key] = redact(record[key]);
-    }
-  }
-  return redacted;
+  return value;
 }
 
 function formatTimestamp(): string {
@@ -96,7 +82,14 @@ function formatTimestamp(): string {
 
 function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = formatTimestamp();
-  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(redact(meta))}` : "";
+  let metaStr = "";
+  if (meta && Object.keys(meta).length > 0) {
+    try {
+      metaStr = ` ${JSON.stringify(meta, redactReplacer)}`;
+    } catch {
+      metaStr = " [Serialization Failed]";
+    }
+  }
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;
 }
 
