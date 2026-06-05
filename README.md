@@ -131,6 +131,17 @@ NanoGPT web-search credential path so the same auth works for text,
 default, and you can still override web search explicitly with the dedicated
 credential path described below.
 
+### Status display context windows
+
+`session_status` (and `/status`) read the per-model context window from the
+agent's `models.json`. The plugin now writes its live-discovered NanoGPT
+catalog into that file at registration time (background, fire-and-forget) so
+the status display shows the real window reported by the NanoGPT API
+(e.g. `1 048 576` for `deepseek/deepseek-v4-flash`) instead of the bundled
+`200 000` default. The write preserves every other provider in the file
+and is atomic; if discovery fails or the API key is missing, the write is
+skipped silently and the previous value is left untouched.
+
 For now, the plugin keeps both manifest paths in sync: the legacy
 `providerAuthEnvVars` field and the newer `setup.providers[].envVars` field.
 Newer OpenClaw builds prefer the setup descriptor path, while older installs

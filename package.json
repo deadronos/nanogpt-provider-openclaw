@@ -36,6 +36,7 @@
     "catalog/build-provider.ts",
     "provider/auth.ts",
     "provider/catalog-hooks.ts",
+    "provider/discovery-persistence.ts",
     "provider/anomaly-types.ts",
     "provider/anomaly-logger.ts",
     "provider/nanogpt-logger.ts",
