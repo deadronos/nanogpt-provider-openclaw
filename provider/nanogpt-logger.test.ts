@@ -57,6 +57,22 @@ describe("nanogpt logger", () => {
     expect(contents).not.toContain("secret-auth");
   });
 
+  it("handles circular references in metadata gracefully without throwing and writes the message", async () => {
+    const log = createNanoGptLoggerSync("test-circular");
+    const circularObj: any = { key: "value" };
+    circularObj.self = circularObj;
+
+    expect(() => {
+      log.info("test-circular-info", circularObj);
+    }).not.toThrow();
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(existsSync(LOG_PATH)).toBe(true);
+    const contents = readFileSync(LOG_PATH, "utf8");
+    expect(contents).toContain("[info] [test-circular] test-circular-info [Serialization Failed]");
+  });
+
   it("falls back to a no-op logger when the log directory cannot be created", async () => {
     vi.resetModules();
     vi.doMock("node:fs", async () => {

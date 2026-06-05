@@ -82,7 +82,14 @@ function formatTimestamp(): string {
 
 function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = formatTimestamp();
-  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta, redactReplacer)}` : "";
+  let metaStr = "";
+  if (meta && Object.keys(meta).length > 0) {
+    try {
+      metaStr = ` ${JSON.stringify(meta, redactReplacer)}`;
+    } catch {
+      metaStr = " [Serialization Failed]";
+    }
+  }
   return `${timestamp} [${level}] [${module}] ${message}${metaStr}\n`;
 }
 
