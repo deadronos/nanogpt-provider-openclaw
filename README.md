@@ -166,6 +166,22 @@ the status code will fall back to the bundled 200 000 default until you
 either enable this flag or set `models.providers.nanogpt.models[].contextWindow`
 explicitly in `openclaw.json`.
 
+**Agent directory resolution.** The plugin resolves the target
+`<agentDir>/models.json` in this order:
+
+1. `OPENCLAW_AGENT_DIR` (or `PI_CODING_AGENT_DIR`) env var, if set.
+2. `<OPENCLAW_STATE_DIR>/agents/<name>/agent` when `OPENCLAW_STATE_DIR`
+   is set.
+3. Otherwise, scan `~/.openclaw/agents/*/agent/openclaw-agent.sqlite`
+   and pick the agent dir whose sqlite was most recently modified
+   (i.e. the active session).
+4. Final fallback: `~/.openclaw/agents/default/agent/models.json`.
+
+If your active session lives in an agent dir other than `default`
+(e.g. `main`), the auto-detect step (3) ensures the plugin writes to
+the right place without any further configuration. To force a specific
+agent dir, set `OPENCLAW_AGENT_DIR` before starting the gateway.
+
 For now, the plugin keeps both manifest paths in sync: the legacy
 `providerAuthEnvVars` field and the newer `setup.providers[].envVars` field.
 Newer OpenClaw builds prefer the setup descriptor path, while older installs
