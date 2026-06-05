@@ -8,6 +8,7 @@ import {
   getRegisteredProviderHarness,
   getRegisteredProviderWithAuth,
 } from "./provider/test-harness.js";
+import * as persistence from "./provider/discovery-persistence.js";
 import type { NanoGptProviderRegistration } from "./provider/types.js";
 import type { UnifiedModelCatalogProviderContext } from "openclaw/plugin-sdk/provider-model-shared";
 
@@ -833,6 +834,36 @@ describe("nanogpt plugin entry", () => {
         source: "configured",
       },
     ]);
+  });
+
+  it("schedules NanoGPT catalog persistence during register()", () => {
+    const spy = vi
+      .spyOn(persistence, "scheduleNanogptProviderCatalogPersistence")
+      .mockImplementation(() => {});
+
+    try {
+      plugin.register({
+        pluginConfig: {},
+        runtime: { logging: { shouldLogVerbose: () => false } },
+        logger: { warn: vi.fn(), info: vi.fn() },
+        registerProvider: () => {},
+        registerModelCatalogProvider: () => {},
+        registerWebSearchProvider: () => {},
+        registerImageGenerationProvider: () => {},
+      } as never);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: process.env.NANOGPT_API_KEY,
+          pluginConfig: {},
+          env: expect.any(Object),
+          logger: expect.any(Object),
+        }),
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
 });

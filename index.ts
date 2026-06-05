@@ -11,13 +11,14 @@ import {
   resolveNanoGptUsageAuth,
 } from "./runtime/usage.js";
 import { createNanoGptWebSearchProvider } from "./web-search.js";
-import { createNanoGptApiKeyAuthMethod } from "./provider/auth.js";
+import { createNanoGptApiKeyAuthMethod, NANOGPT_API_KEY_ENV_VAR } from "./provider/auth.js";
 import {
   applyNanoGptNativeStreamingUsageCompat,
   normalizeNanoGptResolvedModel,
   resolveNanoGptDynamicModelWithSnapshot,
   readNanoGptUnifiedStaticCatalog,
 } from "./provider/catalog-hooks.js";
+import { scheduleNanogptProviderCatalogPersistence } from "./provider/discovery-persistence.js";
 import { createNanoGptErrorSurfaceHooks } from "./provider/error-hooks.js";
 import { createNanoGptReplayHooks } from "./provider/replay-hooks.js";
 import {
@@ -104,5 +105,16 @@ export default definePluginEntry({
       api.registerWebSearchProvider(createNanoGptWebSearchProvider());
     }
     api.registerImageGenerationProvider(buildNanoGptImageGenerationProvider());
+
+    // Persist the live NanoGPT provider catalog into the agent's
+    // `models.json` so `session_status` can read the correct context
+    // window instead of falling back to the bundled 200k default.
+    // Fire-and-forget; never blocks plugin load.
+    scheduleNanogptProviderCatalogPersistence({
+      apiKey: process.env[NANOGPT_API_KEY_ENV_VAR],
+      pluginConfig,
+      env: process.env as Record<string, string | undefined>,
+      logger,
+    });
   },
 });
