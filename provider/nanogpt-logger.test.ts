@@ -57,6 +57,34 @@ describe("nanogpt logger", () => {
     expect(contents).not.toContain("secret-auth");
   });
 
+  it("redacts keys containing sensitive substrings from meta", async () => {
+    const log = createNanoGptLoggerSync("test-redact-substrings");
+    log.info("test-redact-substrings-info", {
+      normalKey: "visible",
+      providerApiKey: "secret-api-key",
+      mySecretKey: "secret-nanogpt-key",
+      nested: { xTokenY: "secret-token", adminPasswordHash: "secret-password" },
+      authorizationHeader: "secret-auth",
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(existsSync(LOG_PATH)).toBe(true);
+    const contents = readFileSync(LOG_PATH, "utf8");
+    expect(contents).toContain("test-redact-substrings-info");
+    expect(contents).toContain('"normalKey":"visible"');
+    expect(contents).toContain('"providerApiKey":"[REDACTED]"');
+    expect(contents).toContain('"mySecretKey":"[REDACTED]"');
+    expect(contents).toContain('"xTokenY":"[REDACTED]"');
+    expect(contents).toContain('"adminPasswordHash":"[REDACTED]"');
+    expect(contents).toContain('"authorizationHeader":"[REDACTED]"');
+    expect(contents).not.toContain("secret-api-key");
+    expect(contents).not.toContain("secret-nanogpt-key");
+    expect(contents).not.toContain("secret-token");
+    expect(contents).not.toContain("secret-password");
+    expect(contents).not.toContain("secret-auth");
+  });
+
   it("handles circular references in metadata gracefully without throwing and writes the message", async () => {
     const log = createNanoGptLoggerSync("test-circular");
     const circularObj: any = { key: "value" };
