@@ -58,19 +58,10 @@ function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; re
   return { stream, ready: _streamPromise };
 }
 
-const SENSITIVE_KEYS = new Set([
-  "apikey",
-  "nanogptapikey",
-  "token",
-  "password",
-  "secret",
-  "authorization",
-  "credential",
-  "cookie",
-]);
+const SENSITIVE_KEY_PATTERN = /apikey|token|password|secret|authorization|credential|cookie/i;
 
 function redactReplacer(key: string, value: unknown): unknown {
-  if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+  if (SENSITIVE_KEY_PATTERN.test(key)) {
     return "[REDACTED]";
   }
   return value;

@@ -10,3 +10,7 @@
 **Vulnerability:** The web search results normalizer (`web-search/results.ts`) validated URLs using the `URL` constructor to ensure they used `http:` or `https:`, but returned the *raw* user-supplied string rather than the parsed URL string. This allowed URL parser differentials where the string passed validation but downstream consumers interpreted it as a different, potentially malicious URI.
 **Learning:** Checking a parsed URL is not enough if you continue to use the raw, un-normalized string. You must use the sanitized, serialized output of the parser (`parsedUrl.href`) to ensure the validation logic accurately reflects what the downstream consumer will process.
 **Prevention:** Always extract and export the canonicalized properties (`parsedUrl.href`) from the parsed URL object rather than returning the raw input string.
+## 2026-05-20 - [Redact Substring Matches In Logger]
+**Vulnerability:** The logger `provider/nanogpt-logger.ts` was using an exact match (`Set.has()`) to redact sensitive keys. This allowed keys that contained sensitive terms as substrings (e.g. `providerApiKey`, `mySecretKey`) to bypass redaction and leak credentials into logs.
+**Learning:** Exact matching for log redaction is insufficient because developers often use camelCase or snake_case composite key names that embed sensitive terms.
+**Prevention:** Implement a case-insensitive regex for the replacer function to ensure substring matches containing sensitive terms are correctly redacted.
