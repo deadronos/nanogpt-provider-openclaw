@@ -21,7 +21,10 @@ const NOOP_LOGGER: NanoGptLogger = {
 let _stream: ReturnType<typeof createWriteStream> | null = null;
 let _streamPromise: Promise<void> | null = null;
 
-function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; ready: Promise<void> } | null {
+function getOrCreateStream(): {
+  stream: ReturnType<typeof createWriteStream>;
+  ready: Promise<void>;
+} | null {
   if (_stream) {
     return { stream: _stream, ready: _streamPromise ?? Promise.resolve() };
   }
@@ -58,19 +61,10 @@ function getOrCreateStream(): { stream: ReturnType<typeof createWriteStream>; re
   return { stream, ready: _streamPromise };
 }
 
-const SENSITIVE_KEYS = new Set([
-  "apikey",
-  "nanogptapikey",
-  "token",
-  "password",
-  "secret",
-  "authorization",
-  "credential",
-  "cookie",
-]);
+const SENSITIVE_KEYS_PATTERN = /apikey|token|password|secret|authorization|credential|cookie/i;
 
 function redactReplacer(key: string, value: unknown): unknown {
-  if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+  if (SENSITIVE_KEYS_PATTERN.test(key)) {
     return "[REDACTED]";
   }
   return value;
@@ -80,7 +74,12 @@ function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-function formatLogLine(level: NanoGptLogLevel, module: string, message: string, meta?: Record<string, unknown>): string {
+function formatLogLine(
+  level: NanoGptLogLevel,
+  module: string,
+  message: string,
+  meta?: Record<string, unknown>,
+): string {
   const timestamp = formatTimestamp();
   let metaStr = "";
   if (meta && Object.keys(meta).length > 0) {
