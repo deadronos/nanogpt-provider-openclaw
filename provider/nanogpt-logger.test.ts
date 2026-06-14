@@ -37,6 +37,10 @@ describe("nanogpt logger", () => {
       nanoGptApiKey: "secret-nanogpt-key",
       nested: { token: "secret-token", password: "secret-password" },
       authorization: "secret-auth",
+      providerApiKey: "secret-provider-key",
+      prompt_tokens: 150,
+      completion_tokens: 50,
+      total_tokens: 200,
     });
 
     await new Promise((r) => setTimeout(r, 100));
@@ -55,6 +59,11 @@ describe("nanogpt logger", () => {
     expect(contents).not.toContain("secret-token");
     expect(contents).not.toContain("secret-password");
     expect(contents).not.toContain("secret-auth");
+    expect(contents).toContain('"providerApiKey":"[REDACTED]"');
+    expect(contents).not.toContain("secret-provider-key");
+    expect(contents).toContain('"prompt_tokens":150');
+    expect(contents).toContain('"completion_tokens":50');
+    expect(contents).toContain('"total_tokens":200');
   });
 
   it("handles circular references in metadata gracefully without throwing and writes the message", async () => {
@@ -85,9 +94,8 @@ describe("nanogpt logger", () => {
       };
     });
 
-    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
-      "./nanogpt-logger.js"
-    );
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } =
+      await import("./nanogpt-logger.js");
     const log = createLoggerWithFailingFs("readonly-home");
 
     expect(() => {
@@ -112,9 +120,8 @@ describe("nanogpt logger", () => {
       };
     });
 
-    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
-      "./nanogpt-logger.js"
-    );
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } =
+      await import("./nanogpt-logger.js");
     const log = createLoggerWithFailingFs("readonly-file");
 
     expect(() => {
