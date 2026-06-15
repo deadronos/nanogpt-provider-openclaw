@@ -35,6 +35,10 @@ describe("nanogpt logger", () => {
       normalKey: "visible",
       apiKey: "secret-api-key",
       nanoGptApiKey: "secret-nanogpt-key",
+      providerApiKey: "secret-provider-key",
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      total_tokens: 150,
       nested: { token: "secret-token", password: "secret-password" },
       authorization: "secret-auth",
     });
@@ -47,11 +51,16 @@ describe("nanogpt logger", () => {
     expect(contents).toContain('"normalKey":"visible"');
     expect(contents).toContain('"apiKey":"[REDACTED]"');
     expect(contents).toContain('"nanoGptApiKey":"[REDACTED]"');
+    expect(contents).toContain('"providerApiKey":"[REDACTED]"');
+    expect(contents).toContain('"prompt_tokens":100');
+    expect(contents).toContain('"completion_tokens":50');
+    expect(contents).toContain('"total_tokens":150');
     expect(contents).toContain('"token":"[REDACTED]"');
     expect(contents).toContain('"password":"[REDACTED]"');
     expect(contents).toContain('"authorization":"[REDACTED]"');
     expect(contents).not.toContain("secret-api-key");
     expect(contents).not.toContain("secret-nanogpt-key");
+    expect(contents).not.toContain("secret-provider-key");
     expect(contents).not.toContain("secret-token");
     expect(contents).not.toContain("secret-password");
     expect(contents).not.toContain("secret-auth");
@@ -85,9 +94,8 @@ describe("nanogpt logger", () => {
       };
     });
 
-    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
-      "./nanogpt-logger.js"
-    );
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } =
+      await import("./nanogpt-logger.js");
     const log = createLoggerWithFailingFs("readonly-home");
 
     expect(() => {
@@ -112,9 +120,8 @@ describe("nanogpt logger", () => {
       };
     });
 
-    const { createNanoGptLoggerSync: createLoggerWithFailingFs } = await import(
-      "./nanogpt-logger.js"
-    );
+    const { createNanoGptLoggerSync: createLoggerWithFailingFs } =
+      await import("./nanogpt-logger.js");
     const log = createLoggerWithFailingFs("readonly-file");
 
     expect(() => {
