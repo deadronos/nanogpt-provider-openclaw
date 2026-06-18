@@ -123,9 +123,9 @@ All paths used by the plugin exist in the latest `openclaw` package exports:
 **New in plugin:** `runtime/discovery.ts` now implements TTL-based caching for `discoverNanoGptModels()`.
 
 - Cache key: `${apiKey}:${source}:${provider}`
-- TTL: 5 minutes (`NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS`)
+- TTL: 5 minutes (`NANOGPT_MODEL_DISCOVERY_CACHE_TTL_MS`); distinct from `NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS` (30s fetch timeout)
 - Cleared via `resetNanoGptDiscoveryState()` which is called by `resetNanoGptRuntimeState()`
-- This mirrors the pattern used by `probeNanoGptSubscription` in `runtime/routing.ts`
+- Follows the same TTL/expiry-key concept as `probeNanoGptSubscription` in `runtime/routing.ts`, but does not adopt that cache's periodic expired-entry cleanup or max-size cap (the `apiKey:source:provider` keyspace is small, so unbounded growth is low-risk)
 
 The SDK's `getCachedLiveCatalogValue` was considered but not used directly because:
 - NanoGPT discovery involves TWO sequential fetches (model list + provider pricing)

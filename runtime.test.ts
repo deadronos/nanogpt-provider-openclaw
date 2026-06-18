@@ -506,6 +506,55 @@ describe("discoverNanoGptModels", () => {
     });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("re-fetches after the TTL window expires", async () => {
+    vi.useFakeTimers({ now: 0 });
+    try {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          object: "list",
+          data: [
+            {
+              id: "test/model-1",
+              name: "Test Model 1",
+              pricing: {
+                prompt: 1.0,
+                completion: 2.0,
+                unit: "per_million_tokens",
+              },
+            },
+          ],
+        }),
+      });
+      vi.stubGlobal("fetch", fetchSpy);
+
+      // First call hits the network; cache entry expires at now + 5 min (300000ms).
+      await discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Advance to just before the TTL window elapses: still cached, no new fetch.
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1);
+      await discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Advance past the TTL window: cache entry is stale, fetch fires again.
+      await vi.advanceTimersByTimeAsync(2);
+      await discoverNanoGptModels({
+        apiKey: "test-key",
+        source: "canonical",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("resolveNanoGptDynamicModel", () => {
