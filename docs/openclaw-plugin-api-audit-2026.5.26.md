@@ -115,3 +115,46 @@ All paths used by the plugin exist in the latest `openclaw` package exports:
    - `normalizeModelId`, `contributeResolvedModelCompat`, `prepareExtraParams`, `extraParamsForTransport`, `createStreamFn`, `resolveTransportTurnState`, `resolveWebSocketSessionPolicy`, `prepareRuntimeAuth`, `resolveSystemPromptContribution`, `resolvePromptOverlay`, `resolveAuthProfileId`, `transformSystemPrompt`, `textTransforms`, `applyConfigDefaults`, `isModernModelRef`, `resolveThinkingProfile`, `formatApiKey`, `buildAuthDoctorHint`, `resolveSyntheticAuth`, `resolveExternalAuthProfiles`, `onModelSelected`
 
 4. **`peerDependencies`** — `"openclaw": ">=2026.4.22"` is satisfied by `2026.5.26`. Consider bumping the dev dependency to match the latest version.
+
+## 8. SDK Surface Evaluation (2026-06-18)
+
+### TTL Caching for Model Discovery
+
+**New in plugin:** `runtime/discovery.ts` now implements TTL-based caching for `discoverNanoGptModels()`.
+
+- Cache key: `${apiKey}:${source}:${provider}`
+- TTL: 5 minutes (`NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS`)
+- Cleared via `resetNanoGptDiscoveryState()` which is called by `resetNanoGptRuntimeState()`
+- This mirrors the pattern used by `probeNanoGptSubscription` in `runtime/routing.ts`
+
+The SDK's `getCachedLiveCatalogValue` was considered but not used directly because:
+- NanoGPT discovery involves TWO sequential fetches (model list + provider pricing)
+- The SDK helper is designed for single-value caching
+- A module-level cache following the same TTL pattern is more appropriate
+
+### `supportsNativeStreamingUsageCompat` Evaluation
+
+**SDK function:** `applyProviderNativeStreamingUsageCompat()` from `provider-catalog-shared`
+**NanoGPT function:** `applyNanoGptNativeStreamingUsageCompat()` in `provider/catalog-hooks.ts`
+
+The SDK's compat function uses `resolveProviderRequestCapabilities()` which returns `true` only for:
+- `endpointClass === "moonshot-native"`
+- `endpointClass === "modelstudio-native"`
+
+NanoGPT uses OpenAI-compatible API with a custom base URL, which is classified as `endpointClass === "custom"`. Therefore, the SDK function would NOT apply `supportsUsageInStreaming: true`.
+
+**Conclusion:** The NanoGPT-specific `applyNanoGptNativeStreamingUsageCompat()` is correct and necessary. It unconditionally applies `supportsUsageInStreaming: true` for OpenAI-compatible APIs because NanoGPT's transport does support streaming usage. The SDK's generic detection is designed for native provider endpoints, not custom OpenAI-compatible proxies.
+
+### SSRF Protection (Not Implemented)
+
+**Considered:** Using `fetchWithSsrFGuard` from `provider-web-search`
+
+**Decision:** Not implemented for `discoverNanoGptModels()` because:
+- The catalog endpoint URL is hardcoded (`https://nano-gpt.com/api/v1/models`)
+- Only query parameters (`detailed=true`) are added
+- No user-controlled URL component exists that could be exploited
+- The endpoint is a fixed, trusted NanoGPT API address
+
+For defense-in-depth, SSRF protection would be more valuable for:
+- Web search results parsing (user-controlled URLs in search results)
+- Any future plugin features that construct URLs from user input

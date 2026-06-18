@@ -1,5 +1,6 @@
 import { resetNanoGptProviderPricingState } from "./runtime/provider-pricing.js";
 import { resetNanoGptRoutingState } from "./runtime/routing.js";
+import { resetNanoGptDiscoveryState } from "./runtime/discovery.js";
 
 export const NANOGPT_WEB_SEARCH_TIMEOUT_MS = 30_000;
 export const NANOGPT_IMAGE_GENERATION_TIMEOUT_MS = 60_000;
@@ -21,6 +22,7 @@ export {
 } from "./runtime/routing.js";
 export {
   discoverNanoGptModels,
+  resetNanoGptDiscoveryState,
   NANOGPT_MODEL_DISCOVERY_TIMEOUT_MS,
 } from "./runtime/discovery.js";
 export {
@@ -36,4 +38,5 @@ export {
 export function resetNanoGptRuntimeState(): void {
   resetNanoGptRoutingState();
   resetNanoGptProviderPricingState();
+  resetNanoGptDiscoveryState();
 }

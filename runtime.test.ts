@@ -430,6 +430,82 @@ describe("discoverNanoGptModels", () => {
     expect(result.length).toBeGreaterThan(0);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("caches discovery results within the TTL window and returns cached value on second call", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        object: "list",
+        data: [
+          {
+            id: "test/model-1",
+            name: "Test Model 1",
+            pricing: {
+              prompt: 1.0,
+              completion: 2.0,
+              unit: "per_million_tokens",
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // First call should hit the network
+    const firstResult = await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(firstResult).toMatchObject([{ id: "test/model-1" }]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Second call with same params should return cached result (no new fetch)
+    const secondResult = await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(secondResult).toMatchObject([{ id: "test/model-1" }]);
+    // Fetch should STILL only have been called once (cache hit)
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches after resetNanoGptRuntimeState clears the cache", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        object: "list",
+        data: [
+          {
+            id: "test/model-1",
+            name: "Test Model 1",
+            pricing: {
+              prompt: 1.0,
+              completion: 2.0,
+              unit: "per_million_tokens",
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // First call should hit the network
+    await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Reset should clear the discovery cache
+    resetNanoGptRuntimeState();
+
+    // Next call should hit the network again
+    await discoverNanoGptModels({
+      apiKey: "test-key",
+      source: "canonical",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("resolveNanoGptDynamicModel", () => {
