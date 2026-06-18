@@ -96,24 +96,27 @@
     "lint:fix": "oxlint --fix && npm run format"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.5.20"
+    "openclaw": ">=2026.5.26"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
-    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.9",
     "esbuild": "^0.28.1",
-    "openclaw": "2026.5.20",
+    "openclaw": "2026.6.8",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
     "oxlint-tsgolint": "^0.21.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.9"
   },
   "overrides": {
     "axios": "1.15.0",
-    "hono": "4.12.23",
-    "protobufjs": "7.6.2",
-    "tar": "7.5.13",
+    "esbuild": "0.28.1",
+    "hono": "4.12.25",
+    "markdown-it": "14.2.0",
+    "protobufjs": "7.6.3",
+    "tar": "7.5.16",
+    "vite": "7.3.5",
     "fast-xml-parser": "5.7.3",
     "fast-xml-builder": "1.1.7",
     "uuid": "14.0.0",
@@ -133,12 +136,12 @@
       "nanogpt"
     ],
     "compat": {
-      "pluginApi": ">=2026.5.20",
-      "minGatewayVersion": "2026.5.20"
+      "pluginApi": ">=2026.5.26",
+      "minGatewayVersion": "2026.5.26"
     },
     "build": {
-      "openclawVersion": "2026.5.20",
-      "pluginSdkVersion": "2026.5.20"
+      "openclawVersion": "2026.6.8",
+      "pluginSdkVersion": "2026.6.8"
     }
   },
   "dependencies": {

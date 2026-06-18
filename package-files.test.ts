@@ -20,7 +20,10 @@ type PackageManifest = {
 };
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
-const TARGET_OPENCLAW_VERSION = "2026.5.20";
+// Minimum openclaw version consumers may use (clears SDK CVEs fixed in 2026.5.26).
+const TARGET_OPENCLAW_FLOOR = "2026.5.26";
+// openclaw version this plugin is built and tested against.
+const TARGET_OPENCLAW_BUILD = "2026.6.8";
 
 function readPackageManifest(): PackageManifest {
   return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as PackageManifest;
@@ -110,11 +113,11 @@ describe("package manifest files", () => {
     const manifest = readPackageManifest();
     const peerDependencies = readRecord(manifest.peerDependencies);
 
-    expect(peerDependencies.openclaw).toBe(`>=${TARGET_OPENCLAW_VERSION}`);
-    expect(manifest.openclaw?.compat?.pluginApi).toBe(`>=${TARGET_OPENCLAW_VERSION}`);
-    expect(manifest.openclaw?.compat?.minGatewayVersion).toBe(TARGET_OPENCLAW_VERSION);
-    expect(manifest.openclaw?.build?.openclawVersion).toBe(TARGET_OPENCLAW_VERSION);
-    expect(manifest.openclaw?.build?.pluginSdkVersion).toBe(TARGET_OPENCLAW_VERSION);
+    expect(peerDependencies.openclaw).toBe(`>=${TARGET_OPENCLAW_FLOOR}`);
+    expect(manifest.openclaw?.compat?.pluginApi).toBe(`>=${TARGET_OPENCLAW_FLOOR}`);
+    expect(manifest.openclaw?.compat?.minGatewayVersion).toBe(TARGET_OPENCLAW_FLOOR);
+    expect(manifest.openclaw?.build?.openclawVersion).toBe(TARGET_OPENCLAW_BUILD);
+    expect(manifest.openclaw?.build?.pluginSdkVersion).toBe(TARGET_OPENCLAW_BUILD);
   });
 
   it("declares runtime capability ownership through manifest contracts", () => {
