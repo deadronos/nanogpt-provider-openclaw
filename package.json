@@ -102,7 +102,7 @@
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "esbuild": "^0.28.1",
-    "openclaw": "2026.5.20",
+    "openclaw": "2026.5.26",
     "oxfmt": "0.46.0",
     "oxlint": "^1.61.0",
     "oxlint-tsgolint": "^0.21.1",
