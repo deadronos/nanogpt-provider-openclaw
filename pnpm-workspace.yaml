@@ -11,9 +11,12 @@ allowBuilds:
 
 overrides:
   axios: "1.15.0"
-  hono: "4.12.23"
-  protobufjs: "7.6.2"
-  tar: "7.5.13"
+  esbuild: "0.28.1"
+  hono: "4.12.25"
+  markdown-it: "14.2.0"
+  protobufjs: "7.6.3"
+  tar: "7.5.16"
+  vite: "7.3.5"
   fast-xml-parser: "5.7.3"
   fast-xml-builder: "1.1.7"
   uuid: "14.0.0"
