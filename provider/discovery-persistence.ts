@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
@@ -140,7 +141,7 @@ export function writeNanogptProviderCatalogToModelsJson(
 
   try {
     fs.mkdirSync(params.agentDir, { recursive: true });
-    const tmpPath = `${modelsPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tmpPath = `${modelsPath}.tmp-${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
     fs.writeFileSync(tmpPath, `${JSON.stringify({ providers }, null, 2)}\n`);
     fs.renameSync(tmpPath, modelsPath);
     return { ok: true, changed, path: modelsPath };
