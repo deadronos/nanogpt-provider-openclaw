@@ -14,3 +14,7 @@
 **Vulnerability:** Case-insensitive exact matching logic (`SENSITIVE_KEYS.has(key.toLowerCase())`) fails to match compound keys (like `providerApiKey`, `nanoGptApiKey`), potentially polluting logs with leaked secrets.
 **Learning:** To ensure robust redaction for compound or dynamic keys containing sensitive patterns, use a regular expression test (`SENSITIVE_PATTERN.test(key)`) with case-insensitivity. Crucially, when using substrings to redact, you must explicitly exclude safe metrics like LLM token counts (`prompt_tokens`, `completion_tokens`, `total_tokens`), otherwise they might get incorrectly redacted by loose match patterns like `token`.
 **Prevention:** Implement a replacer function for `JSON.stringify` that explicitely checks keys against an allowlist for known-safe items (e.g. `SAFE_METRICS.has(key)`), then falls back to case-insensitive substring regex matching (`/apikey|token|password/i`) for redaction.
+## 2026-06-05 - Predictable Temporary File Name Vulnerability
+**Vulnerability:** The function `writeNanogptProviderCatalogToModelsJson` used `Math.random()` to generate a suffix for temporary file names.
+**Learning:** `Math.random()` does not provide cryptographically secure randomness, making temporary file names predictable and susceptible to symlink or collision attacks.
+**Prevention:** Always use `crypto.randomUUID()` or `crypto.randomBytes()` from the native `node:crypto` module when generating temporary file paths to ensure secure randomness.
