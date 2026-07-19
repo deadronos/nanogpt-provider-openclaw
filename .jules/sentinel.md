@@ -53,3 +53,9 @@
 **Vulnerability:** Predictable temporary file names using `Math.random()` for atomic writes.
 **Learning:** `Math.random()` is not cryptographically secure and can lead to predictable file names, opening up potential symlink/collision attacks during file writes.
 **Prevention:** Always use `node:crypto` (e.g. `randomUUID`) when generating temporary file paths.
+
+## 2026-06-29 - [Insecure Temporary File Generation]
+
+**Vulnerability:** Predictable temporary file names were generated using `Math.random()` in `provider/discovery-persistence.ts`, which could lead to symlink attacks or file collisions.
+**Learning:** Using predictable pseudo-random number generators (PRNGs) like `Math.random()` for security-sensitive operations such as creating temporary files introduces vulnerabilities where an attacker could predict the filename and pre-create it as a symlink or malicious file.
+**Prevention:** Always use cryptographically secure pseudo-random number generators (CSPRNGs) like `node:crypto`'s `randomUUID()` or `randomBytes()` when generating unique, unpredictable file paths.
