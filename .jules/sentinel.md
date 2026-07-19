@@ -47,3 +47,9 @@
 **Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
 **Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
+
+## 2026-06-28 - Secure Temporary File Generation
+
+**Vulnerability:** Predictable temporary file names using `Math.random()` for atomic writes.
+**Learning:** `Math.random()` is not cryptographically secure and can lead to predictable file names, opening up potential symlink/collision attacks during file writes.
+**Prevention:** Always use `node:crypto` (e.g. `randomUUID`) when generating temporary file paths.
