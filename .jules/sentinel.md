@@ -54,6 +54,12 @@
 **Learning:** `Math.random()` should never be used for security-sensitive operations such as generating unique temporary paths, credentials, tokens, or identifiers. Predictable paths allow malicious users to pre-create files (e.g. symlinks) at the predicted path to escalate privileges or overwrite files they do not own.
 **Prevention:** Always use cryptographically secure random generation methods (e.g. `crypto.randomUUID()`, `crypto.randomBytes()`) when constructing temporary file names or unique identifiers.
 
+## 2026-06-05 - Predictable Temporary File Name Vulnerability
+
+**Vulnerability:** The function `writeNanogptProviderCatalogToModelsJson` used `Math.random()` to generate a suffix for temporary file names.
+**Learning:** `Math.random()` does not provide cryptographically secure randomness, making temporary file names predictable and susceptible to symlink or collision attacks.
+**Prevention:** Always use `crypto.randomUUID()` or `crypto.randomBytes()` from the native `node:crypto` module when generating temporary file paths to ensure secure randomness.
+
 ## 2026-06-28 - Secure Temporary File Generation
 
 **Vulnerability:** Predictable temporary file names using `Math.random()` for atomic writes.
