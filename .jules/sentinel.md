@@ -48,6 +48,12 @@
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
 **Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
 
+## 2025-02-21 - [Prevent Predictable Temporary File Names]
+
+**Vulnerability:** The persistence script (`provider/discovery-persistence.ts`) was using a weak, predictable pseudo-random number generator (`Math.random()`) to construct temporary file names before renaming them to `models.json`. This predictable nature created a potential vulnerability for symlink attacks and file collisions, particularly on shared or multi-tenant environments.
+**Learning:** `Math.random()` should never be used for security-sensitive operations such as generating unique temporary paths, credentials, tokens, or identifiers. Predictable paths allow malicious users to pre-create files (e.g. symlinks) at the predicted path to escalate privileges or overwrite files they do not own.
+**Prevention:** Always use cryptographically secure random generation methods (e.g. `crypto.randomUUID()`, `crypto.randomBytes()`) when constructing temporary file names or unique identifiers.
+
 ## 2026-06-28 - Secure Temporary File Generation
 
 **Vulnerability:** Predictable temporary file names using `Math.random()` for atomic writes.
