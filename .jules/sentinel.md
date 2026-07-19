@@ -42,7 +42,7 @@
 **Learning:** When generating temporary file names for secure atomic operations, cryptographically secure randomness should be used to prevent prediction or collision attacks.
 **Prevention:** Use `crypto.randomUUID()` or `crypto.randomBytes()` from the native `node:crypto` module instead of `Math.random()`.
 
-## 2025-02-21 - [Predictable Temporary File Names]
+## 2025-02-21 - [Predictable Temporary File Names (Hex)]
 
 **Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
@@ -59,3 +59,9 @@
 **Vulnerability:** Predictable temporary file names were generated using `Math.random()` in `provider/discovery-persistence.ts`, which could lead to symlink attacks or file collisions.
 **Learning:** Using predictable pseudo-random number generators (PRNGs) like `Math.random()` for security-sensitive operations such as creating temporary files introduces vulnerabilities where an attacker could predict the filename and pre-create it as a symlink or malicious file.
 **Prevention:** Always use cryptographically secure pseudo-random number generators (CSPRNGs) like `node:crypto`'s `randomUUID()` or `randomBytes()` when generating unique, unpredictable file paths.
+
+## 2025-02-21 - [Predictable Temporary File Names]
+
+**Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
+**Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
+**Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
