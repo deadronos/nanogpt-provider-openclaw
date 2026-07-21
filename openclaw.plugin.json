@@ -217,6 +217,9 @@
     ],
     "webSearchProviders": [
       "nanogpt"
+    ],
+    "usageProviders": [
+      "nanogpt"
     ]
   }
 }

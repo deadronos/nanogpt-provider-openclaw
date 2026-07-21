@@ -40,6 +40,7 @@ export function buildNanoGptImageGenerationProvider(): ImageGenerationProvider {
     }),
     label: "NanoGPT",
     defaultModel: NANOGPT_DEFAULT_IMAGE_MODEL,
+    defaultTimeoutMs: NANOGPT_IMAGE_GENERATION_TIMEOUT_MS,
     models: [...NANOGPT_IMAGE_MODELS],
     capabilities: {
       generate: {

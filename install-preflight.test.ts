@@ -93,22 +93,35 @@ describe("plugin install preflight", () => {
 
     expect(extensions.length).toBeGreaterThan(0);
 
-    const result = await scanPackageInstallSourceRuntime({
-      extensions,
-      logger: {
-        warn: (message: string) => warnings.push(message),
-      },
-      manifestId: "nanogpt",
-      mode: "install",
-      packageDir: stagedPackageDir,
-      packageName: manifest.name,
-      pluginId: "nanogpt",
-      requestKind: "plugin-dir",
-      requestedSpecifier: stagedPackageDir,
-      version: manifest.version,
-    });
+    const mockConfigPath = path.join(stagedPackageDir, "..", "mock-openclaw.json");
+    fs.writeFileSync(mockConfigPath, "{}\n", "utf8");
+    const envSnapshot = { OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH };
+    process.env.OPENCLAW_CONFIG_PATH = mockConfigPath;
 
-    expect(result).toBeUndefined();
-    expect(warnings).toEqual([]);
+    try {
+      const result = await scanPackageInstallSourceRuntime({
+        extensions,
+        logger: {
+          warn: (message: string) => warnings.push(message),
+        },
+        manifestId: "nanogpt",
+        mode: "install",
+        packageDir: stagedPackageDir,
+        packageName: manifest.name,
+        pluginId: "nanogpt",
+        requestKind: "plugin-dir",
+        requestedSpecifier: stagedPackageDir,
+        version: manifest.version,
+      });
+
+      expect(result).toBeUndefined();
+      expect(warnings).toEqual([]);
+    } finally {
+      if (envSnapshot.OPENCLAW_CONFIG_PATH === undefined) {
+        delete process.env.OPENCLAW_CONFIG_PATH;
+      } else {
+        process.env.OPENCLAW_CONFIG_PATH = envSnapshot.OPENCLAW_CONFIG_PATH;
+      }
+    }
   });
 });
