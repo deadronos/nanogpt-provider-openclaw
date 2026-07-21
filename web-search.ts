@@ -93,6 +93,7 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
     onboardingScopes: ["text-inference"],
     credentialLabel: "NanoGPT API key",
     envVars: ["NANOGPT_API_KEY"],
+    authProviderId: NANOGPT_PROVIDER_ID,
     placeholder: "ngpt_...",
     signupUrl: "https://nano-gpt.com/api",
     docsUrl: "https://docs.nano-gpt.com/api-reference/endpoint/web-search",
