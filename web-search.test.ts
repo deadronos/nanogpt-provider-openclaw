@@ -196,6 +196,64 @@ describe("nanogpt web search provider", () => {
     expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
   });
 
+  it("rejects overly long include domain strings", async () => {
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "test-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    const longDomain = "a".repeat(256);
+    await expect(tool.execute({ query: "docs", includeDomains: [longDomain] })).rejects.toThrow(
+      "Include domain is too long (maximum 255 characters)."
+    );
+    expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects overly long exclude domain strings", async () => {
+    const provider = createNanoGptWebSearchProvider();
+    const tool = provider.createTool({
+      config: {
+        plugins: {
+          entries: {
+            nanogpt: {
+              config: {
+                webSearch: {
+                  apiKey: "test-key",
+                },
+              },
+            },
+          },
+        },
+      },
+      searchConfig: {},
+    } as never);
+    if (!tool) {
+      throw new Error("Expected tool definition");
+    }
+
+    const longDomain = "a".repeat(256);
+    await expect(tool.execute({ query: "docs", excludeDomains: [longDomain] })).rejects.toThrow(
+      "Exclude domain is too long (maximum 255 characters)."
+    );
+    expect(postTrustedWebToolsJsonMock).not.toHaveBeenCalled();
+  });
+
   it("normalizes NanoGPT search results and forwards domain filters through the trusted helper", async () => {
     postTrustedWebToolsJsonMock.mockImplementation(
       async (
