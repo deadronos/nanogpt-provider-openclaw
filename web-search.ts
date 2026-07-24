@@ -39,6 +39,7 @@ const NANOGPT_WEB_SEARCH_SCHEMA = {
       items: {
         type: "string",
         minLength: 1,
+        maxLength: 255,
       },
     },
     excludeDomains: {
@@ -47,6 +48,7 @@ const NANOGPT_WEB_SEARCH_SCHEMA = {
       items: {
         type: "string",
         minLength: 1,
+        maxLength: 255,
       },
     },
   },
@@ -139,6 +141,12 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         }
         if (excludeDomains && excludeDomains.length > 50) {
           throw new Error("Too many exclude domains specified (maximum 50).");
+        }
+        if (includeDomains?.some((domain) => domain.length > 255)) {
+          throw new Error("Include domain is too long (maximum 255 characters).");
+        }
+        if (excludeDomains?.some((domain) => domain.length > 255)) {
+          throw new Error("Exclude domain is too long (maximum 255 characters).");
         }
 
         return await postTrustedWebToolsJson(
