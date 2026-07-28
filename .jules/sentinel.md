@@ -77,3 +77,9 @@
 **Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
 **Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
+
+## 2026-06-30 - [MEDIUM] Incomplete DoS Prevention in Web Search Domains
+
+**Vulnerability:** The web search implementation validated the length of the `includeDomains` and `excludeDomains` arrays (maximum 50 items) but failed to validate the string length of individual domain entries within those arrays. This allowed an attacker to bypass resource exhaustion limits by submitting arrays with a small number of extremely large strings.
+**Learning:** Limiting the cardinality (number of items) of a collection is necessary but not sufficient to prevent Denial of Service (DoS) attacks. You must also limit the size of the elements within the collection to prevent payload bloating or downstream memory exhaustion.
+**Prevention:** Always validate the maximum string length of individual elements within user-supplied arrays (e.g., using `Array.prototype.some((d) => d.length > MAX_LENGTH)`) in addition to bounding the overall array size.
