@@ -137,8 +137,14 @@ export function createNanoGptWebSearchProvider(): WebSearchProviderPlugin {
         if (includeDomains && includeDomains.length > 50) {
           throw new Error("Too many include domains specified (maximum 50).");
         }
+        if (includeDomains && includeDomains.some((d) => d.length > 255)) {
+          throw new Error("Domain name is too long (maximum 255 characters).");
+        }
         if (excludeDomains && excludeDomains.length > 50) {
           throw new Error("Too many exclude domains specified (maximum 50).");
+        }
+        if (excludeDomains && excludeDomains.some((d) => d.length > 255)) {
+          throw new Error("Domain name is too long (maximum 255 characters).");
         }
 
         return await postTrustedWebToolsJson(

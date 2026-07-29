@@ -29,6 +29,40 @@ beforeEach(() => {
 });
 
 describe("nanogpt web search provider", () => {
+    it("throws if includeDomains contains an element larger than 255 characters", async () => {
+      const provider = createNanoGptWebSearchProvider();
+      const tool = provider.createTool({
+        config: {},
+        searchConfig: {
+          apiKey: "test-key",
+        },
+      } as never);
+
+      await expect(
+        tool?.execute({
+          query: "hello",
+          includeDomains: ["a".repeat(256)],
+        })
+      ).rejects.toThrow("Domain name is too long (maximum 255 characters).");
+    });
+
+    it("throws if excludeDomains contains an element larger than 255 characters", async () => {
+      const provider = createNanoGptWebSearchProvider();
+      const tool = provider.createTool({
+        config: {},
+        searchConfig: {
+          apiKey: "test-key",
+        },
+      } as never);
+
+      await expect(
+        tool?.execute({
+          query: "hello",
+          excludeDomains: ["a".repeat(256)],
+        })
+      ).rejects.toThrow("Domain name is too long (maximum 255 characters).");
+    });
+
   it("does not register the nanogpt web search provider by default", () => {
     const webSearchProviders: unknown[] = [];
 
