@@ -77,3 +77,9 @@
 **Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
 **Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
+
+## 2026-06-25 - [Prevent DoS via Domain Array Validation]
+
+**Vulnerability:** The web search component validated the maximum number of items in the `includeDomains` and `excludeDomains` arrays (limit 50), but it did not restrict the length of the individual domain string items. This created a potential for resource exhaustion and Denial of Service (DoS) attacks.
+**Learning:** To fully prevent resource exhaustion (DoS) vulnerabilities, you must validate the maximum length of individual string elements within user-supplied arrays in addition to limiting the total array size.
+**Prevention:** Add `maxLength: 255` validation to JSON schemas for array string elements (e.g. domain names) and add corresponding runtime length checks (`some(d => d.length > 255)`) to enforce these limits defensively.
