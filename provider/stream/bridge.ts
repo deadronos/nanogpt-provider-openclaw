@@ -44,7 +44,7 @@ function buildNanoGptBridgeToolCall(toolCall: {
 }): NanoGptToolCall {
   return {
     type: "toolCall",
-    id: `call_${randomUUID().slice(0, 8)}`,
+    id: `call_${randomUUID()}`,
     name: toolCall.name,
     arguments: toolCall.arguments,
   };

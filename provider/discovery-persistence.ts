@@ -141,7 +141,7 @@ export function writeNanogptProviderCatalogToModelsJson(
 
   try {
     fs.mkdirSync(params.agentDir, { recursive: true });
-    const tmpPath = `${modelsPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const tmpPath = `${modelsPath}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
     fs.writeFileSync(tmpPath, `${JSON.stringify({ providers }, null, 2)}\n`);
     fs.renameSync(tmpPath, modelsPath);
     return { ok: true, changed, path: modelsPath };
