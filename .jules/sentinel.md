@@ -77,3 +77,9 @@
 **Vulnerability:** `provider/discovery-persistence.ts` used `Math.random().toString(36)` to generate temp file names. This pseudo-random number generator is predictable, making the application vulnerable to symlink or collision attacks when generating temporary files in shared directories.
 **Learning:** Never use `Math.random()` for any security-sensitive operations, including generating temporary filenames, session IDs, or tokens.
 **Prevention:** Always use cryptographically secure randomness functions, such as `crypto.randomBytes(4).toString('hex')` or `crypto.randomUUID()` from the native `node:crypto` module, to guarantee unpredictability when generating temporary files.
+
+## 2026-07-02 - [MEDIUM] Secure Temporary File Generation
+
+**Vulnerability:** The temporary file path generation in `provider/discovery-persistence.ts` and `provider/stream/bridge.ts` was truncating cryptographically secure UUIDs using `.slice(0, 8)`.
+**Learning:** Truncating a 122-bit UUID down to 8 hex characters significantly reduces its entropy (from $2^{122}$ to $2^{32}$), re-introducing the possibility of predictability and hash collisions, especially for operations that rely on temporary file name uniqueness to avoid symlink or collision attacks.
+**Prevention:** Do not truncate the output of `crypto.randomUUID()`. Always use the full UUID to maintain maximum entropy in security-sensitive scenarios like generating temporary file paths or unique identifiers.
